@@ -1,0 +1,24 @@
+FOBscan decode + classification accuracy — SYNTHETIC test corpus
+================================================================
+All signals are synthetic (fabricated serials/keys). No real vehicle,
+gate, or third-party captures were used. Ground truth = generator label.
+
+Sets: 500   Presses/set: 3   Total signals: 1500
+
+PROTOCOL                N    DECODE%  CLASSIFY%
+--------------------------------------------------------
+KeeLoq-HCS300         117     100.0%     100.0%
+Security+2.0          117     100.0%     100.0%
+Security+1.0          117       3.4%       3.4%
+DoorHan-Rolling       117     100.0%     100.0%
+CAME-12               117     100.0%     100.0%
+Nice-FLO              117     100.0%     100.0%
+Holtek-HT6P20         114     100.0%     100.0%
+FAAC-SLH              114     100.0%     100.0%
+Ansonic-12            114     100.0%     100.0%
+Linear-10             114     100.0%     100.0%
+PT2262                114     100.0%     100.0%
+EV1527                114     100.0%     100.0%
+TPMS                  114     100.0%     100.0%
+--------------------------------------------------------
+OVERALL              1500      92.5%      92.5%

@@ -1,0 +1,58 @@
+name: Build FAP
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - firmware: official
+            label: Official
+            index_url: ""
+          - firmware: unleashed
+            label: Unleashed
+            index_url: https://up.unleashedflip.com/directory.json
+
+    name: Build (${{ matrix.label }})
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install ufbt
+        run: pip install ufbt
+
+      - name: Download SDK (${{ matrix.label }})
+        run: |
+          if [ -n "${{ matrix.index_url }}" ]; then
+            ufbt update --index-url="${{ matrix.index_url }}"
+          else
+            ufbt update
+          fi
+
+      - name: Build FAP (${{ matrix.label }})
+        run: ufbt
+
+      - name: Show build output
+        run: |
+          echo "Built files:"
+          ls -lh dist/*.fap || echo "no .fap found in dist/"
+
+      - name: Upload FAP (${{ matrix.label }})
+        uses: actions/upload-artifact@v5
+        with:
+          name: flipper_fobscan_${{ matrix.firmware }}
+          path: dist/*.fap
+          if-no-files-found: error
+          retention-days: 90
