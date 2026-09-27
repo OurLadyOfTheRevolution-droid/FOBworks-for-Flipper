@@ -8,8 +8,16 @@
 /* 73 entries: real-world KeeLoq manufacturer keys curated from public leaks  */
 /* and field research. Covers gate/garage (EU), automotive/alarm (RU/CIS),   */
 /* and factory default patterns.                                              */
-/* Format: { "Name", 0xKEY, learning_type }                                   */
+/* Format: { "Name", 0xMASKED_KEY, learning_type }                              */
+/* Keys are stored masked; kl_unmask_key() inverts them. tools/mask_mfrkeys.py   */
+/* reverses the whole table. See the note above FLIPPER_MFR_KEYS.                */
 const MfrKey FLIPPER_MFR_KEYS[N_MFR_KEYS] = {
+    /* ── OEM automotive ─────────────────────────────────────────────────── */
+    /*  The one public OEM car KeeLoq key, and the reason N_MFR_KEYS is 73. It was missing
+        from this table while the count already said 73, so index 72 was a zero-initialised
+        entry: name=NULL, key=0. The guards compare against N_MFR_KEYS (73) and so did not
+        exclude it, letting a NULL name reach the derivations and the FOBLoq list. */
+    { "Kia_V3_V4_OEM",  0xCC88E6C23CEC0269ULL, 1 },   /* Simple Learning, Kia/Hyundai V3/V4 */
     /* ── Gate / Garage / Barrier (EU) ──────────────────────────────────── */
     { "DoorHan",        0xC9F1C7E5F53307FDULL, 1 },   /* Simple Learning    */
     { "Beninca_ARC",    0xA2BE75CFB0AD3AA1ULL, 9 },   /* Magic Serial 1     */
