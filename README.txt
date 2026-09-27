@@ -43,6 +43,33 @@ source/deliverables/fobscan-classification-corpus/
   protocol). A force-only protocol scoring 0% on Auto is registry policy, not a
   decoder failure.
 
+  Security+1.0 is reported separately as KNOWN-BROKEN and excluded from the
+  headline figure. See "Known issues" below.
+
+Known issues
+------------
+
+Security+1.0 does not decode. `flipper_decode_secplus1` implements a 40-bit
+binary model with a 4-bit popcount checksum. The real protocol is 42 TERNARY
+symbols -- BIT_0/1/2 are 3T/2T/1T low pulses -- spread over two packets, with no
+checksum field at all. Reference: Flipper-ARF
+`lib/subghz/protocols/secplus_v1.c`, which contains both an encoder and a
+decoder. A frame built to that spec is refused.
+
+The ~3% that do pass are chance matches of the checksum gate, not decodes. This
+is why the corpus row is excluded from the accuracy total rather than averaged
+in: a broken decoder should not be able to hide inside a headline number.
+
+Fixing it means rewriting the decoder to the ternary spec. That needs a real
+capture to validate against, and the generator cannot produce one, because there
+is no checksum to compute -- generating frames that satisfy the current decoder
+would only make a wrong decoder look correct.
+
+Measured: across 180 synthetic signals from the other twelve protocols, the
+Auto path never mis-attributed one to Sec+ 1.0, so its false-positive risk on
+this corpus is low. It remains registered auto_safe in FLIPPER_DECODERS, which
+is the one place the app still presents it as working.
+
 CITATIONS_AND_REFERENCES.md
   Papers, repositories, datasheets, and the in-house measurements behind
   the decoders and the corpus report.

@@ -5,20 +5,39 @@ gate, or third-party captures were used. Ground truth = generator label.
 
 Sets: 500   Presses/set: 3   Total signals: 1500
 
-PROTOCOL                N    DECODE%  CLASSIFY%
---------------------------------------------------------
-KeeLoq-HCS300         117     100.0%     100.0%
-Security+2.0          117     100.0%     100.0%
-Security+1.0          117       3.4%       3.4%
-DoorHan-Rolling       117     100.0%     100.0%
-CAME-12               117     100.0%     100.0%
-Nice-FLO              117     100.0%     100.0%
-Holtek-HT6P20         114     100.0%     100.0%
-FAAC-SLH              114     100.0%     100.0%
-Ansonic-12            114     100.0%     100.0%
-Linear-10             114     100.0%     100.0%
-PT2262                114     100.0%     100.0%
-EV1527                114     100.0%     100.0%
-TPMS                  114     100.0%     100.0%
---------------------------------------------------------
-OVERALL              1500      92.5%      92.5%
+PROTOCOL             N | AUTO-DEC AUTO-CLS |  FRC-DEC  FRC-CLS
+-------------------------------------------------------------------------
+KeeLoq             117 |   100.0%    99.1% |   100.0%   100.0%
+Security+2.0       117 |     0.0%     0.0% |    74.4%    74.4%
+DoorHan            117 |     0.0%     0.0% |   100.0%   100.0%
+CAME               117 |     0.0%     0.0% |   100.0%   100.0%
+Nice-FLO           117 |     0.0%     0.0% |   100.0%   100.0%
+Holtek             114 |     0.0%     0.0% |   100.0%   100.0%
+FAAC-SLH           114 |     0.0%     0.0% |   100.0%   100.0%
+Ansonic            114 |     0.0%     0.0% |   100.0%   100.0%
+Linear             114 |     0.0%     0.0% |   100.0%   100.0%
+PT2262             114 |     0.0%     0.0% |   100.0%   100.0%
+EV1527             114 |     0.0%     0.0% |   100.0%   100.0%
+TPMS               114 |     0.0%     0.0% |   100.0%   100.0%
+-------------------------------------------------------------------------
+OVERALL           1383 |     8.5%     8.4% |    97.8%    97.8%
+(excludes decoders marked known-broken, listed below)
+
+KNOWN-BROKEN DECODERS (not implementable from the generator -- excluded above)
+-------------------------------------------------------------------------
+Security+1.0       117 |     3.4%     3.4% |     3.4%     3.4%
+
+Security+1.0: flipper_decode_secplus1 implements a 40-bit binary model with a
+4-bit popcount checksum. The real protocol is 42 TERNARY symbols (BIT_0/1/2 =
+3T/2T/1T low pulses) over two packets, with no checksum field. Reference:
+Flipper-ARF lib/subghz/protocols/secplus_v1.c (encoder and decoder). A frame
+built to that spec is refused by this decoder. Its row above is the raw figure,
+and the ~3% that pass are chance matches of the checksum gate, not decodes.
+Fixing it means rewriting the decoder to the ternary spec, which needs a real
+capture to validate against; the generator cannot produce one, because there
+is no checksum to compute.
+
+AUTO  = flipper_decode(), auto_safe decoders only (the default path).
+FRC   = flipper_decode_ex() with the protocol forced (after selecting it).
+A force-only protocol scoring 0% in AUTO is the registry policy, not a
+decoder failure: see the auto_safe field in FLIPPER_DECODERS.

@@ -242,22 +242,32 @@ typedef struct {
     uint32_t         te;
     int              rolling;  /* 1 = counter advances per press */
     FlipperForceProto force;   /* id for the force-only path */
+    int              known_broken; /* 1 = the decoder does not implement this protocol.
+                                      Reported separately and EXCLUDED from the headline
+                                      accuracy, so a broken decoder cannot hide inside an
+                                      average. See the note on Security+1.0 below. */
 } ProtoSpec;
 
 static const ProtoSpec CATALOG[N_PROTO] = {
-    { "KeeLoq",          "SynMotors",   "RollGuard",  433.92f, 400, 1, FlipperForceKeeloq },
-    { "Security+2.0",    "SynGate",     "SecPlusII",  315.00f, 250, 1, FlipperForceSecplus2 },
-    { "Security+1.0",    "SynGate",     "SecPlusI",   315.00f, 400, 1, FlipperForceSecplus1 },
-    { "DoorHan",         "SynPortal",   "HanRoll",    433.92f, 800, 1, FlipperForceDoorhan },
-    { "CAME",            "SynBarrier",  "Cam12",      433.92f, 320, 0, FlipperForceCame12 },
-    { "Nice-FLO",        "SynBarrier",  "FloFix",     433.92f, 600, 0, FlipperForceNiceFlo },
-    { "Holtek",          "SynClone",    "HT6",        433.92f, 160, 0, FlipperForceHoltek },
-    { "FAAC-SLH",        "SynPortal",   "SlhFix",     433.92f, 300, 0, FlipperForceFaacSlh },
-    { "Ansonic",         "SynClone",    "Anso12",     433.92f, 600, 0, FlipperForceAnsonic },
-    { "Linear",          "SynBarrier",  "Multi10",    300.00f, 1000, 0, FlipperForceLinear10 },
-    { "PT2262",          "SynClone",    "GatePT",     433.92f, 1000, 0, FlipperForcePt2262 },
-    { "EV1527",          "SynClone",    "GateEV",     315.00f, 640,  0, FlipperForceEv1527 },
-    { "TPMS",            "SynWheel",    "Sensor20",   433.92f, 500,  0, FlipperForceTpms },
+    { "KeeLoq",          "SynMotors",   "RollGuard",  433.92f, 400, 1, FlipperForceKeeloq, 0 },
+    { "Security+2.0",    "SynGate",     "SecPlusII",  315.00f, 250, 1, FlipperForceSecplus2, 0 },
+    /* Security+1.0 is known-broken: flipper_decode_secplus1 implements a 40-bit binary
+       model with a 4-bit popcount checksum, but the real protocol is 42 TERNARY symbols
+       (BIT_0/1/2 = 3T/2T/1T low pulses) across two packets, with NO checksum. The
+       reference encoder and decoder are in Flipper-ARF lib/subghz/protocols/secplus_v1.c.
+       A frame built to that spec is refused. The ~3% that pass are chance matches of the
+       checksum gate, so the row is excluded from the headline rather than averaged in. */
+    { "Security+1.0",    "SynGate",     "SecPlusI",   315.00f, 400, 1, FlipperForceSecplus1, 1 },
+    { "DoorHan",         "SynPortal",   "HanRoll",    433.92f, 800, 1, FlipperForceDoorhan, 0 },
+    { "CAME",            "SynBarrier",  "Cam12",      433.92f, 320, 0, FlipperForceCame12, 0 },
+    { "Nice-FLO",        "SynBarrier",  "FloFix",     433.92f, 600, 0, FlipperForceNiceFlo, 0 },
+    { "Holtek",          "SynClone",    "HT6",        433.92f, 160, 0, FlipperForceHoltek, 0 },
+    { "FAAC-SLH",        "SynPortal",   "SlhFix",     433.92f, 300, 0, FlipperForceFaacSlh, 0 },
+    { "Ansonic",         "SynClone",    "Anso12",     433.92f, 600, 0, FlipperForceAnsonic, 0 },
+    { "Linear",          "SynBarrier",  "Multi10",    300.00f, 1000, 0, FlipperForceLinear10, 0 },
+    { "PT2262",          "SynClone",    "GatePT",     433.92f, 1000, 0, FlipperForcePt2262, 0 },
+    { "EV1527",          "SynClone",    "GateEV",     315.00f, 640,  0, FlipperForceEv1527, 0 },
+    { "TPMS",            "SynWheel",    "Sensor20",   433.92f, 500,  0, FlipperForceTpms, 0 },
 };
 
 /* Synthesize press #p of a fob identified by (proto, serial). */
@@ -392,7 +402,10 @@ int main(int argc, char** argv) {
 
     int dec_ok[N_PROTO] = {0}, cls_ok[N_PROTO] = {0}, cnt[N_PROTO] = {0};
     int fdec_ok[N_PROTO] = {0}, fcls_ok[N_PROTO] = {0};
-    int tot_dec = 0, tot_cls = 0, tot_fdec = 0, tot_fcls = 0, tot = 0;
+    int tot = 0;
+    /* Totals over implemented decoders only. A decoder that does not implement its protocol
+       is reported on its own row and kept out of these, so it cannot hide in the average. */
+    int g_tot = 0, g_tot_dec = 0, g_tot_cls = 0, g_tot_fdec = 0, g_tot_fcls = 0;
 
     FlipperPulseBuf b;
     char proto[40], fproto[40];
@@ -414,10 +427,17 @@ int main(int argc, char** argv) {
             int fdok = strcmp(fproto, "(no-decode)") != 0;
             int fcok = strstr(fproto, s->label) != NULL;
             cnt[proto_id]++; tot++;
-            if(dok)  { dec_ok[proto_id]++;  tot_dec++;  }
-            if(cok)  { cls_ok[proto_id]++;  tot_cls++;  }
-            if(fdok) { fdec_ok[proto_id]++; tot_fdec++; }
-            if(fcok) { fcls_ok[proto_id]++; tot_fcls++; }
+            if(dok)  { dec_ok[proto_id]++;  }
+            if(cok)  { cls_ok[proto_id]++;  }
+            if(fdok) { fdec_ok[proto_id]++; }
+            if(fcok) { fcls_ok[proto_id]++; }
+            if(!s->known_broken) {
+                g_tot++;
+                if(dok)  g_tot_dec++;
+                if(cok)  g_tot_cls++;
+                if(fdok) g_tot_fdec++;
+                if(fcok) g_tot_fcls++;
+            }
 
             char fname[256];
             snprintf(fname, sizeof(fname), "%s_%s%03d_%d_fobA_series%d_press%d.sub",
@@ -450,15 +470,39 @@ int main(int argc, char** argv) {
         "AUTO-DEC", "AUTO-CLS", "FRC-DEC", "FRC-CLS");
     OUT("-------------------------------------------------------------------------\n");
     for(int i = 0; i < N_PROTO; i++) {
-        if(!cnt[i]) continue;
+        if(!cnt[i] || CATALOG[i].known_broken) continue;
         OUT("%-16s %5d | %7.1f%% %7.1f%% | %7.1f%% %7.1f%%\n", CATALOG[i].label, cnt[i],
             100.0 * dec_ok[i] / cnt[i],  100.0 * cls_ok[i] / cnt[i],
             100.0 * fdec_ok[i] / cnt[i], 100.0 * fcls_ok[i] / cnt[i]);
     }
     OUT("-------------------------------------------------------------------------\n");
-    OUT("%-16s %5d | %7.1f%% %7.1f%% | %7.1f%% %7.1f%%\n", "OVERALL", tot,
-        100.0 * tot_dec / tot,  100.0 * tot_cls / tot,
-        100.0 * tot_fdec / tot, 100.0 * tot_fcls / tot);
+    OUT("%-16s %5d | %7.1f%% %7.1f%% | %7.1f%% %7.1f%%\n", "OVERALL", g_tot,
+        100.0 * g_tot_dec / g_tot,  100.0 * g_tot_cls / g_tot,
+        100.0 * g_tot_fdec / g_tot, 100.0 * g_tot_fcls / g_tot);
+    OUT("(excludes decoders marked known-broken, listed below)\n");
+
+    int any_broken = 0;
+    for(int i = 0; i < N_PROTO; i++) if(cnt[i] && CATALOG[i].known_broken) any_broken = 1;
+    if(any_broken) {
+        OUT("\nKNOWN-BROKEN DECODERS (not implementable from the generator -- excluded above)\n");
+        OUT("-------------------------------------------------------------------------\n");
+        for(int i = 0; i < N_PROTO; i++) {
+            if(!cnt[i] || !CATALOG[i].known_broken) continue;
+            OUT("%-16s %5d | %7.1f%% %7.1f%% | %7.1f%% %7.1f%%\n", CATALOG[i].label, cnt[i],
+                100.0 * dec_ok[i] / cnt[i],  100.0 * cls_ok[i] / cnt[i],
+                100.0 * fdec_ok[i] / cnt[i], 100.0 * fcls_ok[i] / cnt[i]);
+        }
+        OUT("\nSecurity+1.0: flipper_decode_secplus1 implements a 40-bit binary model with a\n");
+        OUT("4-bit popcount checksum. The real protocol is 42 TERNARY symbols (BIT_0/1/2 =\n");
+        OUT("3T/2T/1T low pulses) over two packets, with no checksum field. Reference:\n");
+        OUT("Flipper-ARF lib/subghz/protocols/secplus_v1.c (encoder and decoder). A frame\n");
+        OUT("built to that spec is refused by this decoder. Its row above is the raw figure,\n"
+        "and the ~3%% that pass are chance matches of the checksum gate, not decodes.\n");
+        OUT("Fixing it means rewriting the decoder to the ternary spec, which needs a real\n");
+        OUT("capture to validate against; the generator cannot produce one, because there\n"
+            "is no checksum to compute.\n");
+    }
+
     OUT("\nAUTO  = flipper_decode(), auto_safe decoders only (the default path).\n");
     OUT("FRC   = flipper_decode_ex() with the protocol forced (after selecting it).\n");
     OUT("A force-only protocol scoring 0%% in AUTO is the registry policy, not a\n");
