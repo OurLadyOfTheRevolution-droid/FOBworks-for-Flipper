@@ -1,7 +1,6 @@
 /.vscode/
 /tools/test_library_contract
 /tools/test_tx_session
-/tools/test_classify
 /tools/test_link
 /tools/test_rollingpwn
 /tools/test_saved_check

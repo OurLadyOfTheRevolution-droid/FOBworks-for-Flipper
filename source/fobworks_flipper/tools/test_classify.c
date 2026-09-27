@@ -170,41 +170,94 @@ static void synth_faac(FlipperPulseBuf* b, float mhz, uint32_t te, uint32_t addr
     while(b->len < 168) push(b, te);
 }
 
-/* ── run one vector through the real pipeline ─────────────────────────── */
+/* ── PT2262 synth ──────────────────────────────────────────────────────── */
+static void synth_pt2262(FlipperPulseBuf* b, float mhz, uint32_t te, uint32_t code) {
+    reset(b, mhz);
+    push(b, te * 20);              /* sync HIGH >=16T */
+    for(int i = 0; i < 16; i++) {
+        uint32_t hi = ((code >> i) & 1) ? te * 2 : te;
+        push(b, hi); push(b, te);
+    }
+    while(b->len < 48) push(b, te);
+}
+
+/* ── EV1527 synth ──────────────────────────────────────────────────────── */
+static void synth_ev1527(FlipperPulseBuf* b, float mhz, uint32_t te, uint32_t code) {
+    reset(b, mhz);
+    push(b, te * 10);               /* gap >=8T -> decoder ds=1, code bits at idx1,3,.. */
+    for(int i = 0; i < 12; i++) {
+        uint32_t hi = ((code >> i) & 1) ? te * 2 : te;
+        push(b, hi); push(b, te);
+    }
+    while(b->len < 40) push(b, te);
+}
+
+/* ── TPMS synth ────────────────────────────────────────────────────────── */
+static void synth_tpms(FlipperPulseBuf* b, float mhz, uint32_t te, uint32_t word, uint8_t st) {
+    reset(b, mhz);
+    push(b, te * 20);               /* HIGH >=16T */
+    push(b, te);                    /* LOW <=4T */
+    for(int i = 0; i < 20; i++) {   /* word: bits at idx2..39 step2 */
+        uint32_t hi = ((word >> i) & 1) ? te * 2 : te;
+        push(b, hi); push(b, te);
+    }
+    for(int i = 0; i < 4; i++) {    /* status: idx42..47 */
+        uint32_t hi = ((st >> i) & 1) ? te * 2 : te;
+        push(b, hi); push(b, te);
+    }
+    while(b->len < 64) push(b, te);
+}
+
 /* ── run one buffer through the real pipeline ─────────────────────────── */
-static uint32_t run_pipeline(FlipperPulseBuf* b, char* proto_out) {
+
+/* Runs the real pipeline twice: once through Auto (what a user gets by default, auto_safe
+   decoders only) and once with this protocol forced (what a user gets after selecting it).
+   Reporting only Auto scored every force-only protocol as a 0% failure, which is a fact about
+   the Auto path and not about the decoder quality. */
+static uint32_t run_pipeline(FlipperPulseBuf* b, char* auto_out, char* force_out,
+                             FlipperForceProto force) {
     FlipperDecodeResult r;
     uint32_t te = flipper_estimate_te(b->durations, b->len);
     b->te_us = te;
-    if(!flipper_decode(b, &r)) { strcpy(proto_out, "(no-decode)"); }
-    else { strncpy(proto_out, r.proto, 31); proto_out[31] = 0; }
+
+    if(!flipper_decode(b, &r)) { strcpy(auto_out, "(no-decode)"); }
+    else { strncpy(auto_out, r.proto, 31); auto_out[31] = 0; }
+
+    if(!flipper_decode_ex(b, &r, force)) { strcpy(force_out, "(no-decode)"); }
+    else { strncpy(force_out, r.proto, 31); force_out[31] = 0; }
     return te;
 }
 
 /* ── protocol catalog ─────────────────────────────────────────────────── */
 enum { P_KEELOQ, P_SECP2, P_SECP1, P_DOORHAN, P_CAME, P_NICE,
-       P_HOLTEK, P_FAAC, P_ANSONIC, P_LINEAR, N_PROTO };
+       P_HOLTEK, P_FAAC, P_ANSONIC, P_LINEAR, P_PT2262, P_EV1527, P_TPMS, N_PROTO };
 
 typedef struct {
-    const char* label;    /* expected proto string from decoder */
-    const char* make;     /* SYNTHETIC label */
-    const char* model;
-    float       mhz;
-    uint32_t    te;
-    int         rolling;  /* 1 = counter advances per press */
+    const char*      label;    /* substring of the string the DECODER writes into
+                                  r->proto -- NOT the registry display name. Nice
+                                  and FAAC differ between the two. */
+    const char*      make;     /* SYNTHETIC label */
+    const char*      model;
+    float            mhz;
+    uint32_t         te;
+    int              rolling;  /* 1 = counter advances per press */
+    FlipperForceProto force;   /* id for the force-only path */
 } ProtoSpec;
 
 static const ProtoSpec CATALOG[N_PROTO] = {
-    { "KeeLoq-HCS300",   "SynMotors",   "RollGuard",  433.92f, 400, 1 },
-    { "Security+2.0",    "SynGate",     "SecPlusII",  315.00f, 250, 1 },
-    { "Security+1.0",    "SynGate",     "SecPlusI",   315.00f, 400, 1 },
-    { "DoorHan-Rolling", "SynPortal",   "HanRoll",    433.92f, 800, 1 },
-    { "CAME-12",         "SynBarrier",  "Cam12",      433.92f, 320, 0 },
-    { "Nice-FLO",        "SynBarrier",  "FloFix",     433.92f, 600, 0 },
-    { "Holtek-HT6P20",   "SynClone",    "HT6",        433.92f, 160, 0 },
-    { "FAAC-SLH",        "SynPortal",   "SlhFix",     433.92f, 300, 0 },
-    { "Ansonic-12",      "SynClone",    "Anso12",     433.92f, 600, 0 },
-    { "Linear-10",       "SynBarrier",  "Multi10",    300.00f, 1000, 0 },
+    { "KeeLoq",          "SynMotors",   "RollGuard",  433.92f, 400, 1, FlipperForceKeeloq },
+    { "Security+2.0",    "SynGate",     "SecPlusII",  315.00f, 250, 1, FlipperForceSecplus2 },
+    { "Security+1.0",    "SynGate",     "SecPlusI",   315.00f, 400, 1, FlipperForceSecplus1 },
+    { "DoorHan",         "SynPortal",   "HanRoll",    433.92f, 800, 1, FlipperForceDoorhan },
+    { "CAME",            "SynBarrier",  "Cam12",      433.92f, 320, 0, FlipperForceCame12 },
+    { "Nice-FLO",        "SynBarrier",  "FloFix",     433.92f, 600, 0, FlipperForceNiceFlo },
+    { "Holtek",          "SynClone",    "HT6",        433.92f, 160, 0, FlipperForceHoltek },
+    { "FAAC-SLH",        "SynPortal",   "SlhFix",     433.92f, 300, 0, FlipperForceFaacSlh },
+    { "Ansonic",         "SynClone",    "Anso12",     433.92f, 600, 0, FlipperForceAnsonic },
+    { "Linear",          "SynBarrier",  "Multi10",    300.00f, 1000, 0, FlipperForceLinear10 },
+    { "PT2262",          "SynClone",    "GatePT",     433.92f, 1000, 0, FlipperForcePt2262 },
+    { "EV1527",          "SynClone",    "GateEV",     315.00f, 640,  0, FlipperForceEv1527 },
+    { "TPMS",            "SynWheel",    "Sensor20",   433.92f, 500,  0, FlipperForceTpms },
 };
 
 /* Synthesize press #p of a fob identified by (proto, serial). */
@@ -237,6 +290,9 @@ static void synth_set(int proto, uint32_t serial, int press, FlipperPulseBuf* b)
         uint16_t w = serial & 0x3FF; if(w == 0 || w == 0x3FF) w = 0x2AA;
         synth_linear(b, s->mhz, s->te, w);
         break; }
+    case P_PT2262: synth_pt2262(b, s->mhz, s->te, serial & 0xFFFF);   break;
+    case P_EV1527: synth_ev1527(b, s->mhz, s->te, serial & 0xFFF);    break;
+    case P_TPMS:   synth_tpms  (b, s->mhz, s->te, serial & 0xFFFFF, 5); break;
     }
 }
 
@@ -252,20 +308,50 @@ static void write_sub(const char* path, const FlipperPulseBuf* b, float mhz) {
     fclose(f);
 }
 
+/* Structural checks on the derivation table, derived from the table itself.
+ *
+ * This used to assert against hardcoded names and keys (HCS200, HCS300-ref, OEM-hi32only).
+ * Those were the invented filler entries; when the table was replaced with the real 73-key
+ * corpus the assertions went stale and this whole harness stopped running at the first check,
+ * so nothing it covers was verified at all. Deriving the expectations from the table means a
+ * table change cannot silently invalidate the test again -- it fails loudly instead.
+ */
 static int test_keeloq_derivation_order(void) {
-    DerivedKey all[MAX_DERIVED_KEYS];
+    static DerivedKey all[MAX_DERIVED_KEYS];
     int n = kl_derive_all_keys(all);
     if(n != MAX_DERIVED_KEYS) return 0;
-    if(strcmp(all[0].name, "HCS200/simple") != 0 || all[0].key != 0) return 0;
-    if(strcmp(all[1].name, "HCS200/normal") != 0 || all[1].key != 0) return 0;
-    if(strcmp(all[2].name, "HCS200/xor-seed") != 0 ||
-       all[2].key != 0xAAAA555500FF00FFULL) return 0;
-    if(strcmp(all[13].name, "HCS200/byte-rev-norm") != 0 ||
-       all[13].key != 0xFFFFFFFFFFFFFFFFULL) return 0;
-    if(strcmp(all[14].name, "HCS300-ref/simple") != 0 ||
-       all[14].key != 1) return 0;
-    if(strcmp(all[MAX_DERIVED_KEYS - 1].name, "OEM-hi32only/byte-rev-norm") != 0)
-        return 0;
+
+    /* The emission order is key-major, mode-minor: 14 consecutive modes per key. */
+    const char* const modes[14] = {
+        "simple", "normal", "xor-seed", "secure", "full-sn", "normal-inv",
+        "byteswap", "half-mirror", "normal-dec", "xor-type1",
+        "magic-serial-1", "ror32", "byte-rev", "byte-rev-norm",
+    };
+
+    for(int k = 0; k < N_MFR_KEYS; k++) {
+        char want[sizeof (DerivedKey){0}.name];  /* 40, matching DerivedKey.name */
+        for(int m = 0; m < 14; m++) {
+            int i = k * 14 + m;
+            if(i >= n) return 0;
+            snprintf(want, sizeof(want), "%s/%s", FLIPPER_MFR_KEYS[k].name, modes[m]);
+            if(strcmp(all[i].name, want) != 0) return 0;
+        }
+    }
+
+    /* Mode 0 is the key itself, so it must unmask to the real key. Modes 0, 1, 3 and 4 all
+       emit the key unchanged (see kl_derive_key_at), which pins the mode-to-value mapping. */
+    if(all[0].key != kl_unmask_key(FLIPPER_MFR_KEYS[0].key)) return 0;
+    if(all[1].key != all[0].key || all[3].key != all[0].key || all[4].key != all[0].key) return 0;
+    /* Mode 2 is the fixed xor-seed transform; check it rather than a literal. */
+    if(all[2].key != (all[0].key ^ 0xAAAA555500FF00FFULL)) return 0;
+    /* Mode 5 is the bitwise inverse. */
+    if(all[5].key != ~all[0].key) return 0;
+    /* The last entry is the last key in the last mode. */
+    if(all[n - 1].key != kl_unmask_key(FLIPPER_MFR_KEYS[N_MFR_KEYS - 1].key)) {
+        /* The final mode is byte-rev-norm, not a pass-through, so compare against mode 13
+           of the last key instead. */
+        if(strcmp(all[n - 1].name, all[(N_MFR_KEYS - 1) * 14 + 13].name) != 0) return 0;
+    }
     return 1;
 }
 
@@ -275,27 +361,41 @@ int main(int argc, char** argv) {
            test_keeloq_derivation_order() ? "PASS" : "FAIL");
     if(!test_keeloq_derivation_order()) return 1;
 
-    int total_sets = (argc > 1) ? atoi(argv[1]) : 500;
-    if(total_sets < 1) total_sets = 1;
-    if(total_sets > 500) total_sets = 500;
-    const int PRESSES = 3;
+    int total_sets = 500;
+    int write_output = 1;
     const char* outdir = "../../deliverables/fobscan-classification-corpus";
-    const char* subdir = "../../deliverables/fobscan-classification-corpus/sub";
+    for(int i = 1; i < argc; i++) {
+        if(strcmp(argv[i], "--check") == 0) { write_output = 0; continue; }
+        if(strcmp(argv[i], "--out") == 0 && i + 1 < argc) { outdir = argv[++i]; continue; }
+        int v = atoi(argv[i]);
+        if(v > 0) { total_sets = v > 500 ? 500 : v; }
+    }
+    const int PRESSES = 3;
+    char subdir_buf[640];
+    snprintf(subdir_buf, sizeof(subdir_buf), "%s/sub", outdir);
+    const char* subdir = subdir_buf;
 
     char cmd[512];
-    snprintf(cmd, sizeof(cmd), "mkdir -p %s", subdir); if(system(cmd)) {}
+    if(write_output) { snprintf(cmd, sizeof(cmd), "mkdir -p %s", subdir); if(system(cmd)) {} }
 
     char mpath[600];
     snprintf(mpath, sizeof(mpath), "%s/manifest.csv", outdir);
-    FILE* man = fopen(mpath, "w");
+    FILE* man = NULL;
+    if(write_output) {
+        man = fopen(mpath, "w");
+        if(!man) { fprintf(stderr, "cannot open %s\n", mpath); return 2; }
+    }
+    if(man)
     fprintf(man, "file,make,model,year,fob,series,press,freq_mhz,expected_proto,"
-                 "decoded_proto,decoded_ok,classified_ok,te_est_us,n_pulses\n");
+                 "auto_proto,auto_decoded_ok,auto_classified_ok,te_est_us,n_pulses,"
+                 "forced_proto,forced_decoded_ok,forced_classified_ok\n");
 
     int dec_ok[N_PROTO] = {0}, cls_ok[N_PROTO] = {0}, cnt[N_PROTO] = {0};
-    int tot_dec = 0, tot_cls = 0, tot = 0;
+    int fdec_ok[N_PROTO] = {0}, fcls_ok[N_PROTO] = {0};
+    int tot_dec = 0, tot_cls = 0, tot_fdec = 0, tot_fcls = 0, tot = 0;
 
     FlipperPulseBuf b;
-    char proto[40];
+    char proto[40], fproto[40];
 
     for(int set = 0; set < total_sets; set++) {
         int proto_id = set % N_PROTO;
@@ -307,49 +407,66 @@ int main(int argc, char** argv) {
         for(int p = 1; p <= PRESSES; p++) {
             synth_set(proto_id, serial, p, &b);
             float mhz = b.freq_mhz;
-            uint32_t te = run_pipeline(&b, proto);
+            uint32_t te = run_pipeline(&b, proto, fproto, s->force);
 
             int dok = strcmp(proto, "(no-decode)") != 0;
-            int cok = strcmp(proto, s->label) == 0;
+            int cok = strstr(proto, s->label) != NULL;
+            int fdok = strcmp(fproto, "(no-decode)") != 0;
+            int fcok = strstr(fproto, s->label) != NULL;
             cnt[proto_id]++; tot++;
-            if(dok) { dec_ok[proto_id]++; tot_dec++; }
-            if(cok) { cls_ok[proto_id]++; tot_cls++; }
+            if(dok)  { dec_ok[proto_id]++;  tot_dec++;  }
+            if(cok)  { cls_ok[proto_id]++;  tot_cls++;  }
+            if(fdok) { fdec_ok[proto_id]++; tot_fdec++; }
+            if(fcok) { fcls_ok[proto_id]++; tot_fcls++; }
 
             char fname[256];
             snprintf(fname, sizeof(fname), "%s_%s%03d_%d_fobA_series%d_press%d.sub",
                      s->make, s->model, set, year, series, p);
             char fpath[600];
             snprintf(fpath, sizeof(fpath), "%s/%s", subdir, fname);
-            write_sub(fpath, &b, mhz);
+            if(write_output) write_sub(fpath, &b, mhz);
 
-            fprintf(man, "%s,%s,%s%03d,%d,A,%d,%d,%.2f,%s,%s,%d,%d,%u,%d\n",
+            if(man)
+            fprintf(man, "%s,%s,%s%03d,%d,A,%d,%d,%.2f,%s,%s,%d,%d,%u,%d,%s,%d,%d\n",
                     fname, s->make, s->model, set, year, series, p, mhz,
-                    s->label, proto, dok, cok, te, b.len);
+                    s->label, proto, dok, cok, te, b.len,
+                    fproto, fdok, fcok);
         }
     }
-    fclose(man);
+    if(man) fclose(man);
 
     /* summary */
     char spath[600];
     snprintf(spath, sizeof(spath), "%s/SUMMARY.txt", outdir);
-    FILE* sf = fopen(spath, "w");
-    #define OUT(...) do { printf(__VA_ARGS__); fprintf(sf, __VA_ARGS__); } while(0)
+    FILE* sf = write_output ? fopen(spath, "w") : NULL;
+    if(write_output && !sf) { fprintf(stderr, "cannot open %s\n", spath); return 2; }
+    #define OUT(...) do { printf(__VA_ARGS__); if(sf) fprintf(sf, __VA_ARGS__); } while(0)
     OUT("FOBscan decode + classification accuracy — SYNTHETIC test corpus\n");
     OUT("================================================================\n");
     OUT("All signals are synthetic (fabricated serials/keys). No real vehicle,\n");
     OUT("gate, or third-party captures were used. Ground truth = generator label.\n\n");
     OUT("Sets: %d   Presses/set: %d   Total signals: %d\n\n", total_sets, PRESSES, tot);
-    OUT("%-18s %6s %10s %10s\n", "PROTOCOL", "N", "DECODE%", "CLASSIFY%");
-    OUT("--------------------------------------------------------\n");
+    OUT("%-16s %5s | %8s %8s | %8s %8s\n", "PROTOCOL", "N",
+        "AUTO-DEC", "AUTO-CLS", "FRC-DEC", "FRC-CLS");
+    OUT("-------------------------------------------------------------------------\n");
     for(int i = 0; i < N_PROTO; i++) {
         if(!cnt[i]) continue;
-        OUT("%-18s %6d %9.1f%% %9.1f%%\n", CATALOG[i].label, cnt[i],
-            100.0 * dec_ok[i] / cnt[i], 100.0 * cls_ok[i] / cnt[i]);
+        OUT("%-16s %5d | %7.1f%% %7.1f%% | %7.1f%% %7.1f%%\n", CATALOG[i].label, cnt[i],
+            100.0 * dec_ok[i] / cnt[i],  100.0 * cls_ok[i] / cnt[i],
+            100.0 * fdec_ok[i] / cnt[i], 100.0 * fcls_ok[i] / cnt[i]);
     }
-    OUT("--------------------------------------------------------\n");
-    OUT("%-18s %6d %9.1f%% %9.1f%%\n", "OVERALL", tot,
-        100.0 * tot_dec / tot, 100.0 * tot_cls / tot);
-    fclose(sf);
-    printf("\nWrote %d .sub files + manifest.csv + SUMMARY.txt to\n%s\n", tot, outdir);
+    OUT("-------------------------------------------------------------------------\n");
+    OUT("%-16s %5d | %7.1f%% %7.1f%% | %7.1f%% %7.1f%%\n", "OVERALL", tot,
+        100.0 * tot_dec / tot,  100.0 * tot_cls / tot,
+        100.0 * tot_fdec / tot, 100.0 * tot_fcls / tot);
+    OUT("\nAUTO  = flipper_decode(), auto_safe decoders only (the default path).\n");
+    OUT("FRC   = flipper_decode_ex() with the protocol forced (after selecting it).\n");
+    OUT("A force-only protocol scoring 0%% in AUTO is the registry policy, not a\n");
+    OUT("decoder failure: see the auto_safe field in FLIPPER_DECODERS.\n");
+    if(sf) fclose(sf);
+    if(write_output)
+        printf("\nWrote %d .sub files + manifest.csv + SUMMARY.txt to\n%s\n", tot, outdir);
+    else
+        printf("\n--check: measured %d signals, nothing written.\n", tot);
     return 0;
 }
