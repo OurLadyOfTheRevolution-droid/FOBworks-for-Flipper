@@ -28,6 +28,21 @@ source/fobworks_flipper/CORPUS_HONESTY.md
   and counts only. Re-run 24 Sep 2026: Auto 11 (6.8%), force-only 144
   (88.9%), no decode 7 (4.3%).
 
+source/deliverables/fobscan-classification-corpus/
+  Synthetic decode/classification corpus: 1500 .sub files over 13 protocols,
+  plus manifest.csv and SUMMARY.txt. Every signal is generated, so it holds no
+  real vehicle or gate data. Regenerate or measure with:
+
+      cd source/fobworks_flipper/tools
+      make corpus            # writes into ../../deliverables/...
+      make test              # measures only, writes nothing
+
+  `make test` runs the generator in --check mode and reports decode and
+  classification accuracy on both the Auto path (flipper_decode, auto_safe
+  decoders only) and the forced path (flipper_decode_ex after selecting a
+  protocol). A force-only protocol scoring 0% on Auto is registry policy, not a
+  decoder failure.
+
 CITATIONS_AND_REFERENCES.md
   Papers, repositories, datasheets, and the in-house measurements behind
   the decoders and the corpus report.
