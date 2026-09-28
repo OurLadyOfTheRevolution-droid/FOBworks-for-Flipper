@@ -3,15 +3,15 @@
 #include <stdio.h>
 
 /* ─────────────────────────────────────────────────────────────────────────── */
-/* Hitag2 Cipher Core — FOBworks implementation.                              */
-/*   Fiat V1 BCM uses Hitag2 with custom filter + LFSR feedback.              */
-/*   Renault V1 uses standard Hitag2 with brute-force support.                */
+/* Hitag2 cipher helpers.                                                     */
+/*   Fiat V1 BCM uses a custom filter and LFSR feedback.                      */
+/*   Renault V1 uses standard Hitag2 with a limited key-search helper.        */
 /* ─────────────────────────────────────────────────────────────────────────── */
 
 /* ── Hitag2 Filter Functions (Fiat V1 BCM) ──────────────────────────────── */
 /* Source: FOBworks protocol database                                         */
 static uint32_t hitag2_fiat_filter(uint64_t state) {
-    /* Filter function fa=0x2C79, fb=0x6671, combined with fc=0x7907287B */
+    /* Apply the fa=0x2C79 and fb=0x6671 filters, then mask with fc=0x7907287B. */
     uint32_t fa = 0, fb = 0;
 
     /* fa: bits 0,1,4,5,6,17,21,24,25,31,39,40,41,44,45,47 */
@@ -34,7 +34,7 @@ static uint32_t hitag2_fiat_filter(uint64_t state) {
 
     fa = (fa & 0x2C79) ^ ((fa >> 1) & 0x2C79);
 
-    /* fb: similar with different bit positions */
+    /* fb uses a separate set of state-bit positions. */
     fb = ((state >>  2) & 1) << 0  |
          ((state >>  3) & 1) << 1  |
          ((state >>  7) & 1) << 2  |
@@ -73,7 +73,7 @@ static uint64_t hitag2_fiat_feedback(uint64_t state) {
 static uint64_t hitag2_step(uint64_t state, uint64_t key) {
     uint64_t fb = 0;
 
-    /* Standard Hitag2 feedback polynomial */
+    /* Calculate the standard Hitag2 LFSR feedback bit. */
     fb = ((state >>  0) & 1) ^
          ((state >>  1) & 1) ^
          ((state >>  2) & 1) ^
@@ -93,7 +93,7 @@ static uint64_t hitag2_step(uint64_t state, uint64_t key) {
          ((state >> 43) & 1) ^
          ((state >> 47) & 1);
 
-    /* Key mixing */
+    /* Mix in the least-significant key bit. */
     fb ^= (key >> 0) & 1;
 
     return (state >> 1) | (fb << 47);
@@ -101,15 +101,15 @@ static uint64_t hitag2_step(uint64_t state, uint64_t key) {
 
 /* ── Hitag2 Generate Keystream ──────────────────────────────────────────── */
 void hitag2_keystream(uint64_t key, uint32_t uid, uint32_t* out, int words) {
-    /* Initialize state: key in upper 48 bits, UID in lower bits */
+    /* Seed the state with the key and the low 16 bits of the UID. */
     uint64_t state = (key << 16) | (uid & 0xFFFF);
 
-    /* Warm-up: 32 cycles without output */
+    /* Advance 32 cycles before collecting output bits. */
     for(int i = 0; i < 32; i++) {
         state = hitag2_step(state, key);
     }
 
-    /* Generate keystream words */
+    /* Collect the requested number of 32-bit keystream words. */
     for(int i = 0; i < words; i++) {
         uint32_t word = 0;
         for(int j = 0; j < 32; j++) {
@@ -125,7 +125,7 @@ void hitag2_keystream(uint64_t key, uint32_t uid, uint32_t* out, int words) {
 uint32_t hitag2_authenticate(uint64_t key, uint32_t uid, uint32_t challenge) {
     uint64_t state = (key << 16) | (uid & 0xFFFF);
 
-    /* Process challenge (32 bits) */
+    /* Mix the challenge into the state, one bit per cycle. */
     for(int i = 0; i < 32; i++) {
         uint64_t fb = 0;
         fb = ((state >>  0) & 1) ^
@@ -151,7 +151,7 @@ uint32_t hitag2_authenticate(uint64_t key, uint32_t uid, uint32_t challenge) {
         state = (state >> 1) | (fb << 47);
     }
 
-    /* Generate 32-bit response */
+    /* Generate a 32-bit response from the resulting state. */
     uint32_t response = 0;
     for(int i = 0; i < 32; i++) {
         state = hitag2_step(state, key);
@@ -163,8 +163,9 @@ uint32_t hitag2_authenticate(uint64_t key, uint32_t uid, uint32_t challenge) {
 
 /* ── Hitag2 Brute-Force (Renault V1 style) ──────────────────────────────── */
 /* Source: FOBworks protocol database                                         */
-/* Searches 48-bit key space for a key that produces the expected response.  */
-/* Uses work splitting (l0_start/l0_end) for distributed attacks.            */
+/* Check whether candidate keys produce the expected response. The current
+   loop tries only keys 0 through 2^24-1; it does not search the full 48-bit
+   space or split the search across a larger key range. */
 
 bool hitag2_brute_force(uint32_t uid, uint32_t challenge, uint32_t expected,
                         uint64_t* found_key, int max_keys, uint64_t* found_keys,
@@ -174,9 +175,9 @@ bool hitag2_brute_force(uint32_t uid, uint32_t challenge, uint32_t expected,
     int count = 0;
     uint64_t key = 0;
 
-    /* Brute-force through key space (limited to first 2^24 for feasibility) */
-    /* Full 2^48 search requires FPGA or distributed computing.              */
-    uint32_t max_trials = 1 << 24;  /* 16M trials — feasible on-device */
+    /* Limit this on-device pass to 2^24 candidates (16M trials). A complete
+       2^48 search requires substantially more compute. */
+    uint32_t max_trials = 1 << 24;
 
     for(uint32_t i = 0; i < max_trials; i++) {
         key = (uint64_t)i;  /* Low 24 bits of 48-bit key */
@@ -198,16 +199,15 @@ bool hitag2_brute_force(uint32_t uid, uint32_t challenge, uint32_t expected,
 }
 
 /* ── Hitag2 Fiat Invert Init — FOBworks implementation ───────────────────── */
-/* Inverts the initialization phase for Fiat V1 BCM.                         */
-/* Used in the 32-way bitsliced guess-and-determine attack.                  */
+/* Assemble a candidate state from the authenticator and low UID bits. This
+   helper does not invert the full initialization or recover a complete key. */
 
 uint64_t hitag2_fiat_invert_init(uint32_t uid, uint32_t authenticator) {
-    /* Reverse the init phase: state = (key << 16) | (uid & 0xFFFF)          */
-    /* Given uid and authenticator, recover partial key state.               */
+    /* Retain the low UID bits and place the authenticator in the upper half. */
     uint64_t state = 0;
 
-    /* The init phase mixes UID into the lower 16 bits of state.             */
-    /* Inverting: extract key bits from authenticator response.              */
+    /* The current implementation assembles fields directly; it does not
+       invert the cipher's initialization sequence. */
     state = ((uint64_t)authenticator << 16) | (uid & 0xFFFF);
 
     return state;
@@ -215,14 +215,15 @@ uint64_t hitag2_fiat_invert_init(uint32_t uid, uint32_t authenticator) {
 
 /* ── Hitag2 Known Keys (Fiat V1 BCM dictionary) ─────────────────────────── */
 /* Source: FOBworks Hitag2 key database                                     */
-/* 100+ known Fiat V1 Hitag2 keys including factory defaults and patterns.   */
+/* This table lists known Fiat V1 Hitag2 defaults and recognizable key
+   patterns. */
 
 static const Hitag2KnownKey hitag2_known_keys[] = {
-    /* Hardcoded factory keys */
+    /* Listed factory keys. */
     { "B79280AECC37", 0xB79280AECC37 },
     { "D42428F7D966", 0xD42428F7D966 },
     { "4D343FD4E7B6", 0x4D343FD4E7B6 },
-    /* ASCII patterns */
+    /* Keys formed from ASCII patterns. */
     { "MIKRON",       0x4D494B524F4E },
     { "DELPHI",       0x44454C504849 },
     { "MARELLI",      0x4D4152454C4C },
@@ -233,7 +234,7 @@ static const Hitag2KnownKey hitag2_known_keys[] = {
     { "FIAT00",       0x464941543030 },
     { "ALFARO",       0x414C4641524F },
     { "LANCIA",       0x4C414E434941 },
-    /* Default/weak keys */
+    /* Default and weak keys. */
     { "ZERO",         0x000000000000 },
     { "ONES",         0xFFFFFFFFFFFF },
     { "DEADBEEFCAFE", 0xDEADBEEFCAFE },
@@ -252,7 +253,7 @@ int hitag2_known_key_count(void) {
 /* ── Hitag2 Serial Permutation (Renault V1) ─────────────────────────────── */
 /* Source: FOBworks protocol database                                         */
 uint32_t hitag2_serial_permute(uint32_t serial) {
-    /* Permute serial number for Hitag2 authentication */
+    /* Reorder the 28 serial bits using the permutation table below. */
     uint32_t result = 0;
     static const int perm[28] = {
         27, 26, 25, 24, 23, 22, 21, 20,

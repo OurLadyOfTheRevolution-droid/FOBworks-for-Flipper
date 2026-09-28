@@ -75,7 +75,7 @@ static bool rx_consume_capture(FlipperApp* app) {
     rx_update_metrics(state, capture);
     if(state->kind != FlipperRxToolWatch) return true;
 
-    /* Keep the same configured RSSI gate and library policy as FOBscan. */
+    /* Use FOBscan's RSSI threshold and library save settings. */
     if(state->rssi_dbm <= app->adv.squelch_dbm) return true;
     state->captures++;
 
@@ -105,8 +105,7 @@ static void rx_watch_enter(FlipperApp* app, FlipperRxToolKind kind) {
     app->capture->on_edge = rx_edge_cb;
     app->capture->on_edge_ctx = app;
 
-    /* Activate the canvas before touching CC1101 and claim radio ownership
-       before starting RX, matching FOBscan's safe lifecycle ordering. */
+    /* Show the canvas and claim the radio before starting RX, as FOBscan does. */
     view_dispatcher_switch_to_view(app->view_dispatcher, FlipperViewRxTool);
     flipper_app_gui_radio_acquire(app);
     rx_tune(app, FOBSCAN_FREQS[rx_clamp_index(app->adv.freq_idx)]);
@@ -119,8 +118,8 @@ static void rx_hunt_enter(FlipperApp* app) {
     memset(state, 0, sizeof(*state));
     state->kind = FlipperRxToolHunt;
     state->rssi_dbm = RX_TOOL_FLOOR_DBM;
-    /* Default to the common 433 MHz band; bounds are selectable only from
-       the shared, CC1101-valid FOBscan frequency table. */
+    /* Start in the common 433 MHz range. Bounds come from FOBscan's shared
+       table of CC1101 frequencies. */
     state->low_idx = rx_clamp_index(8);
     state->high_idx = rx_clamp_index(10);
     state->cursor_idx = state->low_idx;
@@ -248,7 +247,7 @@ void flipper_rx_tool_draw_cb(Canvas* canvas, void* model) {
                      state->decode.proto, (unsigned long)state->decode.addr);
             canvas_draw_str(canvas, 0, 42, line);
         } else {
-            canvas_draw_str(canvas, 0, 42, "Listening / decoding");
+            canvas_draw_str(canvas, 0, 42, "Listening and decoding");
         }
     } else if(state->decode_valid) {
         snprintf(line, sizeof(line), "%.22s %d bits TE %luus",

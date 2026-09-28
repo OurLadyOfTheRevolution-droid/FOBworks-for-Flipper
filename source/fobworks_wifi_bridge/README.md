@@ -1,21 +1,20 @@
 # FOBworks — Flipper WiFi Devboard Bridge
 
-Turns the official **Flipper WiFi Devboard** (ESP32-S2) — or any ESP32 dev
-module — into a WebSocket-to-UART relay so the FOBworks dashboard can
-drive the Flipper Zero build of FOBscan/FOBclone/FOBcatch/FOBback **without a
-USB tether**.
+This optional bridge uses the official **Flipper WiFi Devboard** (ESP32-S2), or
+another ESP32 development board, to relay WebSocket traffic to the Flipper FAP
+over UART. With the bridge and a compatible dashboard configured, the link can
+be used without a USB tether.
 
 ```
  Dashboard (WiFi mode) ──ws://192.168.4.1:81──► ESP32 bridge ──UART 115200──► Flipper FAP
                         ◄──── JSON lines ───────             ◄──── JSON lines ────
 ```
 
-The bridge is deliberately **transport-dumb**: it forwards whole
-newline-delimited JSON lines in both directions and never parses them. The wire
-schema lives entirely in the Flipper FAP
-(`fobworks_flipper/link/flipper_link_proto.*`). USB (Web Serial) and this
-WiFi path speak the identical protocol, so the dashboard needs no per-transport
-logic.
+The bridge only handles transport: it forwards complete newline-delimited JSON
+lines in both directions and does not parse them. The wire schema is defined
+by the Flipper FAP in `fobworks_flipper/link/flipper_link_proto.*`. USB
+(Web Serial) and the WiFi bridge use the same protocol, so the dashboard does
+not need separate command formats for the two connections.
 
 ## Flashing
 
@@ -27,8 +26,8 @@ logic.
 
 ## Wiring (bring-up seam)
 
-The UART pins facing the Flipper's GPIO header differ by devboard revision.
-Wire the ESP UART to the Flipper's GPIO header:
+The UART pins at the Flipper GPIO header vary by devboard revision. Connect the
+ESP UART to the Flipper GPIO header as shown:
 
 | Flipper GPIO | Signal        | ESP pin (default) |
 |--------------|---------------|-------------------|
@@ -36,29 +35,30 @@ Wire the ESP UART to the Flipper's GPIO header:
 | pin 14 (RX)  | ESP → Flipper | `FLIPPER_UART_TX` = 17 |
 | pin 8/18     | GND           | GND               |
 
-On the official S2 devboard the header UART may be wired to the ESP's UART0
-instead — adjust the two pin defines accordingly. The Flipper FAP's UART link
-(`FlipperLinkUart`) uses USART on pins **13/14 at 115200 8N1**.
+On the official S2 devboard, the header UART may instead connect to ESP UART0;
+adjust the two pin definitions to match your wiring. The FAP's
+`FlipperLinkUart` uses USART on pins **13/14 at 115200 8N1**.
 
 ## Using it
 
-1. Run the FAP and turn **Dashboard link** on in Advanced Settings. The UART
-   stays down until that switch is on.
+1. Run the FAP and enable **Dashboard link** in Advanced Settings. The UART
+   remains disabled until you turn this option on.
 2. Join WiFi network **`FOBworks-Flipper`** using the password you set in the
    sketch (`AP_PASS`). **Security:** the AP password is the only access control.
    Anyone on the AP can send the FAP's link commands. Set a unique password
    before use, keep the link private, and power the bridge off when idle.
-3. Open the FOBworks dashboard over plain http, pick **WiFi**, and connect to
-   `ws://192.168.4.1:81` (no `/ws` path).
-4. Visit `http://192.168.4.1/` for the bridge page and client count. That page
-   is not the dashboard.
+3. Open the FOBworks dashboard over plain HTTP, choose **WiFi**, and connect to
+   `ws://192.168.4.1:81`. Do not add a `/ws` path.
+4. Visit `http://192.168.4.1/` to view the bridge page and client count. This
+   is not the FOBworks dashboard.
 
-> **HTTPS note:** browsers block `ws://` from an `https://` page (mixed
-> content). Serve/open the dashboard over `http://` when using the WiFi bridge,
-> or run it from `localhost`.
+> **HTTPS note:** Browsers block `ws://` connections from an `https://` page as
+> mixed content. When using the WiFi bridge, serve or open the dashboard over
+> `http://`, or run it from `localhost`.
 
 ## Scope
 
-One CC1101, one radio at a time. Multi-radio jam plus capture, multi-channel
-sweep, Toyota-band (SX1278), and CAN/BLE/UWB are outside this hardware. Those
-commands get an `unsupported` reply.
+The bridge supports one CC1101 radio at a time. This hardware does not support
+simultaneous multi-radio jamming and capture, multi-channel sweeps, the
+Toyota-band SX1278, or CAN/BLE/UWB. Commands for those features return
+`unsupported`.

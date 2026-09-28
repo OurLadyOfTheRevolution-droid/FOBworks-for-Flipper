@@ -19,8 +19,7 @@
 #include "protocol/flipper_rollingpwn.h"
 #include "link/flipper_link.h"
 
-/* Shared FOBscan tuning table (defined in flipper_fobscan_app.c) — used by both
-   the FOBscan on-device Up/Down tuning and the Advanced Settings screen. */
+/* Shared FOBscan frequencies, used for on-device tuning and Advanced Settings. */
 extern const float FOBSCAN_FREQS[];
 extern const int   FOBSCAN_FREQ_COUNT;
 #define FOBSCAN_FREQ_DEFAULT 9   /* index of 433.92 MHz */
@@ -73,10 +72,7 @@ typedef enum {
     FlipperSceneCount,
 } FlipperScene;
 
-/*
- * View IDs — kept minimal.  All submenu-style screens (main menu, make/model/year
- * pickers) reuse FlipperViewMenu.  Each custom-canvas screen gets its own slot.
- */
+/* List screens reuse FlipperViewMenu; each custom canvas screen has its own slot. */
 typedef enum {
     FlipperViewMenu,          /* Submenu widget — reused for ALL list screens   */
     FlipperViewVarList,       /* VariableItemList — year picker                  */
@@ -125,8 +121,8 @@ typedef struct {
 } FlipperAdvSettings;
 
 /* ── Mode-specific state ──────────────────────────────────────────────────── */
-/* FOBscan UI mode.  The Left button walks Scan → RangeSet → (confirm) → Sweep;
-   OK during Sweep drops back to Scan on the landed frequency. */
+/* Left opens range setup; confirming starts the sweep. OK stops it on the
+   current frequency and returns to Scan. */
 typedef enum {
     FobscanModeScan = 0,   /* single-frequency live capture                     */
     FobscanModeRangeSet,   /* picking a custom [min,max] sweep range             */
@@ -155,9 +151,8 @@ typedef struct {
     int      linger;        /* Sweep: remaining ticks to dwell on a hot freq     */
 } FlipperFobscanState;
 
-/* FOBsweep — realtime signal-level meter.  Samples RSSI on the selected freq
-   every status tick; auto-advance walks the shared freq table so the bar row
-   fills into a rolling per-frequency spectrum with peak-hold. */
+/* FOBsweep samples RSSI on the selected frequency at each status tick.
+   Auto-advance scans the shared frequency table and keeps each peak reading. */
 typedef struct {
     int      sel_idx;                    /* selected freq (index into table)   */
     bool     auto_advance;              /* OK toggles band auto-sweep          */
@@ -173,9 +168,8 @@ typedef enum {
     FlipperRxToolHunt,
 } FlipperRxToolKind;
 
-/* Shared scalar-only state for FOBwatch/FOBlabs/FOBhunt. The capture engine
-   owns the pulse buffer; retaining only summary metrics keeps these tools
-   memory-safe on the Flipper's constrained heap. */
+/* FOBwatch, FOBlabs, and FOBhunt share this summary state. The capture engine
+   owns the pulse buffer; storing only metrics keeps heap use down. */
 typedef struct {
     FlipperRxToolKind kind;
     bool running;
@@ -205,9 +199,9 @@ typedef struct {
     int         model_idx;
     int         year_idx;
     const FlipperFcProfile* profile;
-    /* Capture buffers are allocated one-at-a-time after the guided pickers
-       close.  Embedding two ~2 KB pulse buffers made merely entering FOBclone
-       request a ~4 KB contiguous heap block and OOM on real devices. */
+    /* Allocate each capture buffer only after the guided pickers close.
+       Embedding both (~2 KB each) made entering FOBclone require a contiguous
+       ~4 KB block, which failed on some devices. */
     FlipperCaptureResult*   cap[2];
     int                 cap_count;
     bool                armed;
@@ -228,10 +222,9 @@ typedef struct {
     float               jam_freq_mhz;
 } FlipperFobcatchState;
 
-/* RollBack captures held for the ordered replay sequence.  Sized to the largest
-   profile n_captures (currently 5); each FlipperCaptureResult carries a ~2 KB
-   pulse buffer, so this array dominates the guided-flow union — do not oversize.
-   If a profile ever needs more captures, raise this in lockstep. */
+/* Holds captures for ordered RollBack replay. The largest profile currently
+   needs five captures; each result includes a ~2 KB pulse buffer. Increase
+   this limit if a profile requires more. */
 #define FLIPPER_FBK_CAPS_MAX 5
 
 typedef struct {
@@ -245,7 +238,7 @@ typedef struct {
     bool                 tx_pending;
 } FlipperFobbackState;
 
-/* FOBpwn — Honda rollback (capture consecutive burst → resync replay). */
+/* FOBpwn collects consecutive Honda frames for a sequence check and replay. */
 #define FLIPPER_FPWN_CAPS_MAX ROLLINGPWN_MAX_CAPS
 typedef struct {
     int               variant_idx;
@@ -267,7 +260,7 @@ typedef struct {
     float             previous_squelch_dbm;
 } FlipperFobpwnState;
 
-/* FOBcrack — one listen, then a listed manufacturer key or the serial. */
+/* FOBcrack listens once and reports a listed manufacturer key or the serial. */
 typedef struct {
     bool        armed;
     bool        running;
@@ -281,10 +274,9 @@ typedef struct {
 typedef char FlipperFobpwnStateFitsFobbackBudget[
     sizeof(FlipperFobpwnState) <= sizeof(FlipperFobbackState) ? 1 : -1];
 
-/* The guided flows never run simultaneously, so they overlay one union.
-   This union is the single largest term in the app (fobback.caps ~11 KB), so it
-   is heap-allocated OFF the contiguous FlipperApp block (app->guided) — keeping
-   the one big malloc() small enough to launch within Flipper's tight heap. */
+/* Guided flows never overlap, so they share one union. Its FOBback capture
+   array is about 11 KB; allocate it separately to keep the main app allocation
+   small enough for the Flipper's limited contiguous heap. */
 typedef union {
     FlipperFobcloneState fobclone;
     FlipperFobcatchState fobcatch;
@@ -325,18 +317,15 @@ typedef struct {
     int                  lib_scope_zoom;
     int                  lib_scope_offset;
 
-    /* Mode state. FOBscan/FOBsweep are small and keep persistent on-device
-       tuning, so they stay separate. Guided scenes share a lazily allocated
-       union because the FOBback member contains the large capture buffers
-       (~11 KB). FOBpwn stores only three decoded metadata frames. Each guided
-       setup scene requests its own member size and clears it before use. */
+    /* FOBscan and FOBsweep keep their small tuning state here. Guided scenes
+       share a lazily allocated union because FOBback holds large capture
+       buffers (~11 KB); FOBpwn stores only three decoded frames. */
     FlipperFobscanState  fobscan;
     FlipperFobsweepState fobsweep;
     FlipperRxToolState   rx_tool;
     FlipperGuided*       guided;   /* heap-allocated union (see FlipperGuided) */
 
-    /* FOBscan → Library hand-off: name of the most recently auto-saved capture
-       so the live feed can jump straight into the Library item screen. */
+    /* Lets FOBscan open the most recently auto-saved capture in the Library. */
     char                 fobscan_last_saved[FLIPPER_LIB_NAME_MAX];
     bool                 fobscan_last_saved_decoded;
     bool                 fobscan_has_saved;
@@ -372,11 +361,9 @@ typedef struct {
     uint32_t     boot_tick;          /* furi_get_tick() at app start          */
     uint32_t     hb_last_tick;       /* last heartbeat emit                    */
 
-    /* Remote-control (headless) state — owns the radio only when no GUI
-       scene is driving it (gui_radio_active == false). */
-    /* Serializes all radio access driven by the two link RX threads (USB/UART)
-       and guards reads of gui_radio_active.  GUI scenes own the radio while
-       gui_radio_active is set, at which point dispatch refuses radio ops. */
+    /* Headless control uses the radio only when no GUI scene owns it.
+       This mutex serializes radio requests from the USB and UART RX threads
+       and protects gui_radio_active. */
     FuriMutex*           radio_mutex;
     bool                 gui_radio_active;
     bool                 remote_scanning;
@@ -386,13 +373,13 @@ typedef struct {
     bool                 remote_last_valid;
 } FlipperApp;
 
-/* Broadcast a pre-formatted line to every attached transport (link dispatch). */
+/* Send a pre-formatted line to every connected transport. */
 void flipper_app_broadcast(FlipperApp* app, const char* line, size_t len);
 void flipper_app_tx_done(void* ctx);
 void flipper_app_gui_tx_done(void* ctx);
 
-/* Guided-flow union lifecycle: allocate on entering a guided make-scene, free on
-   return to the main menu (see FlipperGuided).  ensure() is idempotent. */
+/* Allocate guided-flow state when a flow starts; release it on return to the
+   main menu. ensure() can be called more than once. */
 bool flipper_guided_ensure(FlipperApp* app, size_t bytes);
 void flipper_guided_release(FlipperApp* app);
 
@@ -400,8 +387,7 @@ void flipper_guided_release(FlipperApp* app);
 void flipper_adv_settings_load(FlipperApp* app);
 void flipper_adv_settings_save(FlipperApp* app);
 
-/* Allocate/free the USB+UART dashboard links on demand.  Both are null-safe and
- * idempotent so they can be toggled at runtime from Advanced Settings. */
+/* Start or stop the USB and UART dashboard links. Safe to call repeatedly. */
 void flipper_links_ensure(FlipperApp* app);
 void flipper_links_release(FlipperApp* app);
 
@@ -420,13 +406,13 @@ bool flipper_info_input_cb(InputEvent* e, void* ctx);
 void flipper_credits_draw_cb (Canvas* c, void* ctx);
 bool flipper_credits_input_cb(InputEvent* e, void* ctx);
 
-/* GUI radio ownership handoff (defined in link dispatch).  A scene MUST call
-   acquire() BEFORE it starts the radio and release() AFTER it stops, so the
-   remote RX thread never drives the CC1101 concurrently → furi_check. */
+/* A scene must acquire radio ownership before starting the radio and release
+   it after stopping. This keeps the remote RX thread from using the CC1101
+   at the same time. */
 void flipper_app_gui_radio_acquire(FlipperApp* app);
 void flipper_app_gui_radio_release(FlipperApp* app);
 
-/* canvas draw / input callback declarations (defined in scene files) */
+/* Canvas draw and input callbacks, defined in the scene files. */
 void flipper_fobscan_draw_cb (Canvas* c, void* ctx);
 bool flipper_fobscan_input_cb(InputEvent* e, void* ctx);
 void flipper_fobclone_draw_cb (Canvas* c, void* ctx);

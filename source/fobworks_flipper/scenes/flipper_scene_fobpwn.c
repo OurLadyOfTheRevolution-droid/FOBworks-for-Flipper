@@ -4,8 +4,8 @@
 #include <stdio.h>
 #include <string.h>
 
-/* These regional choices are receive profiles only. They are not vehicle
-   profiles and do not imply that the experimental decoder is validated. */
+/* These are regional receive settings, not vehicle profiles. The experimental
+   decoder has not been validated. */
 static const struct {
     const char* name;
     float frequency_mhz;
@@ -185,7 +185,7 @@ void flipper_scene_fobpwn_run_on_enter(void* ctx) {
 }
 
 static bool fobpwn_is_honda_candidate_frame(const FlipperCaptureResult* result) {
-    /* KeeLoq (HCS300 Honda), Honda-KR5*, or the provisional Honda-RKE? layout. */
+    /* Accept rolling KeeLoq, Honda-KR5*, and provisional Honda-RKE? decodes. */
     return result->decode_ok && result->decode.rolling &&
            (strncmp(result->decode.proto, "KeeLoq", 6) == 0 ||
             strncmp(result->decode.proto, "Honda", 5) == 0);

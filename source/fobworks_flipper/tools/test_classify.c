@@ -1,7 +1,7 @@
-/* Synthetic KeeLoq/OOK decode+classification test harness.
- * Generates SYNTHETIC labeled signals (fabricated keys/serials — no real
- * vehicle data), runs them through the real flipper_decode() pipeline, and
- * scores how many decode and classify to the expected protocol.
+/* Synthetic decode/classification harness for KeeLoq and OOK signals.
+ * It generates labeled test frames with fabricated keys and serials (no real
+ * vehicle data), runs them through flipper_decode(), and checks the results
+ * against each frame's expected protocol.
  *
  * Build: gcc -I../protocol test_classify.c ../protocol/flipper_keeloq.c \
  *            ../protocol/flipper_decoders.c -o test_classify
@@ -11,6 +11,16 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+
+/* Longest output directory accepted on the command line. The paths built from
+ * it are sized from this, so the snprintf calls below cannot truncate — GCC's
+ * -Wformat-truncation is exact about that, and -Werror makes it fatal. */
+#define OUTDIR_MAX 240
+
+/* Longest generated .sub filename: make (23) + "_" + model (26) + set (3) +
+ * "_" + year (4) + "_fobA_series" + series (<=5) + "_press" + press (1) +
+ * ".sub" + NUL. 96 covers the longest catalogue entry with room to spare. */
+#define FN_MAX 96
 
 /* ── pulse buffer builder ─────────────────────────────────────────────── */
 static void push(FlipperPulseBuf* b, uint32_t d) {
@@ -210,10 +220,9 @@ static void synth_tpms(FlipperPulseBuf* b, float mhz, uint32_t te, uint32_t word
 
 /* ── run one buffer through the real pipeline ─────────────────────────── */
 
-/* Runs the real pipeline twice: once through Auto (what a user gets by default, auto_safe
-   decoders only) and once with this protocol forced (what a user gets after selecting it).
-   Reporting only Auto scored every force-only protocol as a 0% failure, which is a fact about
-   the Auto path and not about the decoder quality. */
+/* Test both paths: Auto, which uses auto_safe decoders, and the selected
+   protocol's forced decoder. Reporting only Auto would count every force-only
+   protocol as a failure, even when its decoder works. */
 static uint32_t run_pipeline(FlipperPulseBuf* b, char* auto_out, char* force_out,
                              FlipperForceProto force) {
     FlipperDecodeResult r;
@@ -318,20 +327,16 @@ static void write_sub(const char* path, const FlipperPulseBuf* b, float mhz) {
     fclose(f);
 }
 
-/* Structural checks on the derivation table, derived from the table itself.
- *
- * This used to assert against hardcoded names and keys (HCS200, HCS300-ref, OEM-hi32only).
- * Those were the invented filler entries; when the table was replaced with the real 73-key
- * corpus the assertions went stale and this whole harness stopped running at the first check,
- * so nothing it covers was verified at all. Deriving the expectations from the table means a
- * table change cannot silently invalidate the test again -- it fails loudly instead.
- */
+/* Check derivation order and transformations using the current table. The old
+ * assertions named invented filler entries, so they stopped working when the
+ * real 73-key corpus replaced them. Building expectations from the table keeps
+ * these checks useful if the table changes again. */
 static int test_keeloq_derivation_order(void) {
     static DerivedKey all[MAX_DERIVED_KEYS];
     int n = kl_derive_all_keys(all);
     if(n != MAX_DERIVED_KEYS) return 0;
 
-    /* The emission order is key-major, mode-minor: 14 consecutive modes per key. */
+    /* Keys are emitted in order, with 14 derivation modes for each key. */
     const char* const modes[14] = {
         "simple", "normal", "xor-seed", "secure", "full-sn", "normal-inv",
         "byteswap", "half-mirror", "normal-dec", "xor-type1",
@@ -348,18 +353,16 @@ static int test_keeloq_derivation_order(void) {
         }
     }
 
-    /* Mode 0 is the key itself, so it must unmask to the real key. Modes 0, 1, 3 and 4 all
-       emit the key unchanged (see kl_derive_key_at), which pins the mode-to-value mapping. */
+    /* Modes 0, 1, 3, and 4 return the original unmasked key. */
     if(all[0].key != kl_unmask_key(FLIPPER_MFR_KEYS[0].key)) return 0;
     if(all[1].key != all[0].key || all[3].key != all[0].key || all[4].key != all[0].key) return 0;
-    /* Mode 2 is the fixed xor-seed transform; check it rather than a literal. */
+    /* Mode 2 applies the fixed XOR-seed transform. */
     if(all[2].key != (all[0].key ^ 0xAAAA555500FF00FFULL)) return 0;
-    /* Mode 5 is the bitwise inverse. */
+    /* Mode 5 returns the bitwise inverse. */
     if(all[5].key != ~all[0].key) return 0;
-    /* The last entry is the last key in the last mode. */
+    /* The final entry belongs to the final key and derivation mode. */
     if(all[n - 1].key != kl_unmask_key(FLIPPER_MFR_KEYS[N_MFR_KEYS - 1].key)) {
-        /* The final mode is byte-rev-norm, not a pass-through, so compare against mode 13
-           of the last key instead. */
+            /* byte-rev-norm transforms the key rather than passing it through. */
         if(strcmp(all[n - 1].name, all[(N_MFR_KEYS - 1) * 14 + 13].name) != 0) return 0;
     }
     return 1;
@@ -381,11 +384,18 @@ int main(int argc, char** argv) {
         if(v > 0) { total_sets = v > 500 ? 500 : v; }
     }
     const int PRESSES = 3;
-    char subdir_buf[640];
+    /* Bound the output directory before it is used to size anything else. The
+       default is 41 characters; the cap exists so the buffers below can be
+       sized from a known maximum and the copies provably cannot truncate. */
+    if(strlen(outdir) > OUTDIR_MAX) {
+        fprintf(stderr, "outdir too long (max %d): %s\n", OUTDIR_MAX, outdir);
+        return 2;
+    }
+    char subdir_buf[OUTDIR_MAX + 8];            /* outdir + "/sub" + NUL */
     snprintf(subdir_buf, sizeof(subdir_buf), "%s/sub", outdir);
     const char* subdir = subdir_buf;
 
-    char cmd[512];
+    char cmd[OUTDIR_MAX + 8 + 16];              /* "mkdir -p " + subdir + NUL */
     if(write_output) { snprintf(cmd, sizeof(cmd), "mkdir -p %s", subdir); if(system(cmd)) {} }
 
     char mpath[600];
@@ -403,8 +413,8 @@ int main(int argc, char** argv) {
     int dec_ok[N_PROTO] = {0}, cls_ok[N_PROTO] = {0}, cnt[N_PROTO] = {0};
     int fdec_ok[N_PROTO] = {0}, fcls_ok[N_PROTO] = {0};
     int tot = 0;
-    /* Totals over implemented decoders only. A decoder that does not implement its protocol
-       is reported on its own row and kept out of these, so it cannot hide in the average. */
+    /* Keep unimplemented decoders out of the overall totals; their separate
+       rows should not affect the reported accuracy. */
     int g_tot = 0, g_tot_dec = 0, g_tot_cls = 0, g_tot_fdec = 0, g_tot_fcls = 0;
 
     FlipperPulseBuf b;
@@ -439,10 +449,10 @@ int main(int argc, char** argv) {
                 if(fcok) g_tot_fcls++;
             }
 
-            char fname[256];
+            char fname[FN_MAX];                 /* see FN_MAX below */
             snprintf(fname, sizeof(fname), "%s_%s%03d_%d_fobA_series%d_press%d.sub",
                      s->make, s->model, set, year, series, p);
-            char fpath[600];
+            char fpath[OUTDIR_MAX + 8 + 1 + FN_MAX];  /* subdir + "/" + fname */
             snprintf(fpath, sizeof(fpath), "%s/%s", subdir, fname);
             if(write_output) write_sub(fpath, &b, mhz);
 
@@ -461,10 +471,11 @@ int main(int argc, char** argv) {
     FILE* sf = write_output ? fopen(spath, "w") : NULL;
     if(write_output && !sf) { fprintf(stderr, "cannot open %s\n", spath); return 2; }
     #define OUT(...) do { printf(__VA_ARGS__); if(sf) fprintf(sf, __VA_ARGS__); } while(0)
-    OUT("FOBscan decode + classification accuracy — SYNTHETIC test corpus\n");
+    OUT("FOBscan decode and classification accuracy — synthetic test corpus\n");
     OUT("================================================================\n");
-    OUT("All signals are synthetic (fabricated serials/keys). No real vehicle,\n");
-    OUT("gate, or third-party captures were used. Ground truth = generator label.\n\n");
+    OUT("All signals are synthetic and use fabricated serials and keys. No real\n");
+    OUT("vehicle, gate, or third-party captures were used. Ground truth comes from\n");
+    OUT("the generator's label.\n\n");
     OUT("Sets: %d   Presses/set: %d   Total signals: %d\n\n", total_sets, PRESSES, tot);
     OUT("%-16s %5s | %8s %8s | %8s %8s\n", "PROTOCOL", "N",
         "AUTO-DEC", "AUTO-CLS", "FRC-DEC", "FRC-CLS");
@@ -479,7 +490,7 @@ int main(int argc, char** argv) {
     OUT("%-16s %5d | %7.1f%% %7.1f%% | %7.1f%% %7.1f%%\n", "OVERALL", g_tot,
         100.0 * g_tot_dec / g_tot,  100.0 * g_tot_cls / g_tot,
         100.0 * g_tot_fdec / g_tot, 100.0 * g_tot_fcls / g_tot);
-    OUT("(excludes decoders marked known-broken, listed below)\n");
+    OUT("(Decoders marked known-broken, listed below, are excluded from these totals.)\n");
 
     int any_broken = 0;
     for(int i = 0; i < N_PROTO; i++) if(cnt[i] && CATALOG[i].known_broken) any_broken = 1;
@@ -492,21 +503,23 @@ int main(int argc, char** argv) {
                 100.0 * dec_ok[i] / cnt[i],  100.0 * cls_ok[i] / cnt[i],
                 100.0 * fdec_ok[i] / cnt[i], 100.0 * fcls_ok[i] / cnt[i]);
         }
-        OUT("\nSecurity+1.0: flipper_decode_secplus1 implements a 40-bit binary model with a\n");
-        OUT("4-bit popcount checksum. The real protocol is 42 TERNARY symbols (BIT_0/1/2 =\n");
-        OUT("3T/2T/1T low pulses) over two packets, with no checksum field. Reference:\n");
-        OUT("Flipper-ARF lib/subghz/protocols/secplus_v1.c (encoder and decoder). A frame\n");
-        OUT("built to that spec is refused by this decoder. Its row above is the raw figure,\n"
-        "and the ~3%% that pass are chance matches of the checksum gate, not decodes.\n");
-        OUT("Fixing it means rewriting the decoder to the ternary spec, which needs a real\n");
-        OUT("capture to validate against; the generator cannot produce one, because there\n"
-            "is no checksum to compute.\n");
+        OUT("\n`flipper_decode_secplus1` implements Security+1.0 as a 40-bit binary frame\n");
+        OUT("with a 4-bit popcount checksum. The real protocol uses 42 ternary symbols\n");
+        OUT("(`BIT_0/1/2` = 3T/2T/1T low pulses) over two packets and has no checksum field.\n");
+        OUT("The Flipper-ARF reference at `lib/subghz/protocols/secplus_v1.c` includes an\n");
+        OUT("encoder and decoder. This implementation refuses a frame built to that\n");
+        OUT("specification. The row above shows the raw result; the roughly 3%% of signals\n");
+        OUT("that pass are chance matches to the checksum gate, not successful decodes.\n");
+        OUT("\n");
+        OUT("Fixing this requires rewriting the decoder for the ternary format and checking\n");
+        OUT("it against a real capture. The generator cannot produce that validation data:\n");
+        OUT("the protocol has no checksum to compute.\n");
     }
 
-    OUT("\nAUTO  = flipper_decode(), auto_safe decoders only (the default path).\n");
-    OUT("FRC   = flipper_decode_ex() with the protocol forced (after selecting it).\n");
-    OUT("A force-only protocol scoring 0%% in AUTO is the registry policy, not a\n");
-    OUT("decoder failure: see the auto_safe field in FLIPPER_DECODERS.\n");
+    OUT("\nAUTO uses `flipper_decode()` and only the `auto_safe` decoders; this is the\n");
+    OUT("default path. FRC uses `flipper_decode_ex()` after the protocol has been\n");
+    OUT("selected. A force-only protocol's 0%% AUTO score reflects the registry policy,\n");
+    OUT("not a decoder failure; see the `auto_safe` field in `FLIPPER_DECODERS`.\n");
     if(sf) fclose(sf);
     if(write_output)
         printf("\nWrote %d .sub files + manifest.csv + SUMMARY.txt to\n%s\n", tot, outdir);

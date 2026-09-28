@@ -5,6 +5,7 @@
 /tools/test_rollingpwn
 /tools/test_saved_check
 /tools/test_sim
+/tools/test_classify
 /tools/test_vehicle_decoder
 /tools/sub_check
 /dist/fobworks_flipper_unleashed.fap

@@ -1,20 +1,16 @@
-/* ─────────────────────────────────────────────────────────────────────────── */
-/* sub_check — validate the FOBworks decoders against real Flipper .sub RAW     */
-/* captures.                                                                    */
-/*                                                                              */
-/* Reads one or more .sub files (or directories, scanned recursively), splits   */
-/* each RAW_Data stream into bursts on long gaps / noise, rebuilds a            */
-/* FlipperPulseBuf per burst, and runs the Auto chain (and, if Auto declines,   */
-/* every force-only decoder) against it.  Prints the first decode per file and  */
-/* a protocol histogram at the end.                                             */
-/*                                                                              */
-/* This is a host-side analysis tool, not a unit test: it takes capture paths   */
-/* as arguments so no local path is baked in.                                   */
-/*                                                                              */
-/*   cc -std=c99 -I.. -o sub_check sub_check.c (protocol sources ...)           */
-/*   ./sub_check /path/to/captures            # dir, recursive                  */
-/*   ./sub_check a.sub b.sub                  # explicit files                  */
-/* ─────────────────────────────────────────────────────────────────────────── */
+/* sub_check — inspect decoder results for Flipper .sub RAW captures.
+ *
+ * Pass one or more files or directories. Directories are scanned recursively;
+ * each RAW_Data stream is split into bursts at long gaps or noise. The tool
+ * decodes every burst through Auto and, when Auto declines, the force-only
+ * decoders. It prints the first decode for each file and a protocol histogram.
+ *
+ * This host-side analysis tool takes capture paths as arguments.
+ *
+ *   cc -std=c99 -I.. -o sub_check sub_check.c (protocol sources ...)
+ *   ./sub_check /path/to/captures       # directory, recursive
+ *   ./sub_check a.sub b.sub             # explicit files
+ */
 #include "../protocol/flipper_decoders.h"
 
 #include <ctype.h>

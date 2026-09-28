@@ -1,9 +1,8 @@
-/* test_sim.c — host simulations for on-device paths that can furi_check-crash.
+/* test_sim.c — host checks for on-device paths that can trigger furi_check().
  *
- * These do not (and cannot) drive the Flipper GUI, but they replicate the exact
- * index arithmetic and string parsing the scenes perform, run it against the
- * real vehicle/key tables, and assert every access stays in bounds — the class
- * of bug that surfaces on-device as "furi check failed".
+ * These tests cannot drive the Flipper GUI. They mirror scene index handling
+ * and input parsing against the real vehicle and key tables, then check that
+ * every access stays within bounds.
  *
  * Build: see tools/Makefile target `test_sim`.
  */
@@ -38,12 +37,12 @@ static int g_checks = 0, g_fail = 0;
     } while(0)
 
 /* ── Sim A: guided make→model→year navigation (FOBclone + FOBcatch) ──────── */
-/* Mirrors flipper_scene_fobclone.c / flipper_scene_fobcatch.c exactly:
+/* Mirrors the make/model/year selection in the FOBclone and FOBcatch scenes:
  *   - build unique make list (first-seen order, cap 24)
  *   - per make, collect matching vehicle indices (cap 32)
  *   - per model, the year picker reads v->year_count years[] entries
- * Asserts every stored global index is a valid FLIPPER_FC_VEHICLES[] subscript
- * and every year_count is a usable VariableItemList value count (>0, <=MAX). */
+ * Check each vehicle index and make sure its year_count is valid for
+ * VariableItemList (>0 and <=MAX). */
 static void sim_guided_nav(void) {
     printf("== Sim A: guided make/model/year index safety ==\n");
 
@@ -73,9 +72,8 @@ static void sim_guided_nav(void) {
                   "model global index in bounds");
             const FlipperFcVehicle* v = &FLIPPER_FC_VEHICLES[vidx];
 
-            /* Year picker: variable_item_list_add(..., v->year_count, ...) then
-               set_current_value_index(item, 0). year_count MUST be >=1 or the
-               VariableItemList current-index set furi_checks on-device. */
+            /* The scene adds year_count items, then selects index 0. An empty
+               list makes that selection fail an on-device check. */
             CHECK(v->year_count >= 1, "year_count >= 1 (VariableItemList safe)");
             CHECK(v->year_count <= FC_YEARS_MAX, "year_count <= FC_YEARS_MAX");
             for(int y = 0; y < v->year_count; y++)
@@ -90,8 +88,7 @@ static void sim_guided_nav(void) {
 }
 
 /* ── Sim B: FOBLoq key-entry parser ("name, hex") ────────────────────────── */
-/* Byte-for-byte mirror of the parse in flipper_scene_fobloq.c:flipper_kv_entry_cb.
- * Kept in lockstep with that code; if you change one, change the other. */
+/* Mirrors the input parser in flipper_scene_fobloq.c. Keep both copies in sync. */
 static bool parse_kv(const char* text_buf, char name_out[32], uint64_t* key_out) {
     char name[32]; memset(name, 0, sizeof(name));
     char hex[17];  memset(hex, 0, sizeof(hex));
@@ -602,7 +599,7 @@ static void sim_oem_decoders(void) {
 static void sim_registry(void) {
     printf("== Sim G: decoder registry consistency ==\n");
 
-    /* Every force id except Auto has exactly one registry row. */
+    /* Each force id except Auto should have one registry row. */
     CHECK(FLIPPER_DECODER_COUNT == (int)FlipperForceCount - 1,
           "registry covers every force id (minus Auto)");
     for(int id = 1; id < (int)FlipperForceCount; id++) {
@@ -621,7 +618,7 @@ static void sim_registry(void) {
     }
     CHECK(strcmp(flipper_force_proto_name(FlipperForceAuto), "Auto") == 0, "Auto label");
 
-    /* Tiering: strong OEM parsers auto_safe; provisional layouts force-only. */
+    /* Strong OEM parsers are auto_safe; provisional layouts are force-only. */
     struct { FlipperForceProto id; bool want_auto; } tier[] = {
         { FlipperForceKeeloq,   true  }, { FlipperForceGm,     true  },
         { FlipperForceFord,     true  }, { FlipperForceChrysler,true },

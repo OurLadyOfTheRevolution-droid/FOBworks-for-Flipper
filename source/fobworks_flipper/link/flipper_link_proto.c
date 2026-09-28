@@ -27,10 +27,9 @@ struct FlipperLibEntry {
 #include <string.h>
 #include <stdlib.h>
 
-/* ── Tiny JSON scanners (flat objects only — no nesting in inbound cmds) ───── */
+/* Small JSON readers for the flat inbound command objects. */
 
-/* Locate the value that follows "key" : and return a pointer just past the
-   colon and any whitespace/quote.  Returns NULL if the key is absent. */
+/* Return a pointer to the value after key's colon, or NULL if key is absent. */
 static const char* find_value(const char* line, const char* key) {
     char pat[32];
     snprintf(pat, sizeof(pat), "\"%s\"", key);
@@ -43,7 +42,7 @@ static const char* find_value(const char* line, const char* key) {
     return c;
 }
 
-/* Read a string value into buf (without surrounding quotes). */
+/* Copy an unquoted string value into buf. */
 static bool read_str(const char* line, const char* key, char* buf, size_t n) {
     const char* v = find_value(line, key);
     if(!v || *v != '"' || n == 0) return false;
@@ -55,8 +54,8 @@ static bool read_str(const char* line, const char* key, char* buf, size_t n) {
             buf[0] = '\0';
             return false;
         }
-        /* Inbound strings are identifiers, not arbitrary JSON text.  Reject
-           escapes rather than partially decoding a selected library name. */
+        /* These values are identifiers, not general JSON strings. Reject
+           escapes rather than misreading a selected library name. */
         if(*v == '\\') {
             buf[0] = '\0';
             return false;
@@ -74,7 +73,7 @@ static bool read_str(const char* line, const char* key, char* buf, size_t n) {
 static bool read_num(const char* line, const char* key, float* out) {
     const char* v = find_value(line, key);
     if(!v) return false;
-    if(*v == '"') v++;              /* tolerate quoted numbers ("433.92") */
+    if(*v == '"') v++;              /* Accept quoted numbers such as "433.92". */
     char* end = NULL;
     float f = strtof(v, &end);
     if(end == v) return false;
@@ -122,8 +121,8 @@ static FlipperCmdKind classify(const char* name) {
     for(size_t i = 0; i < sizeof(map) / sizeof(map[0]); i++)
         if(strcmp(name, map[i].n) == 0) return map[i].k;
 
-    /* Recognized commands the dashboard sends that a single-CC1101 Flipper
-       cannot honor — replied to honestly rather than silently ignored. */
+    /* Recognized dashboard commands this single-CC1101 device cannot honor.
+       Return an unsupported reply instead of ignoring them. */
     const char* unsupported[] = {
         "dual_band_replay", "cap_range", "sweep_range", "cap_mode", "fast_hop",
         "toy_softid", "set_filter", "relay_status", "fobrelay_status", "fobrelay",
@@ -148,7 +147,7 @@ bool flipper_proto_parse_cmd(const char* line, FlipperCmd* out) {
 
     float f;
     if(read_num(line, "freq", &f)) { out->has_freq = true; out->freq_mhz = f; }
-    /* squelch / generic numeric param — accept several key spellings */
+    /* Accept the supported spellings for the squelch/generic numeric value. */
     if(read_num(line, "val", &f) || read_num(line, "dbm", &f) ||
        read_num(line, "db", &f)) {
         out->has_val = true;
@@ -195,7 +194,7 @@ size_t flipper_proto_emit_heartbeat(
         (unsigned long)uptime_s, cc1101_ok ? "true" : "false", keys_used), n);
 }
 
-/* JSON string escaper for short protocol/mfr fields. */
+/* Escape short protocol and manufacturer strings for JSON output. */
 static void esc(const char* in, char* out, size_t n) {
     if(!out || n == 0) return;
     size_t o = 0;
@@ -232,8 +231,8 @@ size_t flipper_proto_emit_signal(
     esc(r->proto, proto, sizeof(proto));
     esc(r->mfr_name, mfr, sizeof(mfr));
 
-    /* predict{} only when the decoder produced a window; delta!=0 is what the
-       dashboard uses to flag a rolling code as predicted. */
+    /* Include prediction details only when the decoder produced a window.
+       The dashboard uses delta to distinguish predicted rolling codes. */
     char predict[128] = "";
     if(r->rolling && r->predict_window > 0) {
         snprintf(predict, sizeof(predict),

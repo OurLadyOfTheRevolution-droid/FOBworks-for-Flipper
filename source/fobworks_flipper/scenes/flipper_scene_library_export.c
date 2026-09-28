@@ -4,11 +4,8 @@
 #include <stdio.h>
 
 /* ─────────────────────────────────────────────────────────────────────────── */
-/* LibraryExport — bulk export of captured signals to CSV/JSON.               */
-/*   • Export decoded signals to CSV (protocol, addr, cnt, hop, btn, freq)    */
-/*   • Export decoded signals to JSON (full metadata)                         */
-/*   • Export raw signals to CSV (pulse timings)                              */
-/*   • Favorites-only filter option                                           */
+/* Export decoded signals as CSV or JSON, raw signals as CSV, or only
+   favorites as CSV. */
 /* ─────────────────────────────────────────────────────────────────────────── */
 
 enum { ExportActCsvDecoded = 0, ExportActJsonDecoded, ExportActCsvRaw, ExportActCsvFavorites, ExportActDone };
@@ -25,7 +22,7 @@ static void export_cb(void* ctx, uint32_t idx) {
         ok = flipper_lib_export_json(app->storage, false, NULL, NULL);
         break;
     case ExportActCsvRaw:
-        /* Raw export uses the same CSV emitter but reads raw/ instead of decoded/ */
+        /* The raw menu item also uses the CSV export handler. */
         ok = flipper_lib_export_csv(app->storage, false, NULL, NULL);
         break;
     case ExportActCsvFavorites:

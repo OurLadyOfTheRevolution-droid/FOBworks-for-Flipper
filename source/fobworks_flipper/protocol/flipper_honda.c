@@ -3,9 +3,9 @@
 #include <string.h>
 #include <stdio.h>
 
-/* Provisional Honda RKE layout from the uploaded source. This checksum/layout
-   has not been independently verified, so it is force-only and prediction is
-   deliberately disabled. */
+/* This Honda RKE layout comes from the uploaded source and has not been
+   independently verified. Keep the decoder force-only and prediction disabled
+   until the layout and checksum are confirmed. */
 bool flipper_decode_honda(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
     if(!buf || !r || buf->len < 128 || buf->len > FLIPPER_PULSE_MAX) return false;
     uint32_t te = buf->te_us;
@@ -82,9 +82,9 @@ bool flipper_decode_honda_kr5(const FlipperPulseBuf* buf, FlipperDecodeResult* r
     }
     if(te < 40 || te > 140) return false;
 
-    /* Work within the shared 2.5 KiB scratch arena. An input that expands to
-       more than the arena is safely truncated; the complete KR5 frame is still
-       accepted only if its preamble, all payload bits and CRC are present. */
+    /* Stay within the shared 2.5 KiB scratch arena. Truncate oversized
+       expansions; accept a KR5 frame only when its preamble, payload, and CRC
+       all fit in the available data. */
     enum { HK_LVL = FLIPPER_SCRATCH_A / 2, HK_BITS = FLIPPER_SCRATCH_A / 2 };
     uint8_t* lvl = flipper_scratch_a(0, HK_LVL);
     if(!lvl) return false;

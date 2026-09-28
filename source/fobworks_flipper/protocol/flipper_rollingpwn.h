@@ -3,8 +3,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-/* Sequence-candidate analysis only. Honda frame interpretation remains
-   experimental and this module does not establish receiver behavior. */
+/* This module only checks whether captures form a possible counter sequence.
+   Honda's frame interpretation is still experimental; the result does not show
+   that the protocol is vulnerable or that a receiver will resynchronize. */
 #define ROLLINGPWN_MAX_CAPS 3
 
 typedef struct {
@@ -24,9 +25,10 @@ typedef struct {
     char note[64];
 } RollingPwnPlan;
 
-/* Returns true only when all input frames, in capture chronology, are from
-   one serial/command/profile frequency and each masked counter step is within
-   [1, max_delta]. This is not evidence of a vulnerability or resync. */
+/* Return true only if every frame, in capture order, has the same serial,
+   command, and profile frequency, and each masked counter step is in
+   [1, max_delta]. This identifies a candidate sequence, not a vulnerability
+   or a successful resynchronization. */
 bool rollingpwn_analyze(
     const RollingPwnFrame* frames,
     int n,

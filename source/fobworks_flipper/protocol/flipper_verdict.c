@@ -10,7 +10,8 @@ void flipper_session_reset(FlipperSession* s) {
 void flipper_session_push(FlipperSession* s, const FlipperDecodeResult* r) {
     if(!s || !r || !r->proto[0]) return;
     if(s->n > 0 && (s->addr != r->addr || strcmp(s->proto, r->proto) != 0)) {
-        /* New transmitter — start over so the recommendation stays about one fob. */
+        /* A different serial or protocol starts a new session, keeping the
+           recommendation tied to one transmitter. */
         memset(s, 0, sizeof(*s));
     }
     if(s->n == 0) {
@@ -20,7 +21,7 @@ void flipper_session_push(FlipperSession* s, const FlipperDecodeResult* r) {
     s->rolling = r->rolling;
     s->replay = r->replay_vuln;
     if(s->n < FLIPPER_SESSION_MAX) {
-        /* Skip an immediate duplicate counter (button held). */
+        /* A held button may repeat the same counter; keep only one copy. */
         if(s->n == 0 || s->cnt[s->n - 1] != r->cnt)
             s->cnt[s->n++] = r->cnt;
     } else {
@@ -29,7 +30,7 @@ void flipper_session_push(FlipperSession* s, const FlipperDecodeResult* r) {
     }
 }
 
-/* Longest run of counters that step by 1..4 (wrap on 16 bits). */
+/* Find the longest run of counters stepping by 1–4, with 16-bit wraparound. */
 static int session_run(const FlipperSession* s) {
     if(!s || s->n < 2 || !s->rolling) return s ? s->n : 0;
     int best = 1, run = 1;
@@ -42,7 +43,8 @@ static int session_run(const FlipperSession* s) {
     return best;
 }
 
-/* Rough OOK-vs-2FSK hint from edge lengths. Empty string if unsure. */
+/* Guess OOK or 2FSK from paired edge lengths. Leave the hint empty when the
+   timings are too sparse or ambiguous. */
 static void preset_hint(const FlipperPulseBuf* pulses, char* out, size_t n) {
     if(out && n) out[0] = '\0';
     if(!pulses || !out || n < 8 || pulses->len < 16) return;
@@ -54,7 +56,8 @@ static void preset_hint(const FlipperPulseBuf* pulses, char* out, size_t n) {
         uint32_t hi = a > b ? a : b;
         uint32_t lo = a > b ? b : a;
         if(lo == 0) continue;
-        /* PWM OOK: one edge ~2× the other. 2FSK/Manchester: edges similar. */
+        /* OOK PWM tends to pair one long and one short edge; 2FSK/Manchester
+           more often produces similar edge lengths. */
         if(hi > lo + lo / 2) ook++;
         else if(hi < lo + lo / 3) fsk++;
     }

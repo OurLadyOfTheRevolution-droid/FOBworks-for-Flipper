@@ -2,18 +2,14 @@
 #include <notification/notification_messages.h>
 #include <stdio.h>
 
-/* FOBsweep — realtime signal-level meter.  This is the web dashboard "Scan"
- * (frequency sweep / spectrum) tab promoted to its own utility: it samples
- * RSSI on the selected frequency every status tick and, when auto-advance is
- * on, walks the shared freq table so the bottom bar row fills into a rolling
- * per-frequency spectrum with peak-hold.  No decode/replay here — those live in
- * the Library. */
+/* FOBsweep measures RSSI on the selected frequency. Auto-advance scans the
+ * shared frequency table and holds each peak, forming a spectrum across the
+ * lower bar. Decoding and replay are handled in the Library. */
 
 #define SWEEP_FLOOR_DBM (-100.0f)
 #define SWEEP_CEIL_DBM  (-30.0f)
 
-/* Ticks (500 ms each) to dwell on a frequency after a hit while auto-sweeping —
-   matches FOBscan's FOBSCAN_SWEEP_LINGER so both utilities behave identically. */
+/* Hold a detected signal for four 500 ms ticks, matching FOBscan's sweep. */
 #define SWEEP_LINGER 4
 
 static int sweep_count(void) {
@@ -92,9 +88,8 @@ void flipper_fobsweep_draw_cb(Canvas* canvas, void* model) {
     }
 }
 
-/* A raw view_alloc() view only repaints when its model is committed; input
-   handlers mutate app state directly, so force a commit-with-update after a
-   visible change or the meter stays frozen until the view is switched. */
+/* Input handlers change state directly. Commit the model after visible changes
+   so the meter redraws without switching views. */
 static void fobsweep_redraw(FlipperApp* app) {
     view_get_model(app->fobsweep_view);
     view_commit_model(app->fobsweep_view, true);
@@ -189,9 +184,8 @@ bool flipper_scene_fobsweep_on_event(void* ctx, SceneManagerEvent e) {
                 if(s->peak[k] > s->peak[s->peak_idx]) s->peak_idx = k;
 
             if(s->auto_advance) {
-                /* Mirror FOBscan's ranged-sweep rule: linger on a frequency that
-                   shows a signal above the Advanced Settings squelch, then step
-                   on once the dwell expires. */
+                /* Pause on a signal above the squelch, then advance when the
+                   dwell expires. */
                 bool hit = r > app->adv.squelch_dbm;
                 if(hit) {
                     s->linger = SWEEP_LINGER;

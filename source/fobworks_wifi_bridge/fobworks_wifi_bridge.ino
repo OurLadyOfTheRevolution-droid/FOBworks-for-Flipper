@@ -1,26 +1,26 @@
 /*
  * FOBworks — Flipper WiFi Devboard bridge
  *
- * Relays newline-delimited JSON between the dashboard and the Flipper FAP.
- * The dashboard opens ws://192.168.4.1:81 with no path. This sketch does not
- * parse the lines. The FAP speaks that protocol on USART pins 13 and 14,
- * 115200 8N1, after Dashboard link is turned on in Advanced Settings.
+ * Forwards newline-delimited JSON between the dashboard and Flipper app.
+ * The dashboard connects to ws://192.168.4.1:81 (no path). The bridge does
+ * not parse messages; it passes them to the FAP over USART pins 13 and 14 at
+ * 115200 8N1. Turn on Dashboard link in Advanced Settings first.
  *
- * Target: ESP32-S2 (official Flipper WiFi Devboard) or ESP32. Use Serial1 so
- * the USB console stays free. Flipper TX (pin 13) lands on ESP RX, Flipper RX
- * (pin 14) lands on ESP TX.
+ * Target: ESP32-S2 (official Flipper WiFi Devboard) or ESP32. Serial1 keeps
+ * the USB console available. Connect Flipper TX (pin 13) to ESP RX and
+ * Flipper RX (pin 14) to ESP TX.
  *
- * Library: arduinoWebSockets (Links2004). WiFi and WebServer ship with the
- * ESP32 core.
+ * Uses arduinoWebSockets (Links2004); WiFi and WebServer come with the ESP32
+ * core.
  */
 
 #include <WiFi.h>
 #include <WebServer.h>
 #include <WebSocketsServer.h>
 
-/* Anyone on this AP can send the FAP's radio commands. The dashboard sends
- * no WebSocket token, so the AP password is the access control. Change it
- * before you flash. */
+/* Anyone connected to this AP can send radio commands. The dashboard does not
+ * authenticate WebSocket clients, so the AP password is the only access
+ * control. Replace the default before flashing. */
 static const char* AP_SSID = "FOBworks-Flipper";
 static const char* AP_PASS = "CHANGE-ME-unique-strong-pass";
 
@@ -44,10 +44,10 @@ static const char* LANDING =
     "max-width:34rem;margin:3rem auto;padding:0 1rem;line-height:1.5'>"
     "<h1>FOBworks Flipper WiFi Bridge</h1>"
     "<p>Join <b>FOBworks-Flipper</b>, open the FOBworks dashboard over plain "
-    "http, choose <b>WiFi</b>, and connect to "
+    "HTTP, choose <b>WiFi</b>, then connect to "
     "<code>ws://192.168.4.1:81</code>.</p>"
-    "<p>On the Flipper, turn <b>Dashboard link</b> on in Advanced Settings "
-    "before connecting.</p>"
+    "<p>On the Flipper, enable <b>Dashboard link</b> in Advanced Settings "
+    "before you connect.</p>"
     "<p id=st>WebSocket clients: 0</p>"
     "<script>setInterval(async()=>{try{const r=await fetch('/status');"
     "document.getElementById('st').textContent="

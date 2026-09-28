@@ -1,8 +1,8 @@
 #include "../flipper_fobscan_app.h"
 
-/* Generic scrollable text-detail screen, shared by FOBprotos / FOBLoq /
- * FOBrecover.  The caller fills app->info_title + app->info_body (lines split
- * on '\n') then pushes FlipperSceneInfo. */
+/* Scrollable detail view shared by FOBprotos and FOBLoq. The caller fills
+ * app->info_title and app->info_body, with each displayed line separated by
+ * '\n', then opens FlipperSceneInfo. */
 
 void flipper_info_draw_cb(Canvas* canvas, void* model) {
     FlipperApp* app = *(FlipperApp**)model;
@@ -13,7 +13,7 @@ void flipper_info_draw_cb(Canvas* canvas, void* model) {
     canvas_draw_line(canvas, 0, 13, 127, 13);
 
     canvas_set_font(canvas, FontSecondary);
-    /* Render info_body line-by-line, one row every 10 px from y=24. */
+    /* Draw each info_body line in a 10-pixel row, starting at y=24. */
     const char* p = app->info_body;
     int y = 24;
     char line[48];

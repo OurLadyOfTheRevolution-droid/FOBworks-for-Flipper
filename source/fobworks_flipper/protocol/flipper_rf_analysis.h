@@ -4,21 +4,22 @@
 #include <stddef.h>
 
 /* ─────────────────────────────────────────────────────────────────────────── */
-/* RF Analysis Utilities — FOBworks implementation.                           */
+/* Timing, encoding, entropy, and RF link-budget helpers used by the app. */
 /* ─────────────────────────────────────────────────────────────────────────── */
 
-/* ── Shannon Entropy ─────────────────────────────────────────────────────── */
+/* Entropy buckets describe sample variation only; they do not assess cipher
+   strength. */
 typedef enum {
-    RfEntropyLow,    /* < 2.0 — fixed code, weak crypto */
-    RfEntropyMedium, /* 2.0–6.0 — simple rolling code */
-    RfEntropyHigh,   /* >= 6.0 — strong crypto (AES-like) */
+    RfEntropyLow,    /* entropy < 2.0 */
+    RfEntropyMedium, /* 2.0 <= entropy < 6.0 */
+    RfEntropyHigh,   /* entropy >= 6.0 */
 } RfEntropyClass;
 
 float rf_analysis_shannon_entropy(const uint8_t* data, size_t len);
 RfEntropyClass rf_analysis_entropy_class(float entropy);
 const char* rf_analysis_entropy_label(RfEntropyClass cls);
 
-/* ── Encoding Classifier ─────────────────────────────────────────────────── */
+/* Classify a likely encoding from the estimated symbols-per-bit ratio. */
 typedef enum {
     RfEncodingUnknown,
     RfEncodingNRZ,         /* symbols_per_bit == 1 */

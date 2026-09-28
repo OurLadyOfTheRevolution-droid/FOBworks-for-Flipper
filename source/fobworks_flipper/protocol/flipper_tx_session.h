@@ -4,9 +4,9 @@
 #include <stdint.h>
 
 /*
- * Pure TX safety/session contract.  It deliberately has no Furi or radio
- * dependency so the ownership, deadline and cancellation rules can be tested
- * on a host build as well as used by the CC1101 adapter.
+ * TX session and safety rules, kept independent of Furi and radio code so host
+ * tests can exercise ownership, deadlines, and cancellation. The CC1101 adapter
+ * uses the same contract on device.
  */
 typedef enum {
     FlipperTxKindNone = 0,
@@ -57,7 +57,7 @@ typedef struct {
     FlipperTxCancelReason cancel_reason;
     FlipperTxPolicy policy;
     uint32_t operation_id;
-    uint32_t request_id; /* external correlation only; never used for ownership */
+    uint32_t request_id; /* correlates external requests; ownership uses owner_id */
     uint32_t owner_id;
     uint32_t started_ms;
     uint32_t deadline_ms;

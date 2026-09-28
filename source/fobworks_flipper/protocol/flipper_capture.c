@@ -37,9 +37,9 @@ static bool flipper_capture_notify_start(FlipperCaptureEngine* e) {
     bool need = !reap && !e->notify_thread &&
                 (e->on_edge || e->tx_work != FlipperTxWorkIdle);
     if(need) {
-        /* Publish the thread handle and running state under the same mutex as
-           tx_work.  A concurrent enqueue therefore cannot observe a worker
-           committed to exit and leave work unserviced. */
+        /* Publish the handle and running state while holding the tx_work
+           mutex. Otherwise, a concurrent enqueue could see a worker that is
+           already exiting and leave its request without a worker to service it. */
         e->notify_run = true;
         e->notify_thread = furi_thread_alloc_ex(
             "FlipperCapNotify", 2048, flipper_capture_notify_worker, e);
@@ -75,7 +75,8 @@ static LevelDuration flipper_tx_cb(void* ctx) {
 }
 
 /*
- * SubGHz usage pattern for FAPs in firmware 1.4.x:
+ * Acquire and release the SubGHz device through the device API. In firmware
+ * 1.4.x, the receive path used here follows this order:
  *
  *   subghz_devices_init()
  *   device = subghz_devices_get_by_name(SUBGHZ_DEVICE_CC1101_INT_NAME)
@@ -84,7 +85,6 @@ static LevelDuration flipper_tx_cb(void* ctx) {
  *     subghz_devices_idle(device)
  *     subghz_devices_load_preset(device, FuriHalSubGhzPresetOok650Async, NULL)
  *     subghz_devices_set_frequency(device, hz)
- *     subghz_devices_set_rx(device)
  *     subghz_devices_start_async_rx(device, cb, ctx)
  *     ...
  *     subghz_devices_stop_async_rx(device)
@@ -93,8 +93,9 @@ static LevelDuration flipper_tx_cb(void* ctx) {
  *   subghz_devices_end(device)            ← releases HW lock
  *   subghz_devices_deinit()
  *
- * Using raw furi_hal_subghz_*() without begin() leaves the HW owned by the
- * system; every furi_check() on the internal state machine will fire.
+ * Do not replace these calls with raw furi_hal_subghz_*() calls. Without
+ * subghz_devices_begin(), the system still owns the radio and the HAL state
+ * checks fail.
  */
 
 /* ── Preset enum mapping ────────────────────────────────────────────────── */
@@ -131,8 +132,8 @@ FlipperCaptureEngine* flipper_capture_alloc(void) {
 
     /* ISR → thread hand-off for on_edge. */
     e->notify_flag   = furi_event_flag_alloc();
-    /* The callback worker is lazy: remote capture and the RSSI meter do not
-       need it, which avoids a permanent 2 KiB heap reservation. */
+    /* Start the callback worker only when needed. Remote capture and RSSI
+       reads do not use it, so they need not reserve its 2 KiB stack. */
     e->notify_run = false;
     e->notify_thread = NULL;
     e->tx_mutex = furi_mutex_alloc(FuriMutexTypeNormal);
@@ -145,7 +146,7 @@ void flipper_capture_free(FlipperCaptureEngine* e) {
     if(!e) return;
     flipper_capture_stop(e);
     flipper_capture_tx_wait_stopped(e);
-    /* Tear down the notify worker before the device / mutex it may touch. */
+    /* Stop the worker before freeing the device and mutex it can access. */
     if(e->notify_thread) {
         e->notify_run = false;
         furi_event_flag_set(e->notify_flag, FLIPPER_CAP_NOTIFY_STOP);
@@ -182,24 +183,22 @@ void flipper_capture_rx_cb(bool level, uint32_t duration_us, void* ctx) {
     e->levels[e->edge_head] = level;
     e->edge_head             = next;
 
-    /* Burst-level debounce: fire on_edge only once per burst.
-     * edge_pending is cleared by flipper_capture_flush() after the ring is
-     * drained, so the next burst (silence gap + new edges) triggers again.
-     * Without this guard a single 100-edge fob press queues 100 events into
-     * the ViewDispatcher before the first is processed.                       */
+    /* Queue one notification per burst. flipper_capture_flush() clears
+       edge_pending after draining the ring, allowing the next burst to signal.
+       Without this guard, one 100-edge press could fill the ViewDispatcher
+       queue before it processes the first event. */
     if(e->on_edge && !e->edge_pending) {
         e->edge_pending = true;
-        /* ISR-SAFE hand-off: signal the worker thread instead of calling
-           on_edge here.  on_edge → view_dispatcher_send_custom_event does a
-           FuriWaitForever queue put, which furi_check()-fails in ISR context
-           and crashed the app the instant scanning started.  furi_event_flag_set
-           is explicitly ISR-safe. */
+        /* Notify the worker instead of calling on_edge in interrupt context.
+           on_edge calls view_dispatcher_send_custom_event(), which waits
+           forever on a queue and fails its furi_check() in an ISR. The event
+           flag API is safe to call here. */
         if(e->notify_flag) furi_event_flag_set(e->notify_flag, FLIPPER_CAP_NOTIFY_EDGE);
     }
 }
 
-/* One lazy owner task handles both ISR notifications and every TX HAL call.
-   No caller waits for a waveform here; stop/status can run concurrently. */
+/* A single on-demand worker handles edge notifications and all TX HAL calls.
+   Callers can inspect or stop a transmission without waiting for the waveform. */
 static int32_t flipper_capture_notify_worker(void* ctx) {
     FlipperCaptureEngine* e = (FlipperCaptureEngine*)ctx;
     while(e->notify_run) {
@@ -315,8 +314,8 @@ static int32_t flipper_capture_notify_worker(void* ctx) {
         bool idle = e->tx_work == FlipperTxWorkIdle && !e->on_edge;
         if(idle) e->notify_run = false;
         furi_mutex_release(e->tx_mutex);
-        /* Deliver one callback after the burst has been quiet, so the
-           scene flushes a finished packet instead of the first few edges. */
+        /* Wait for a quiet burst before notifying the scene, so it flushes
+           the complete packet rather than only its first edges. */
         if(e->running && e->on_edge && e->edge_pending) {
             int head = e->edge_head;
             if(head != e->edge_mark) {
@@ -358,11 +357,9 @@ void flipper_capture_start(FlipperCaptureEngine* e) {
     subghz_devices_idle(e->device);
     subghz_devices_load_preset(e->device, to_hal_preset(e->preset), NULL);
     subghz_devices_set_frequency(e->device, (uint32_t)(e->freq_mhz * 1e6f));
-    /* Do NOT call subghz_devices_set_rx() here.
-     * subghz_devices_start_async_rx() requires SubGhzStateIdle (furi_check).
-     * set_rx() advances the HAL state to SubGhzStateRx first, causing that
-     * check to fail → null-pointer-dereference crash in the Unleashed HAL.
-     * start_async_rx() handles the Idle → AsyncRx transition internally.  */
+    /* Leave the device idle here. start_async_rx() requires SubGhzStateIdle;
+       calling set_rx() first changes the state to SubGhzStateRx, which fails
+       the Unleashed HAL check. start_async_rx() performs the transition itself. */
 
     e->edge_head    = 0;
     e->edge_tail    = 0;
@@ -402,14 +399,10 @@ void flipper_capture_stop(FlipperCaptureEngine* e) {
         subghz_devices_idle(e->device);
         furi_mutex_release(e->tx_mutex);
     }
-    /* Do NOT call subghz_devices_sleep() here.
-     * sleep() sets HAL state = SubGhzStateSleep.  A subsequent
-     * flipper_capture_start() calls subghz_devices_idle() which in several
-     * Unleashed HAL versions asserts state == Idle or Rx — Sleep is rejected
-     * → crash.  The device stays safely in Idle between captures within
-     * the same session.  sleep() is only needed when releasing the hardware
-     * entirely, which subghz_devices_end() (called in flipper_capture_free)
-     * handles correctly.                                                     */
+    /* Keep the device idle between captures in the same session. In several
+       Unleashed HAL versions, sleep() changes the state to SubGhzStateSleep,
+       which the next idle() call rejects. subghz_devices_end() handles the
+       sleep/release step when flipper_capture_free() gives up the device. */
 }
 
 /* ── Flush edge ring → FlipperPulseBuf + decode ──────────────────────────── */
@@ -422,7 +415,7 @@ bool flipper_capture_flush(FlipperCaptureEngine* e) {
     int tail  = e->edge_tail;
     int count = (head >= tail) ? (head - tail) : (FLIPPER_CAP_EDGE_MAX - tail + head);
 
-    /* Opening the radio fills the ring. Drop that burst, keep listening. */
+    /* Discard edges collected while the radio settles, then keep listening. */
     if(furi_get_tick() < e->rx_hold_until) {
         e->edge_tail = head;
         e->edge_pending = false;
@@ -454,9 +447,9 @@ bool flipper_capture_flush(FlipperCaptureEngine* e) {
 
     furi_mutex_release(e->edge_mutex);
 
-    /* Ring drained — clear the debounce flag so the next burst fires again.
-     * Placed here (after drain, outside mutex) so any ISR edge that arrives
-     * after this point correctly queues a new event for the next burst.      */
+    /* The ring is drained; clear the burst flag so a later ISR edge can queue
+       the next notification. Do this after releasing the mutex to avoid
+       losing an edge that arrives as the buffer is drained. */
     e->edge_pending = false;
     e->edge_quiet = 0;
     e->edge_mark = -1;

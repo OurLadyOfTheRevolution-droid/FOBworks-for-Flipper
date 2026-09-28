@@ -4,10 +4,8 @@
 #include <stdio.h>
 #include <string.h>
 
-/* ── Shared FOBscan tuning table ──────────────────────────────────────────────
- * Common key-fob / gate / TPMS frequencies, all inside the CC1101 valid bands
- * (300-348, 387-464, 779-928 MHz).  Shared by FOBscan on-device Up/Down tuning
- * and the Advanced Settings screen. */
+/* Frequencies used by FOBscan and Advanced Settings. All fall within the
+ * CC1101 bands: 300-348, 387-464, and 779-928 MHz. */
 const float FOBSCAN_FREQS[] = {
     300.00f, 303.87f, 310.00f, 315.00f, 318.00f, 330.00f,
     390.00f, 418.00f, 433.42f, 433.92f, 434.42f, 868.35f, 915.00f,
@@ -18,7 +16,7 @@ const int FOBSCAN_FREQ_COUNT = (int)(sizeof(FOBSCAN_FREQS) / sizeof(FOBSCAN_FREQ
 
 /* ── Advanced Settings persistence ────────────────────────────────────────── */
 void flipper_adv_settings_load(FlipperApp* app) {
-    /* Defaults. */
+    /* Start from known defaults, then replace them with saved values if present. */
     app->adv.freq_idx         = FOBSCAN_FREQ_DEFAULT;
     app->adv.preset           = FlipperPresetOOK650;
     app->adv.squelch_dbm      = -90.0f;
@@ -52,7 +50,7 @@ void flipper_adv_settings_load(FlipperApp* app) {
     storage_file_close(f);
     storage_file_free(f);
 
-    /* Clamp. */
+    /* Reject stored indices and enum values outside their valid ranges. */
     if(app->adv.freq_idx < 0 || app->adv.freq_idx >= FOBSCAN_FREQ_COUNT)
         app->adv.freq_idx = FOBSCAN_FREQ_DEFAULT;
     /* preset/force_proto are unsigned enums (can't be < 0); an out-of-range or
@@ -79,12 +77,12 @@ void flipper_adv_settings_save(FlipperApp* app) {
     storage_file_free(f);
 }
 
-/* ── Dashboard links (opt-in) ─────────────────────────────────────────────── */
+/* ── Optional dashboard links ─────────────────────────────────────────────── */
 void flipper_links_ensure(FlipperApp* app) {
     if(app->usb_link && app->uart_link) return;
 
-    /* Treat the pair as one feature: never leave a USB worker running when
-       the UART worker could not be created (or vice versa). */
+    /* Both links are one feature. Tear down either worker if its partner
+       cannot be created. */
     if(!app->usb_link) app->usb_link = flipper_link_alloc(app, FlipperLinkUsb);
     if(!app->usb_link) goto failed;
     if(!app->uart_link) app->uart_link = flipper_link_alloc(app, FlipperLinkUart);
@@ -93,9 +91,8 @@ void flipper_links_ensure(FlipperApp* app) {
 
 failed:
     flipper_links_release(app);
-    /* Do not repeatedly retry a known failed allocation on this settings
-       session.  The user can explicitly try again after returning to the
-       menu or freeing heap elsewhere. */
+    /* Avoid repeating a failed allocation in this settings session. The user
+       can try again after returning to the menu or freeing heap elsewhere. */
     app->adv.dashboard_link = false;
 }
 
@@ -109,8 +106,8 @@ static void flipper_tick_cb(void* ctx) {
     FlipperApp* app = (FlipperApp*)ctx;
     view_dispatcher_send_custom_event(app->view_dispatcher, FlipperEventStatusTick);
 
-    /* Emit a dashboard heartbeat about once per second so the connected
-       React dashboard sees the device as alive across both links. */
+    /* Send a heartbeat about once per second to dashboard clients on either
+       link. */
     uint32_t now = furi_get_tick();
     if(now - app->hb_last_tick >= furi_ms_to_ticks(1000)) {
         app->hb_last_tick = now;
@@ -128,8 +125,8 @@ static void flipper_tick_cb(void* ctx) {
 /* ── ViewDispatcher navigation / event callbacks ─────────────────────────── */
 static bool flipper_nav_event_cb(void* ctx) {
     FlipperApp* app = (FlipperApp*)ctx;
-    /* Back is a cancellation boundary. The scene's on_exit still performs the
-       ordered HAL stop and ownership release after this marker. */
+    /* Cancel pending TX before navigation. The scene's on_exit stops the radio
+       and releases ownership in order. */
     flipper_capture_tx_cancel(app->capture, 0, FlipperTxCancelBack);
     return scene_manager_handle_back_event(app->scene_manager);
 }
@@ -139,16 +136,14 @@ static bool flipper_custom_event_cb(void* ctx, uint32_t event) {
     return scene_manager_handle_custom_event(app->scene_manager, event);
 }
 
-/* No-op enter callback for the custom canvas views.  This firmware's
-   view_enter path invokes the view's enter_callback; a raw view_alloc()
-   with a NULL enter_callback faults on the first switch, so every custom
-   view gets this stub. */
+/* Custom canvas views need a non-null enter callback: this firmware's view
+   entry path calls it whenever the view is shown. */
 static void flipper_custom_view_enter_cb(void* ctx) {
     UNUSED(ctx);
 }
 
-/* A View draw callback is handed the view MODEL (not the context), so each
-   custom canvas view needs a model that carries the FlipperApp pointer. */
+/* Draw callbacks receive the view model, not the context. Store the
+   FlipperApp pointer in each custom view's model. */
 static void flipper_custom_view_set_model(View* view, FlipperApp* app) {
     view_allocate_model(view, ViewModelTypeLockFree, sizeof(FlipperApp*));
     FlipperApp** m = view_get_model(view);
@@ -159,11 +154,10 @@ static void flipper_custom_view_set_model(View* view, FlipperApp* app) {
 /* ── Guided-flow union lifecycle (heap-allocated off the FlipperApp block) ─── */
 bool flipper_guided_ensure(FlipperApp* app, size_t bytes) {
     if(app->guided) return true;
-    /* Allocate only what the entering flow needs, NOT sizeof(FlipperGuided).
-       The union is dominated by FOBback's caps[] (~11 KB); making every guided
-       flow demand that contiguous block OOM'd FOBclone (needs only ~4 KB) on
-       lower-headroom entries.  bytes is clamped up to the caller's member size
-       and down to the union size for safety. */
+    /* Allocate only the active flow's state. The union is sized for FOBback's
+       capture array (~11 KB), which can exceed available contiguous heap on
+       lower-headroom devices when FOBclone needs only ~4 KB. Clamp the request
+       to the union's size. */
     if(bytes == 0 || bytes > sizeof(FlipperGuided)) bytes = sizeof(FlipperGuided);
     app->guided = malloc(bytes);
     if(!app->guided) return false;
@@ -191,10 +185,8 @@ static FlipperApp* flipper_app_alloc(void) {
     furi_assert(app->capture);
     flipper_capture_tx_set_done_cb(app->capture, flipper_app_tx_done, app);
 
-    /* Guided-flow union (FlipperGuided, ~11 KB at its largest) is NOT allocated
-       here — it is lazily created only while a guided scene is active and freed
-       on return to the main menu, so it is never resident during launch or
-       normal FOBscan use. */
+    /* Allocate guided-flow state only while a guided scene is active. It is
+       released on return to the main menu, keeping launch and FOBscan lean. */
     app->guided        = NULL;
 
     /* Scene manager */
@@ -206,12 +198,8 @@ static FlipperApp* flipper_app_alloc(void) {
     view_dispatcher_set_custom_event_callback(app->view_dispatcher, flipper_custom_event_cb);
     view_dispatcher_set_event_callback_context(app->view_dispatcher, app);
 
-    /*
-     * Register views.
-     * FlipperViewMenu  — one Submenu reused for main menu + all list-style screens.
-     * FlipperViewVarList — one VariableItemList reused for year pickers.
-     * Four custom canvas views for the active/capture screens.
-     */
+    /* Reuse the Submenu for the main menu and list screens, and one
+       VariableItemList for year selection. Capture screens use custom canvases. */
     app->submenu = submenu_alloc();
     view_dispatcher_add_view(app->view_dispatcher, FlipperViewMenu,
                              submenu_get_view(app->submenu));
@@ -325,21 +313,17 @@ static FlipperApp* flipper_app_alloc(void) {
     flipper_lib_init(app->storage);
     flipper_adv_settings_load(app);
 
-    /* Remote-control defaults.  The dashboard links each spawn a 4 KB RX-thread
-       stack (~9 KB heap total); allocating them unconditionally at launch was a
-       major contributor to out-of-memory reboots.  They are now opt-in via the
-       Advanced Settings "Dashboard Link" toggle, allocated last so everything
-       their RX threads touch (flipper_app_handle_command) is already up. */
+    /* Dashboard links each reserve a 4 KB RX-thread stack (~9 KB heap total).
+       Keep them opt-in through Advanced Settings and allocate them only after
+       the objects their workers use are ready. */
     app->boot_tick          = furi_get_tick();
     app->hb_last_tick       = app->boot_tick;
     app->remote_squelch_dbm = -90.0f;
     app->radio_mutex        = furi_mutex_alloc(FuriMutexTypeNormal);
     app->usb_link           = NULL;
     app->uart_link          = NULL;
-    /* Never allocate dashboard workers during launch, even when an older
-       settings file contains link=1.  Each worker reserves LINK_RX_STACK
-       bytes from the app heap; the user can explicitly enable the link from
-       Advanced Settings after the main UI is already visible. */
+    /* Do not start dashboard workers during launch, even if an older settings
+       file enables them. The user can turn them on after the main menu appears. */
 
     return app;
 }
@@ -348,21 +332,18 @@ static FlipperApp* flipper_app_alloc(void) {
 static void flipper_app_free(FlipperApp* app) {
     furi_assert(app);
 
-    /* Stop the periodic tick FIRST — it broadcasts heartbeats through both
-       links, so it must not fire once the links are being freed. */
+    /* Stop the heartbeat timer before freeing either link. */
     furi_timer_stop(app->tick_timer);
     furi_timer_free(app->tick_timer);
 
-    /* Cancel and quiesce TX before touching links.  The owner invokes the
-       completion callback after publishing tx_work idle; wait_stopped also
-       waits for that callback, so broadcasts cannot race link destruction. */
+    /* Finish TX and its callback before freeing links, so broadcasts cannot
+       race link teardown. */
     flipper_capture_tx_cancel(app->capture, 0, FlipperTxCancelAppExit);
     flipper_capture_stop(app->capture);
     flipper_capture_tx_wait_stopped(app->capture);
     flipper_capture_tx_set_done_cb(app->capture, NULL, NULL);
 
-    /* Only now stop/free link RX/TX transports; no completion callback can
-       broadcast through them after this point. */
+    /* No TX callback can broadcast after this point; release both transports. */
     flipper_links_release(app);
     furi_mutex_free(app->radio_mutex);
 

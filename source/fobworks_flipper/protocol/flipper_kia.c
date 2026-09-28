@@ -2,9 +2,8 @@
 #include <string.h>
 
 /* ─────────────────────────────────────────────────────────────────────────── */
-/* KIA/Hyundai Protocol Suite (V0-V7) — FOBworks implementation.              */
-/*   Covers CRC8/4 variants, custom mixer, AES-128 encryption.                */
-/*   Covers CRC8/4 variants, custom mixer, AES-128 encryption.                */
+/* KIA/Hyundai protocol parsers, versions V0 through V7.                      */
+/*   Versions use CRC checks, a custom mixer, or AES-128.                     */
 /* ─────────────────────────────────────────────────────────────────────────── */
 
 /* ── KIA V0: PWM 250/500μs, CRC8 (also Suzuki/Honda/Mitsubishi) ─────────── */
@@ -103,9 +102,9 @@ bool kia_v2_parse(const uint8_t* raw, int raw_bits, KiaV2Frame* out) {
     return ((uint8_t)(expected & 0xFF) == out->crc);
 }
 
-/* ── KIA V3/V4: Manchester 400/800μs, KeeLoq + CRC brute-force ──────────── */
-/* These use standard KeeLoq encryption with manufacturer-specific keys.     */
-/* Decryption is handled by the existing KeeLoq module.                       */
+/* ── KIA V3/V4: Manchester 400/800μs, KeeLoq + 2-bit check ──────────────── */
+/* V3/V4 use standard KeeLoq encryption with manufacturer-specific keys.
+   Key recovery and decryption are handled by the KeeLoq module. */
 bool kia_v3_v4_parse(const uint8_t* raw, int raw_bits, KiaV3V4Frame* out) {
     if(!raw || !out || raw_bits < 66) return false;
 
@@ -126,8 +125,8 @@ bool kia_v3_v4_parse(const uint8_t* raw, int raw_bits, KiaV3V4Frame* out) {
 }
 
 /* ── KIA V5: Manchester 400/800μs, Custom Mixer + Kia V5 key ────────────── */
-/* Source: FOBworks protocol database                                         */
-/* Custom mixer encryption with per-vehicle key from keystore.               */
+/* These frames use a custom mixer and a per-vehicle key from the keystore.
+   Source: FOBworks protocol database. */
 
 static uint8_t kia_v5_mixer_byte(uint8_t input, uint8_t key_byte, int position) {
     /* Mixer: XOR with key, rotate based on position */
@@ -157,8 +156,7 @@ bool kia_v5_parse(const uint8_t* raw, int raw_bits, const uint8_t* key, KiaV5Fra
 }
 
 /* ── KIA V6: Manchester 200/400μs, AES-128 ──────────────────────────────── */
-/* Source: FOBworks protocol database                                         */
-/* 144-bit data frames with AES-128 encryption.                              */
+/* These 144-bit data frames use AES-128. Source: FOBworks protocol database. */
 
 /* AES-128 S-box */
 static const uint8_t aes_sbox[256] = {
@@ -246,8 +244,8 @@ bool kia_v6_parse(const uint8_t* raw, int raw_bits, const uint8_t* key, KiaV6Fra
     aes_key_expansion(key, round_keys);
 
     __attribute__((unused)) uint8_t decrypted[16];
-    /* Note: full AES decrypt requires inverse S-box and inverse operations */
-    /* For now, we store the encrypted data and flag for offline decryption */
+    /* AES decryption is not implemented here: it needs the inverse S-box and
+       inverse round operations. Preserve the ciphertext for offline handling. */
     memcpy(out->encrypted, encrypted, 16);
     out->crc = (raw[16] << 8) | raw[17];
     out->key_index = -1;  /* Needs brute-force or known key */

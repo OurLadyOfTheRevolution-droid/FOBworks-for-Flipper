@@ -2,9 +2,9 @@
 #include <string.h>
 
 /* ─────────────────────────────────────────────────────────────────────────── */
-/* CC1101 Custom Presets — FOBworks optimized configurations.                  */
-/*   Each preset is a full register dump for the CC1101 radio.                */
-/*   Tuned per manufacturer for enhanced RX/TX performance.                   */
+/* CC1101 presets used by the protocol decoders.                               */
+/*   Each entry is a register/value pair for configuring the radio.            */
+/*   The settings vary by modulation, bitrate, and bandwidth.                  */
 /* ─────────────────────────────────────────────────────────────────────────── */
 
 /* PATable reference (CC1101 datasheet, Table 25):

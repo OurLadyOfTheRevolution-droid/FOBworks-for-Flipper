@@ -2,40 +2,39 @@
 #include <string.h>
 
 /* ─────────────────────────────────────────────────────────────────────────── */
-/* GM Protocol — FOBworks implementation.                                     */
-/*   Source: lib/subghz/protocols/gm.c                                        */
-/*   112-bit (14-byte) frames, PPM encoding.                                  */
-/*   Frame: 0xFF wake | unknown | btn+cksum | 32-bit ID | 24-bit seq |        */
-/*          24-bit encrypted | checksum                                       */
-/*   Additive mod-256 checksums (NOT XOR/CRC).                                */
-/*   REPLAY only — cannot forge (undisclosed cipher).                         */
+/* GM frame parser and builder. The 112-bit PPM frame contains a 0xFF wake
+ * byte, an unknown byte, button/checksum byte, 32-bit ID, 24-bit sequence,
+ * 24 encrypted bits, and a final checksum. Both checks use additive
+ * arithmetic: mod-16 for the button nibble and mod-256 for the frame, not XOR
+ * or CRC. This code supports replay, not forging; the cipher is undisclosed.
+ * Source: lib/subghz/protocols/gm.c. */
 /* ─────────────────────────────────────────────────────────────────────────── */
 
 bool gm_parse(const uint8_t* raw, int raw_bits, GmFrame* out) {
     if(!raw || !out || raw_bits < 112) return false;
 
-    /* Extract 14-byte frame */
+    /* Copy the 14-byte frame for validation and field extraction. */
     uint8_t frame[14];
     for(int i = 0; i < 14; i++) {
         frame[i] = raw[i];
     }
 
-    /* Validate wake byte */
+    /* The frame must begin with the 0xFF wake byte. */
     if(frame[0] != 0xFF) return false;
 
-    /* Button nibble checksum (additive mod-16): nibble_sum(b2) must be non-zero
-       with its low nibble == 0, i.e. high nibble == (-low nibble) mod 16.  This
-       also forces a non-zero button. */
+    /* b2's two nibbles must add to a nonzero multiple of 16. In other words,
+       its high nibble is the additive mod-16 checksum for the low-nibble
+       button, and the check also rejects a zero button. */
     uint8_t btn_ck = (uint8_t)((frame[2] >> 4) + (frame[2] & 0x0F));
     if(btn_ck == 0 || (btn_ck & 0x0F) != 0) return false;
 
-    /* Full payload checksum (additive mod-256): byte_sum(b1..b13) must be
-       non-zero with its low byte == 0.  b0 (0xFF wake) is excluded. */
+    /* The additive checksum covers b1 through b13, excluding the wake byte.
+       Their sum must be a nonzero multiple of 256. */
     uint32_t full_ck = 0;
     for(int i = 1; i < 14; i++) full_ck += frame[i];
     if(full_ck == 0 || (full_ck & 0xFF) != 0) return false;
 
-    /* Extract fields */
+    /* Copy the validated bytes into the frame structure. */
     out->wake     = frame[0];
     out->unknown  = frame[1];
     out->btn_sum  = frame[2];
@@ -47,7 +46,7 @@ bool gm_parse(const uint8_t* raw, int raw_bits, GmFrame* out) {
     out->encrypted[2] = frame[12];
     out->checksum = frame[13];
 
-    /* Button is the LOW nibble of b2 (the high nibble is its checksum). */
+    /* The low nibble of b2 is the button; its high nibble is the check value. */
     out->button = out->btn_sum & 0x0F;
     switch(out->button) {
     case 0x1: out->function = "Lock"; break;
@@ -65,7 +64,8 @@ bool gm_build(const GmFrame* f, uint8_t* out, int* out_bits) {
 
     out[0] = 0xFF;  /* wake byte */
     out[1] = f->unknown;
-    /* b2 = [high nibble: -button mod 16 checksum][low nibble: button code]. */
+    /* Store the button in b2's low nibble and its additive mod-16 check value
+       in the high nibble. */
     uint8_t btn = f->button & 0x0F;
     uint8_t btn_ck = (uint8_t)((16U - btn) & 0x0FU);
     out[2] = (uint8_t)((btn_ck << 4) | btn);
@@ -80,7 +80,7 @@ bool gm_build(const GmFrame* f, uint8_t* out, int* out_bits) {
     out[11] = f->encrypted[1];
     out[12] = f->encrypted[2];
 
-    /* b13 chosen so byte_sum(b1..b13) & 0xFF == 0 (additive mod-256). */
+    /* Choose b13 so the additive mod-256 sum from b1 through b13 is zero. */
     uint32_t sum = 0;
     for(int i = 1; i < 13; i++) sum += out[i];
     out[13] = (uint8_t)((256U - (sum & 0xFFU)) & 0xFFU);

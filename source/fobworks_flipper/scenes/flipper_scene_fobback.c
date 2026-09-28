@@ -4,7 +4,8 @@
 #include <stdio.h>
 
 /* ─────────────────────────────────────────────────────────────────────────── */
-/* FOBback — make → vehicle → passive listen → RollBack sequence replay        */
+/* FOBback guides make and vehicle selection, then captures frames for ordered
+   RollBack replay. */
 /* ─────────────────────────────────────────────────────────────────────────── */
 
 /* ── Make picker ─────────────────────────────────────────────────────────── */
@@ -19,8 +20,8 @@ static void fobback_make_cb(void* ctx, uint32_t idx) {
 
 void flipper_scene_fobback_make_on_enter(void* ctx) {
     FlipperApp* app = (FlipperApp*)ctx;
-    /* Lazily allocate the guided-flow union on entering the flow (freed on
-       return to the main menu), then clear stale bytes from a prior mode. */
+    /* Allocate guided state on entry; the main menu releases it. Clear any
+       state left from an earlier mode. */
     if(!flipper_guided_ensure(app, sizeof(FlipperFobbackState))) {
         submenu_reset(app->submenu);
         submenu_set_header(app->submenu, "FOBback: OOM");
@@ -80,16 +81,15 @@ void flipper_scene_fobback_model_on_exit(void* ctx) {
 }
 
 /* ── Listen / replay screen ──────────────────────────────────────────────── */
-/* Raw custom views only repaint when their model is committed; the listen
-   handler mutates app->guided->fobback directly, so force a commit-with-update after a
-   visible change or the screen stays frozen until the view is switched. */
+/* Input handlers change state directly, so commit the model after visible
+   updates or the screen will not repaint until it is switched. */
 static void fobback_redraw(FlipperApp* app) {
     view_get_model(app->fobback_view);
     view_commit_model(app->fobback_view, true);
 }
 
 void flipper_fobback_draw_cb(Canvas* canvas, void* model) {
-    /* View draw callback receives the view MODEL (holds the FlipperApp*). */
+    /* The view model holds the FlipperApp pointer. */
     FlipperApp* app = *(FlipperApp**)model;
     FlipperFobbackState* fb = &app->guided->fobback;
     const FlipperFbkProfile* p = fb->profile;
@@ -128,7 +128,7 @@ void flipper_fobback_draw_cb(Canvas* canvas, void* model) {
         char line[40];
         snprintf(line, sizeof(line), "Captures: %d / %d", fb->cap_count, need);
         canvas_draw_str(canvas, 0, 43, line);
-        canvas_draw_str(canvas, 0, 53, "Press fob. DON'T unlock.");
+        canvas_draw_str(canvas, 0, 53, "Press fob. Don't unlock.");
         if(p && p->note[0]) canvas_draw_str(canvas, 0, 63, p->note);
     }
 }
@@ -196,7 +196,7 @@ bool flipper_scene_fobback_listen_on_event(void* ctx, SceneManagerEvent e) {
             FlipperCaptureResult* cr = &app->capture->result;
             const FlipperFbkProfile* p = fb->profile;
             if(cr->decode_ok && p) {
-                /* Frequency match: within ±1.2 MHz of any profile frequency */
+                /* Accept captures within ±1.2 MHz of a profile frequency. */
                 bool freq_ok = false;
                 for(int f = 0; f < p->freq_count && !freq_ok; f++) {
                     float diff = cr->decode.freq_mhz - p->freqs[f];
@@ -205,7 +205,7 @@ bool flipper_scene_fobback_listen_on_event(void* ctx, SceneManagerEvent e) {
                 }
 
                 if(freq_ok && fb->cap_count < FLIPPER_FBK_CAPS_MAX) {
-                    /* Strict mode: reset if counter is not consecutive */
+                    /* In strict mode, restart on a duplicate or large jump. */
                     if(p->seq == FbkSeqStrict && fb->cap_count > 0 &&
                        cr->decode.device_key_hex[0]) {
                         uint32_t delta = (cr->decode.cnt -
