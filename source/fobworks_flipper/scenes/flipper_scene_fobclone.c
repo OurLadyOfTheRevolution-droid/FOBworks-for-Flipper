@@ -5,8 +5,8 @@
 #include <stdlib.h>
 
 /* ─────────────────────────────────────────────────────────────────────────── */
-/* FOBclone — make → model → year → auto-arm → 2 captures → predict + replay  */
-/* All list-style scenes share FlipperViewMenu (the single Submenu widget).        */
+/* FOBclone guides make/model/year selection, then captures two presses before
+   offering prediction and replay. All pickers reuse FlipperViewMenu. */
 /* ─────────────────────────────────────────────────────────────────────────── */
 
 /* ── Shared make list builder ─────────────────────────────────────────────── */
@@ -20,12 +20,11 @@ static void build_unique_makes(const char** out, int* count, int max) {
     }
 }
 
-/* Static storage for make list (max 24 makes) */
+/* Static storage for up to 24 makes. */
 static const char* s_makes[24];
 static int         s_make_count = 0;
 
-/* The two full pulse buffers are intentionally lazy: see FlipperFobcloneState.
-   Never use memset on a prior state until these have been released. */
+/* Keep the large pulse buffers lazy. Release old buffers before clearing state. */
 static void fobclone_caps_free(FlipperFobcloneState* fc) {
     for(int i = 0; i < 2; i++) {
         if(fc->cap[i]) {
@@ -50,8 +49,8 @@ static void fobclone_make_cb(void* ctx, uint32_t idx) {
 
 void flipper_scene_fobclone_make_on_enter(void* ctx) {
     FlipperApp* app = (FlipperApp*)ctx;
-    /* Guided state is now small: the full capture buffers are allocated only
-       after the pickers close and a decoded press is actually received. */
+    /* Allocate full capture buffers only after the pickers close and a decoded
+       press arrives. */
     if(!flipper_guided_ensure(app, sizeof(FlipperFobcloneState))) {
         submenu_reset(app->submenu);
         submenu_set_header(app->submenu, "FOBclone: OOM");
@@ -124,10 +123,8 @@ static void fobclone_year_change_cb(VariableItem* item) {
         variable_item_set_current_value_text(item, FLIPPER_FC_VEHICLES[vidx].years[idx]);
 }
 
-/* Called when user presses OK on the VariableItemList year selector.
- * Sends custom event 0 so flipper_scene_fobclone_year_on_event can advance
- * to FlipperSceneFobcloneCapture.  Without this callback, OK does nothing
- * and the year screen is permanently stuck.                               */
+/* Forward OK as custom event 0 so the year-selection scene can continue to
+ * capture. Without this callback, the selector cannot advance. */
 static void fobclone_year_enter_cb(void* ctx, uint32_t index) {
     FlipperApp* app = (FlipperApp*)ctx;
     UNUSED(index);
@@ -155,7 +152,7 @@ void flipper_scene_fobclone_year_on_enter(void* ctx) {
 
 bool flipper_scene_fobclone_year_on_event(void* ctx, SceneManagerEvent e) {
     FlipperApp* app = (FlipperApp*)ctx;
-    /* VariableItemList fires custom event 0 when OK is pressed */
+    /* Event 0 signals that the user confirmed the year. */
     if(e.type == SceneManagerEventTypeCustom && e.event == 0) {
         scene_manager_next_scene(app->scene_manager, FlipperSceneFobcloneCapture);
         return true;
@@ -168,16 +165,15 @@ void flipper_scene_fobclone_year_on_exit(void* ctx) {
 }
 
 /* ── Capture / replay screen ─────────────────────────────────────────────── */
-/* Raw custom views only repaint when their model is committed; the capture
-   handler mutates app->guided->fobclone directly, so force a commit-with-update after a
-   visible change or the screen stays frozen until the view is switched. */
+/* Input handlers change state directly, so commit the model after visible
+   updates or the screen will not repaint until it is switched. */
 static void fobclone_redraw(FlipperApp* app) {
     view_get_model(app->fobclone_view);
     view_commit_model(app->fobclone_view, true);
 }
 
 void flipper_fobclone_draw_cb(Canvas* canvas, void* model) {
-    /* View draw callback receives the view MODEL (holds the FlipperApp*). */
+    /* The view model holds the FlipperApp pointer. */
     FlipperApp* app = *(FlipperApp**)model;
     FlipperFobcloneState* fc = &app->guided->fobclone;
 
@@ -194,7 +190,7 @@ void flipper_fobclone_draw_cb(Canvas* canvas, void* model) {
     canvas_draw_line(canvas, 0, 32, 127, 32);
 
     if(fc->replay_ready) {
-        canvas_draw_str(canvas, 0, 42, "Ready to replay!");
+        canvas_draw_str(canvas, 0, 42, "Ready to replay");
         char line[40];
         snprintf(line, sizeof(line), "Predict: %lu - %lu",
                  (unsigned long)fc->cap[0]->decode.predict_lo,
@@ -205,7 +201,7 @@ void flipper_fobclone_draw_cb(Canvas* canvas, void* model) {
         canvas_draw_str(canvas, 0, 62, line);
         canvas_draw_str(canvas, 0, 10, "  [OK]=Replay");
     } else if(fc->cap_count == 1) {
-        canvas_draw_str(canvas, 0, 42, "Cap 1/2 received");
+        canvas_draw_str(canvas, 0, 42, "Capture 1/2 received");
         char line[32];
         snprintf(line, sizeof(line), "cnt=%lu  btn=%u",
                  (unsigned long)fc->cap[0]->decode.cnt, fc->cap[0]->decode.btn);
@@ -213,7 +209,7 @@ void flipper_fobclone_draw_cb(Canvas* canvas, void* model) {
         canvas_draw_str(canvas, 0, 62, "Press fob again...");
     } else {
         canvas_draw_str(canvas, 0, 42, "Press fob near device.");
-        canvas_draw_str(canvas, 0, 52, "Waiting for cap 1/2...");
+        canvas_draw_str(canvas, 0, 52, "Awaiting capture 1/2...");
     }
 }
 
@@ -233,7 +229,7 @@ static void fobclone_edge_cb(void* ctx) {
 }
 
 static void fobclone_arm(FlipperApp* app) {
-    /* Resolve profile from vehicle name string — try a few common profiles */
+    /* Select a radio profile from the chosen vehicle name. */
     FlipperFobcloneState* fc = &app->guided->fobclone;
     int vidx = fc->model_idx;
     float freq = 433.92f;
@@ -241,8 +237,8 @@ static void fobclone_arm(FlipperApp* app) {
 
     if(vidx >= 0 && vidx < FLIPPER_FC_VEHICLE_COUNT) {
         const char* model = FLIPPER_FC_VEHICLES[vidx].model;
-        /* Step 1 — primary frequency (highest-MHz checks first to avoid
-           substring collisions, e.g. "315" inside "312-315") */
+        /* Check longer frequency strings first to avoid substring collisions
+           such as "315" inside "312-315". */
         if     (strstr(model, "915"))                          { freq = 915.00f; }
         else if(strstr(model, "868"))                          { freq = 868.00f; }
         else if(strstr(model, "315"))                          { freq = 315.00f; }

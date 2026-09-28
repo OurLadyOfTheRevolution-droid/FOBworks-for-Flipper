@@ -10,26 +10,21 @@
 #include <stdio.h>
 
 /* ─────────────────────────────────────────────────────────────────────────── */
-/* OEM pulse front-ends.                                                        */
-/*                                                                              */
-/* The vendor parsers (gm_parse, ford_v0_parse, chrysler_parse, kia_v0_parse,   */
-/* vag_parse_frame, psa_decrypt_mode23) all operate on the *demodulated*        */
-/* bitstream packed MSB-first into bytes — they carry their own CRC / checksum / */
-/* preamble gate, which is why the Auto chain can trust them (a wrong TE or      */
-/* alignment fails the vendor gate rather than false-positiving).  These front-  */
-/* ends recover that bitstream from a raw pulse buffer and hand it to the real   */
-/* parser, so the researched frame logic already in the repo becomes reachable   */
-/* from a live capture.                                                          */
-/*                                                                              */
-/* Bit encodings recovered here:                                                */
-/*   PWM        — one HIGH+LOW cell per bit; bit == 1 when HIGH > ~1.5T.         */
-/*   Manchester — two half-bit levels per bit; {HIGH,LOW}=1, {LOW,HIGH}=0.       */
+/* These adapters turn raw pulse timings into MSB-first bytes for the existing
+   protocol parsers: gm_parse, ford_v0_parse, chrysler_parse, kia_v0_parse,
+   vag_parse_frame, and psa_decrypt_mode23. The parsers apply their own preamble,
+   checksum, or CRC checks. That lets a recovered bitstream enter the Auto path;
+   the gate can reject a bad timing estimate or alignment, but is not proof that
+   the transmitter was authentic or that a receiver would accept its frame.
+
+   For PWM, each bit uses a HIGH+LOW cell; HIGH above about 1.5T means 1.
+   Manchester uses two half-bit levels: HIGH then LOW is 1, LOW then HIGH is 0. */
 /* ─────────────────────────────────────────────────────────────────────────── */
 
 #define OEM_MAX_BYTES 16                 /* 128-bit PSA frame is the largest     */
 
-/* Candidate chip periods: the histogram estimate, then ±15% to cover a TE that
-   locked slightly off a merged run.  Returns the count written. */
+/* Try the estimated chip period plus offsets of ±15%. The margin covers an
+   estimate that landed slightly off a merged pulse run. Return the count used. */
 static int oem_te_candidates(const FlipperPulseBuf* buf, uint32_t* out, int max) {
     int n = 0;
     uint32_t te = buf->te_us;
@@ -39,8 +34,8 @@ static int oem_te_candidates(const FlipperPulseBuf* buf, uint32_t* out, int max)
     return n;
 }
 
-/* Index of the first data cell after an OOK leader (HIGH >= 8T then a short
-   LOW).  Returns 0 when no leader is present (frame starts at the first edge). */
+/* Find the first data cell after a long HIGH (at least 8T) and short LOW.
+   Return 0 when that leader is absent and data starts at the first edge. */
 static int oem_pwm_data_start(const FlipperPulseBuf* buf, uint32_t te) {
     for(int i = 0; i + 1 < buf->len; i++) {
         if(buf->durations[i] >= te * 8 && buf->durations[i + 1] <= te * 3)
@@ -49,8 +44,8 @@ static int oem_pwm_data_start(const FlipperPulseBuf* buf, uint32_t te) {
     return 0;
 }
 
-/* Read nbits PWM cells starting at data_start, MSB-first into out.
-   Returns true when every consumed cell is a plausible bit cell. */
+/* Decode nbits PWM cells at data_start into out, MSB first. Return true only
+   if each consumed HIGH/LOW pair fits the expected bit-cell timing. */
 static bool oem_pwm_extract(const FlipperPulseBuf* buf, uint32_t te, int data_start,
                             int nbits, uint8_t* out) {
     int nbytes = (nbits + 7) / 8;
@@ -68,8 +63,8 @@ static bool oem_pwm_extract(const FlipperPulseBuf* buf, uint32_t te, int data_st
     return true;
 }
 
-/* Manchester: expand runs to half-bit levels (round dur/T), then pair-decode
-   from half-bit offset `phase`.  MSB-first into out.  Returns bits recovered. */
+/* Expand each Manchester run into rounded half-bit levels, then decode pairs
+   starting at phase. Store the result MSB first and return the recovered count. */
 static int oem_manch_extract(const FlipperPulseBuf* buf, uint32_t te, int start_idx,
                              int phase, int max_bits, uint8_t* out) {
     if(te == 0) return 0;
@@ -138,8 +133,8 @@ bool flipper_decode_ford(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
     for(int t = 0; t < ntes; t++) {
         uint32_t te = tes[t];
         if(te < 100 || te > 1000) continue;
-        /* V0: Manchester, both half-bit phases.  (V2 PWM removed: 8-bit
-           additive checksum false-positives on unrelated automotive PWM.) */
+        /* Try both Manchester phases for V0. V2's PWM path was removed because
+           its 8-bit additive checksum also matched unrelated automotive PWM. */
         for(int phase = 0; phase < 2; phase++) {
             if(oem_manch_extract(buf, te, 0, phase, 64, raw) >= 64) {
                 FordV0Frame f;
@@ -163,8 +158,8 @@ bool flipper_decode_ford(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
 
 /* ── Chrysler — 80-bit PWM edge path + dual-packet XOR path ── */
 static bool chrysler_edge_pwm(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
-    /* bit0: ~300µs HI  bit1: ~600µs HI  gap: ≥9000µs
-       Check: raw[5] == (msb ? raw[1] : raw[1]^0xC3) — 8-bit gate. */
+    /* This path expects 300 µs HIGH for 0, 600 µs for 1, and a gap of at
+       least 9000 µs. Its 8-bit gate is raw[5] == (msb ? raw[1] : raw[1]^0xC3). */
     const uint32_t* B = buf->durations;
     int cnt = buf->len;
     for(int si = 0; si + 161 < cnt; si++) {
@@ -235,11 +230,12 @@ bool flipper_decode_chrysler(const FlipperPulseBuf* buf, FlipperDecodeResult* r)
 }
 
 /* ── Hyundai Santa Fe / Solaris 2013-2016 (TRW fob) ──────────────────────── */
-/* 80-bit MSB-first OOK-PWM: ~375 µs constant HIGH, ~12000 µs inter-frame LOW
-   sync, and the bit carried by the LOW width (125 µs = 1, 375 µs = 0):
-     [rolling 32][serial 24][counter 8][button 8][CRC-8]
-   CRC-8 poly 0x31 (init 0xFF) over the first 9 bytes — a strong gate, so this
-   is reached from the auto-safe KIA/Hyundai entry as a second path. */
+/* The TRW frame is 80-bit MSB-first OOK PWM. HIGH stays near 375 µs; a
+   roughly 12 ms LOW marks the frame boundary. The data is in the LOW width:
+   125 µs represents 1 and 375 µs represents 0.
+   Layout: [rolling 32][serial 24][counter 8][button 8][CRC-8].
+   CRC-8 uses polynomial 0x31 and initial value 0xFF over the first 9 bytes.
+   This checksum is the gate for the secondary path under KIA/Hyundai Auto. */
 static uint8_t sf_crc8_31(const uint8_t* d, int n) {
     uint8_t c = 0xFF;
     for(int i = 0; i < n; i++) {
@@ -291,10 +287,11 @@ static bool santafe_pwm(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
 }
 
 /* ── Hyundai / Kia RIO early (~2001-2008) — 64-bit fixed-code MSB-first ──── */
-/* ~312 µs HIGH bit-0 / ~728 µs HIGH bit-1, ~10400 µs sync, bit from the HIGH
-   width, 64 bits MSB-first: [serial 32][button-mask 16][checksum 16].
-   Checksum = ~(serial ^ (serial>>16) ^ button-mask) (16-bit).  Fixed code →
-   replay/clone exposed. */
+/* Early Hyundai/Kia RIO uses a 64-bit fixed-code frame, MSB first. HIGH width
+   carries each bit: about 312 µs for 0 and 728 µs for 1; sync is about
+   10400 µs. Layout: [serial 32][button mask 16][checksum 16].
+   The checksum is ~(serial ^ (serial >> 16) ^ button mask). As a fixed code,
+   a captured frame can be replayed; this check does not make it rolling code. */
 static bool hkr_pwm(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
     const uint32_t* B = buf->durations;
     int cnt = buf->len;
@@ -332,14 +329,15 @@ static bool hkr_pwm(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
 }
 
 /* ── KIA V7 — 64-bit Manchester, inverted wire, 0x4C header + CRC-8 ───────── */
-/* Manchester ~250 µs half-symbol.  On air the frame is the one's-complement of
-   the 64-bit logical key, whose fixed top byte is 0x4C.  The first nibble
-   (0x4) is carried by the preamble→data sync rather than a Manchester cell, so
-   only the low 60 bits ride as Manchester data; we re-attach the fixed 0xB
-   (=~0x4) high nibble before validating.  Layout of the recovered key bytes:
-     [0]=0x4C header  [1..2]=counter  [3..6]=serial(28)|button(4)  [7]=CRC-8.
-   CRC-8 poly 0x7F, init 0x4C over bytes 0..6 — a strong gate, so this joins the
-   auto-safe KIA/Hyundai entry as an additional path. */
+/* KIA V7 uses Manchester half-symbols near 250 µs. The on-air bits are the
+   complement of a 64-bit logical key with a fixed 0x4C top byte. The first
+   nibble (0x4) is carried by the preamble/data sync, not by a Manchester cell;
+   the payload therefore carries only the low 60 bits. Restore its complement,
+   0xB, before checking the key.
+   Recovered bytes: [0]=0x4C header, [1..2]=counter,
+   [3..6]=28-bit serial plus 4-bit button, [7]=CRC-8.
+   CRC-8 uses polynomial 0x7F and initial value 0x4C over bytes 0..6. This
+   checksum is the gate for the secondary path under KIA/Hyundai Auto. */
 static uint8_t kv7_crc8(const uint8_t* d, int n) {
     uint8_t crc = 0x4C;
     for(int i = 0; i < n; i++) {
@@ -418,16 +416,18 @@ bool flipper_decode_kia(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
     uint8_t raw[OEM_MAX_BYTES];
     for(int t = 0; t < ntes; t++) {
         uint32_t te = tes[t];
-        /* V0 is ~250/500 µs PWM.  Looser TE windows (esp. <200) let CRC-8
-           (1/256) latch onto Chrysler/VW noise across TE×start×burst search. */
+        /* V0 uses roughly 250/500 µs PWM. A wider TE range, especially below
+           200 µs, let the 1-in-256 CRC match Chrysler/VW noise during the
+           combined TE, start-offset, and burst search. */
         if(te < 200 || te > 550) continue;
         int starts[2] = { oem_pwm_data_start(buf, te), 0 };
         for(int s = 0; s < 2; s++) {
             if(!oem_pwm_extract(buf, te, starts[s], 64, raw)) continue;
             KiaV0Frame f;
             if(!kia_v0_parse(raw, 64, &f)) continue;
-            /* CRC-8 of an all-zero frame is zero; serial==0 also appears on
-               misaligned non-KIA PWM (e.g. VW Golf4) — reject both. */
+            /* An all-zero frame passes this CRC because its checksum is zero.
+               A zero serial also appeared in misaligned non-KIA PWM such as
+               VW Golf4, so reject that result as well. */
             if(f.serial == 0) continue;
             r->addr = f.serial;  r->cnt = f.counter;  r->hop = f.counter;
             r->btn = f.button;  r->rolling = true;  r->te_us = te;  r->bits = 64;
@@ -449,11 +449,12 @@ bool flipper_decode_kia(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
     if(hkr_pwm(buf, r)) return true;
     memset(r, 0, sizeof(*r));  r->freq_mhz = buf->freq_mhz;
 #ifndef FLIPPER_FAP_SLIM
-    /* Fifth path: Kia V0 — SHORT/SHORT preamble (≥16 pairs),
-       LONG start bit, 60-bit word with 0xF preamble + CRC-8 poly 0x7F.
-       CRC alone is not enough under wide TE±40% search: Suzuki_v0_kd and
-       other PWM noise still latch.  Keep force-only until a stronger
-       multi-frame or TE-locked gate is calibrated. */
+    /* Fifth path: Kia V0. It expects at least 16 short/short
+       preamble pairs, a long start bit, then a 60-bit word with a 0xF preamble
+       and CRC-8 (polynomial 0x7F). That CRC alone is not selective enough with
+       the wide ±40% TE search: Suzuki_v0_kd and other PWM noise still match.
+       Keep this path force-only until a tighter TE or multi-frame gate has
+       been calibrated. */
     if(!flipper_decode_forced()) return false;
     {
         const uint32_t* B = buf->durations;
@@ -517,11 +518,12 @@ bool flipper_decode_kia(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
 }
 
 /* ── VAG pre-2004 (VW/Audi/Seat/Skoda, ID48 era) — 64-bit PWM rolling ────── */
-/* ~550 µs constant-ish HIGH bit-1 / ~250 µs HIGH bit-0, ~11000 µs inter-frame
-   LOW sync, bit read from the HIGH width, 64 bits MSB-first:
-     [transponder id 32][counter 16][button 8][checksum 8]
-   Checksum = inverted 8-bit sum of the preceding 7 bytes — a strong gate, so
-   reached from the auto-safe VAG entry as a second path. */
+/* The pre-2004 VAG ID48 path reads 64 MSB-first PWM bits from HIGH widths:
+   about 550 µs for 1 and 250 µs for 0, after an 11000 µs LOW sync.
+   Layout: [transponder ID 32][counter 16][button 8][checksum 8].
+   The checksum is the bitwise inverse of the 8-bit sum of the first 7 bytes.
+   It gates this secondary path under VAG Auto; it does not validate receiver
+   acceptance. */
 static bool vag_pwm_id48(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
     const uint32_t* B = buf->durations;
     int cnt = buf->len;
@@ -561,18 +563,18 @@ static bool vag_pwm_id48(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
     return false;
 }
 
-/* ── Land Rover / Jaguar V0 — 81-bit differential Manchester ─────────────────
- * Fully plaintext frame gated by a count-parity "check" (3 bits) plus a 16-bit
- * near-constant tail (0xFFFF / 0x7FFF selected by a count parity bit) and a
- * trailing extra "1" bit. The tail alone is ~16 bits of near-fixed structure,
- * so the frame is self-validating without any key -> Auto-safe.
- *
- * Physical layer: differential Manchester at te=250us (short) / 500us (long),
- * preceded by a long run of (short-HIGH, short-LOW) preamble pairs and a
- * sync of long-HIGH(750), long-LOW(750), short-HIGH(250 boundary). The real
- * transmitter sends 319 preamble pairs; that plus the 81-bit payload overruns
- * a 256-edge capture, so we anchor on >=8 preamble pairs (clock lock only) and
- * let the tail/check gate reject noise.
+/* Land Rover/Jaguar V0 carries an 81-bit plaintext differential-Manchester
+   frame. A 3-bit count-parity check, a 16-bit near-constant tail (0xFFFF or
+   0x7FFF depending on count parity), and a final 1 bit form a structural
+   consistency gate. They support Auto classification; they do not authenticate
+   the sender or demonstrate receiver acceptance.
+
+   Short and long half-symbols are about 250 and 500 µs. A long run of
+   short-HIGH/short-LOW pairs precedes the sync: 750 µs HIGH, 750 µs LOW, then
+   a 250 µs boundary pulse. The transmitter uses 319 preamble pairs, so the
+   full preamble plus payload exceeds the 256-edge capture buffer. The decoder
+   uses at least 8 pairs for clock alignment, then relies on the check and tail
+   to reject noise.
  */
 #define LR_S            250u
 #define LR_L            500u
@@ -596,14 +598,14 @@ static int lr_sync(uint32_t d) {
     return x < LR_SYNC_DELTA;
 }
 
-/* 3-bit check derived from the 9-bit count (linear parity taps). */
+/* Compute the 3-bit check from the 9-bit count using its linear parity taps. */
 static uint8_t lr_calc_check(uint32_t c) {
     uint8_t c0 = ((c >> 1) ^ (c >> 2) ^ (c >> 3) ^ (c >> 4) ^ (c >> 6)) & 1;
     uint8_t c1 = ((c >> 0) ^ (c >> 2) ^ (c >> 3) ^ (c >> 4) ^ (c >> 5) ^ (c >> 6) ^ 1) & 1;
     uint8_t c2 = ((c >> 1) ^ (c >> 3) ^ (c >> 4) ^ (c >> 5) ^ (c >> 6)) & 1;
     return (uint8_t)(c0 | (c1 << 1) | (c2 << 2));
 }
-/* 16-bit tail selected by a single count parity bit. */
+/* Select the 16-bit tail from one parity bit of the count. */
 static uint16_t lr_calc_tail(uint32_t c) {
     int msb = (((c >> 0) ^ (c >> 2) ^ (c >> 4) ^ (c >> 5)) & 1) != 0;
     return msb ? 0xFFFF : 0x7FFF;
@@ -631,7 +633,7 @@ static int lr_add_bit(LrState* s, int bit) {
     return 1;
 }
 
-/* Differential-Manchester transition handler (faithful state port). */
+/* Track differential-Manchester transitions using the state-machine rules. */
 static int lr_transition(LrState* s, int level, uint32_t d) {
     if(!s->boundary_pad_skipped) {
         if(level && lr_short(d)) {
@@ -797,12 +799,12 @@ bool flipper_decode_vag(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
     return vag_pwm_id48(buf, r);
 }
 
-/* ── BMW CAS3/CAS4 PPM — structural Auto-safe ─────────────────────────────── */
-/* Constant HI mark ≈250 µs; LO space ≈500 µs = 0, ≈1500 µs = 1.  Real X5
-   captures put ≥10 ms sync *before* the data run; that sync is typically the
-   inter-burst gap and is not present in FlipperPulseBuf — so we accept any
-   contiguous mark/space run of ≥64 bits (strong structural gate: wrong TE
-   fails within a few symbols).  Payload is AES; no decrypt from RF alone. */
+/* BMW CAS3/CAS4 PPM is classified structurally, not decrypted. Marks are
+   roughly 250 µs; spaces near 500 µs encode 0 and 1500 µs encode 1. Real X5
+   captures place a sync of at least 10 ms before the data, often across the
+   inter-burst gap that FlipperPulseBuf omits. The decoder therefore looks for
+   a contiguous run of at least 64 bits. This timing pattern is not a protocol
+   authentication check, and the AES payload remains opaque from RF alone. */
 bool flipper_decode_bmw(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
     if(!buf || !r || buf->len < 130) return false;
     const uint32_t* B = buf->durations;
@@ -811,8 +813,8 @@ bool flipper_decode_bmw(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
     uint8_t best_frame[32];
     memset(best_frame, 0, sizeof(best_frame));
 
-    /* Require a sync pair (≥10 ms each) then a ≥64-bit mark/space run.
-       Without sync, constant-mark PPM false-claims VW Polo and similar. */
+    /* Require two sync intervals of at least 10 ms before the 64-bit run.
+       Without them, constant-mark PPM has falsely matched VW Polo and similar. */
     for(int si = 0; si + 4 < cnt; si++) {
         if(B[si] < 10000 || B[si + 1] < 10000) continue;
         int di = si + 2;
@@ -866,8 +868,9 @@ bool flipper_decode_psa(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
         for(int phase = 0; phase < 2; phase++) {
             if(oem_manch_extract(buf, te, 0, phase, 128, raw) < 128) continue;
             PsaFrame f;
-            /* Mode 0x23 only: fast XOR + checksum.  Mode 0x36 is a 2^24 TEA
-               brute-force — far too slow for a per-capture decode callback. */
+            /* Decode Mode 0x23 only: its XOR and checksum are fast enough for
+               this path. Mode 0x36 requires a 2^24 TEA search, too expensive
+               for a per-capture callback. */
             if(!psa_decrypt_mode23(raw, 16, &f)) continue;
             if(f.serial == 0 && f.counter == 0) continue;
             r->addr = f.serial;  r->cnt = f.counter;  r->hop = f.counter;

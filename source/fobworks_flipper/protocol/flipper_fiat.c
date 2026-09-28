@@ -114,8 +114,8 @@ static bool fiat_try_v1(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
     return false;
 }
 
-/* V2 is available only through explicit force; its header/button checks are
-   structural and do not provide the V1 checksum's integrity gate. */
+/* V2 is force-only: its header and button fields are structural checks, not an
+   integrity check comparable to the V1 checksum. */
 static bool fiat_try_v2(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
     uint8_t* cells = flipper_scratch_a(0, FLIPPER_PULSE_MAX * 4);
     if(!cells) return false;
@@ -151,7 +151,7 @@ static bool fiat_try_v2(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
     return false;
 }
 
-/* Legacy V0: unchecksummed 64-bit Manchester, force-only. */
+/* The legacy 64-bit Manchester V0 layout has no checksum, so it is force-only. */
 static bool fiat_try_v0(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
     uint8_t* bits = flipper_scratch_a(0, FIAT_MAXBITS);
     uint8_t* half = flipper_scratch_a(FIAT_MAXBITS, FLIPPER_PULSE_MAX * 4);

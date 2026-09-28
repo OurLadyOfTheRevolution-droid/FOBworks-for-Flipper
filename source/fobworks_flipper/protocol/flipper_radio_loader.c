@@ -5,13 +5,13 @@
 #include <string.h>
 
 /* ─────────────────────────────────────────────────────────────────────────── */
-/* Radio Device Loader + Region Unlock — FOBworks custom implementation.    */
-/*   Internal/external CC1101 abstraction with OTG power management.          */
-/*   Region unlock pattern for full SubGHz spectrum access.                   */
+/* Selects the internal or OTG-powered external CC1101 and checks the
+   frequency bands used by this application. The region-unlock hook is a no-op
+   on the official SDK; custom firmware may provide its own implementation. */
 /* ─────────────────────────────────────────────────────────────────────────── */
 
-/* ── Device Loader (Internal/External CC1101) ───────────────────────────── */
-/* Manages OTG power for external CC1101 modules (e.g., Rabbit Labs).        */
+/* Select the internal radio or power an external CC1101 module (for example,
+   a Rabbit Labs board) through OTG. */
 
 static bool s_otg_enabled = false;
 
@@ -20,7 +20,7 @@ bool radio_loader_set(RadioDeviceType type) {
         return true;
     }
 
-    /* External CC1101 — enable OTG power with retry loop */
+    /* Enable OTG power for the external CC1101, retrying transient failures. */
     if(!s_otg_enabled) {
         bool powered = false;
         for(int retry = 0; retry < 5; retry++) {
@@ -56,9 +56,8 @@ void radio_loader_end(void) {
     }
 }
 
-/* ── Frequency Validation ───────────────────────────────────────────────── */
-/* Checks if a frequency falls within the unlocked region bands.             */
-/* Band 1: ~300-348 MHz, Band 2: ~387-464 MHz, Band 3: ~779-928 MHz         */
+/* Accept only the three frequency ranges supported by this application:
+   300–348 MHz, 387–464 MHz, and 779–928 MHz. */
 
 bool radio_loader_freq_valid(float freq_mhz) {
     return (freq_mhz >= 300.0f && freq_mhz <= 348.0f) ||
@@ -66,17 +65,14 @@ bool radio_loader_freq_valid(float freq_mhz) {
            (freq_mhz >= 779.0f && freq_mhz <= 928.0f);
 }
 
-/* ── Region Unlock ──────────────────────────────────────────────────────── */
-/* No-op on official SDK; custom firmware may override.                      */
+/* The official SDK does not expose a region-unlock operation here. This
+   implementation succeeds without changing the SDK's region settings. */
 
 bool radio_loader_unlock_region(void) {
     return true;
 }
 
-/* ── PATable Reference ──────────────────────────────────────────────────── */
-/* CC1101 PATable values (from CC1101 datasheet, Table 25):                  */
-/* 12dBm=0xC0, 10dBm=0xC5, 7dBm=0xCD, 5dBm=0x86, 0dBm=0x50,                */
-/* -6dBm=0x37, -10dBm=0x26, -15dBm=0x1D, -20dBm=0x17, -30dBm=0x03          */
+/* Reference values from the CC1101 datasheet, Table 25. */
 
 const uint8_t* radio_loader_patable_reference(int* out_count) {
     static const uint8_t patable[] = {

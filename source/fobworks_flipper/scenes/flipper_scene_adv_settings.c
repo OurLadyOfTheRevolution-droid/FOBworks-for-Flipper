@@ -1,10 +1,9 @@
 #include "../flipper_fobscan_app.h"
 #include <stdio.h>
 
-/* Advanced Settings — a VariableItemList (reuses FlipperViewVarList) exposing
- * the FOBscan tuning knobs the web dashboard offers: frequency, modulation,
- * squelch, force-protocol, and auto-save toggles.  Values are written straight
- * into app->adv and persisted on exit. */
+/* Advanced Settings uses the shared VariableItemList for FOBscan's frequency,
+ * modulation, squelch, forced-protocol, and auto-save options. Changes update
+ * app->adv and are saved when the screen closes. */
 
 #define SQUELCH_COUNT 11   /* -50 .. -100 dBm, 5 dB steps */
 static int squelch_from_index(int i) { return -50 - i * 5; }
@@ -139,8 +138,7 @@ void flipper_scene_adv_settings_on_exit(void* ctx) {
     FlipperApp* app = (FlipperApp*)ctx;
     variable_item_list_reset(app->var_list);
     flipper_adv_settings_save(app);
-    /* Apply the Dashboard Link toggle: alloc/free are idempotent + null-safe, so
-       this is a no-op when the state already matches the current allocation. */
+    /* Match the allocated links to the final toggle value. */
     if(app->adv.dashboard_link) flipper_links_ensure(app);
     else                        flipper_links_release(app);
 }

@@ -7,21 +7,18 @@
 #include <string.h>
 
 /*
- * NOTE (hardware bring-up seam): the USB CDC channel index and the exact
- * furi_hal_serial async-RX signature vary slightly across firmware releases
- * (Official / Unleashed / RogueMaster).  The pure protocol layer
- * (flipper_link_proto.*) is fully host-tested; this transport glue is verified
- * on-device.  Keep the two responsibilities separate so a HAL rename never
- * touches the wire schema.
+ * The USB CDC channel and async-RX API vary between firmware releases
+ * (Official, Unleashed, and RogueMaster). Keep this hardware-specific layer
+ * separate from flipper_link_proto.* so HAL changes do not alter the wire
+ * schema. The protocol layer has host tests; this transport glue is checked
+ * on-device.
  */
 
 #define LINK_TX_BUF   512
 #define LINK_RX_LINE  256
 #define LINK_USB_VCP  0          /* CDC channel used for the dashboard link    */
-/* Command parsing + handling runs on the RX thread: the dispatch/proto build
-   path stacks up several hundred bytes of local buffers (buf[384], buf[160],
-   predict[128], ...) plus call-frame overhead.  1024 overflowed the MPU guard;
-   4096 leaves comfortable headroom. */
+/* Parsing and dispatch run on the RX thread. Their local buffers and call
+   frames exceed 1 KB, which triggered the MPU guard; 4 KB leaves headroom. */
 #define LINK_RX_STACK 4096
 
 struct FlipperLink {

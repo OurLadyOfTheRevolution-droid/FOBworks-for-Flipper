@@ -6,17 +6,15 @@
 #include <stdio.h>
 
 /*
- * Remote-control dispatcher: turns parsed dashboard commands into radio actions
- * and streams events/replies back.  Runs in the link RX thread.
+ * Runs in the link RX thread. It dispatches dashboard commands to the radio
+ * and sends events and replies back to the host.
  *
- * Radio arbitration: the on-device GUI scenes (FOBscan/clone/catch/back) own
- * the single CC1101 while active.  When a scene is driving the radio
- * (app->gui_radio_active), remote radio commands are refused with an honest
- * "radio-busy" reply instead of fighting the scene for the hardware.  Status
- * and key queries always answer.
+ * The GUI scenes and remote commands share one CC1101. While a scene owns it
+ * (app->gui_radio_active), remote radio commands receive "radio-busy".
+ * Status and key queries remain available.
  */
 
-/* Broadcast a formatted line to every attached transport (USB + UART). */
+/* Send a formatted line over each attached transport. */
 void flipper_app_broadcast(FlipperApp* app, const char* line, size_t len) {
     if(app->usb_link)  flipper_link_send_line(app->usb_link, line, len);
     if(app->uart_link) flipper_link_send_line(app->uart_link, line, len);
@@ -29,20 +27,16 @@ static void reply(FlipperLink* origin, const char* line, size_t len) {
 /*
  * GUI radio ownership handoff.
  *
- * The single CC1101 is driven from TWO contexts: the GUI scenes (main /
- * view-dispatcher thread) and the remote dispatcher (link RX thread, below).
- * They must NEVER touch the subghz HAL concurrently or its state machine trips
- * furi_check().  The remote side already serializes on app->radio_mutex and
- * refuses radio commands while app->gui_radio_active is set.  For that to be
- * race-free the GUI must claim ownership ATOMICALLY (under the same mutex) and
- * BEFORE it starts the radio — otherwise a command landing in the window
- * between "GUI starts radio" and "GUI sets the flag" runs subghz on the RX
- * thread at the same time as the GUI, which is the classic crash.
+ * GUI scenes run on the main/view-dispatcher thread; remote commands run on
+ * the link RX thread. Both use the same CC1101, so they must not enter the
+ * sub-GHz HAL concurrently or furi_check() can fail. The remote path checks
+ * app->gui_radio_active under app->radio_mutex. The GUI must set that flag
+ * under the same mutex before starting the radio; otherwise a remote command
+ * could slip between radio startup and the flag update.
  *
- * acquire(): stop any in-flight remote scan, publish the flag, release.  After
- *            this returns, no remote command can enter a radio path, so the
- *            scene owns the radio single-threaded.
- * release(): clear the flag under the mutex when the scene exits.
+ * acquire() stops an active remote scan and claims the radio. Once it returns,
+ * remote commands cannot start a radio operation. release() clears the flag
+ * when the scene exits.
  */
 void flipper_app_gui_radio_acquire(FlipperApp* app) {
     furi_mutex_acquire(app->radio_mutex, FuriWaitForever);
@@ -70,9 +64,9 @@ static bool radio_free(FlipperApp* app) {
     return !app->gui_radio_active;
 }
 
-/* The command mutex only serializes command threads; TX state is published
-   independently by the capture owner.  A cancelled session is still busy
-   until the owner has stopped async TX and returned the CC1101 to Idle. */
+/* The command mutex serializes command threads, but the capture owner
+   publishes TX state separately. A cancelled session stays busy until async
+   TX stops and the CC1101 is back in Idle. */
 static bool remote_radio_free(FlipperApp* app) {
     FlipperTxSession tx;
     bool ready = false;
@@ -142,7 +136,7 @@ void flipper_app_link_disconnected(void* app_ctx, FlipperLink* link) {
         remote_scan_stop(app);
 }
 
-/* Configure + (re)start the capture engine for remote scanning. */
+/* Configure or restart the capture engine for remote scanning. */
 static bool remote_scan_start(FlipperApp* app) {
     app->capture->preset      = FlipperPresetOOK650;
     app->capture->squelch_dbm = app->remote_squelch_dbm;

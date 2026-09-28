@@ -3,7 +3,7 @@
 /* Launch image only. The JSON dashboard (flipper_link.c / _proto.c /
    _dispatch.c) stays in the tree for the host tests, but it is not linked
    into the FAP: .text alone was larger than the contiguous RAM block
-   firmware 1.3.3 can give an external app. On-device USB control is off
+   firmware 1.4.3 can give an external app. On-device USB control is off
    until that block fits again. Radio ownership for the GUI stays here. */
 
 FlipperLink* flipper_link_alloc(void* app_ctx, FlipperLinkTransport transport) {

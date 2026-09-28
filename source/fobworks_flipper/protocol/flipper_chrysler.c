@@ -2,9 +2,9 @@
 #include <string.h>
 
 /* ─────────────────────────────────────────────────────────────────────────── */
-/* Chrysler Protocol — FOBworks implementation.                               */
-/*   80-bit frames, dual-packet (Plain_A + Plain_B), 300/3700μs PWM.          */
-/*   16-entry XOR table for transform.                                        */
+/* Chrysler frame parser and builder.                                         */
+/*   Frames contain two 40-bit blocks, Plain_A and its XOR-transformed copy.  */
+/*   The pulse decoder expects 300/3700μs PWM.                                */
 /* ─────────────────────────────────────────────────────────────────────────── */
 
 /* XOR table (16 entries) */
@@ -13,7 +13,7 @@ static const uint8_t chrysler_xor_table[16] = {
     0x10, 0x0A, 0x50, 0xF4, 0x2F, 0xF6, 0x6F, 0xF0
 };
 
-/* Button detection via b1^b6 XOR patterns */
+/* Map the XOR of Plain_A byte 1 and Plain_B byte 1 to a button. */
 static const char* chrysler_button_from_xor(uint8_t xor_val) {
     switch(xor_val) {
     case 0x01: return "Lock";
@@ -53,12 +53,9 @@ bool chrysler_parse(const uint8_t* raw, int raw_bits, ChryslerFrame* out) {
     out->button = btn_xor & 0x0F;
     out->function = chrysler_button_from_xor(out->button);
 
-    /* Validate the Plain_A → Plain_B diversification exactly: each of the five
-       payload bytes must satisfy plain_b[k] == plain_a[k] ^ table[3+k].  This is
-       the inverse of the frame construction, so a genuine frame always passes
-       while an unrelated 80-bit air pattern is rejected with 2^-40 leakage —
-       without it this parser would claim any Manchester/PWM frame of the right
-       length and shadow the later OEM decoders in the Auto chain. */
+    /* Check all five payload bytes against the transform used by the builder.
+       This rejects unrelated 80-bit patterns that would otherwise pass based
+       only on frame length and could preempt a later OEM decoder in Auto mode. */
     for(int k = 0; k < 5; k++) {
         uint8_t a = (uint8_t)((plain_a >> (8 * (4 - k))) & 0xFF);
         uint8_t b = (uint8_t)((plain_b >> (8 * (4 - k))) & 0xFF);

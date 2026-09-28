@@ -2,5 +2,6 @@
 
 #include "flipper_decoders.h"
 
-/* Toyota/Denso's extracted 40-bit fields are a structural interpretation:
-   the payload has no transmitted checksum. The decoder is force-only. */
+/* The Toyota/Denso 40-bit fields are interpreted from frame structure; the
+   payload carries no transmitted checksum. This parser is force-only, so a
+   match is not protocol authentication or evidence of receiver acceptance. */

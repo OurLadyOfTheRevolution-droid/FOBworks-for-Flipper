@@ -1,0 +1,101 @@
+name: Build FAP
+
+# Manual by design. This builds the application from the public source on a
+# clean machine, using the same SDK the bundled FAP was built against, so anyone
+# can reproduce a working binary without trusting the committed one.
+on:
+  workflow_dispatch:
+    inputs:
+      publish-release:
+        description: Attach the result to the v1.3 release as well as the run artifacts
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+env:
+  # Pinned to the release the bundled FAP was built against. A FAP loads only on
+  # an exact API match, so this must stay in step with the firmware you target:
+  # the binary reports Target 7 / API 87.1, which is 1.4.2 and 1.4.3. It will
+  # not load on 1.3.x, whose API is 86.0.
+  SDK_URL: https://update.flipperzero.one/builds/firmware/1.4.3/flipper-z-f7-sdk-1.4.3.zip
+  SDK_SHA256: 2e89e70c6b5770440cbf02f2ca01a2f8804e05ddb77f66afdd23ed2584740c7f
+  EXPECTED_API: "87.1"
+  HW_TARGET: f7
+  UFBT_VERSION: "==0.2.6"
+  APP_DIR: source/fobworks_flipper
+  CORPUS_DIR: source/deliverables/fobscan-classification-corpus
+
+jobs:
+  build:
+    name: Build for official 1.4.3 (API 87.1)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the sources
+        uses: actions/checkout@v4
+
+      - name: Fetch the pinned SDK and check its digest
+        run: |
+          curl -fsSL -o sdk.zip "$SDK_URL"
+          echo "${SDK_SHA256}  sdk.zip" | sha256sum -c -
+
+      - name: Build the FAP
+        id: build
+        uses: flipperdevices/flipperzero-ufbt-action@v0.1.4
+        with:
+          app-dir: ${{ env.APP_DIR }}
+          sdk-file: sdk.zip
+          sdk-hw-target: ${{ env.HW_TARGET }}
+          ufbt-version: ${{ env.UFBT_VERSION }}
+
+      - name: Check the API version and report the binary
+        run: |
+          api="${{ steps.build.outputs.api-version }}"
+          echo "API version: $api"
+          if [ "$api" != "$EXPECTED_API" ]; then
+            echo "::error::built against API $api, expected $EXPECTED_API"
+            exit 1
+          fi
+          fap=$(ls "$APP_DIR"/dist/*.fap)
+          echo "Built: $fap"
+          ls -l "$fap"
+          sha256sum "$fap"
+          echo "The build is not byte-reproducible: the linker lays out code"
+          echo "differently between runs, so the digest changes even for identical"
+          echo "sources. Compare behaviour, or the reported API and target, rather"
+          echo "than this digest."
+
+      - name: Run the host tests
+        working-directory: ${{ env.APP_DIR }}/tools
+        run: make test
+
+      - name: Check the committed corpus matches the generator
+        run: |
+          set -euo pipefail
+          cd "$APP_DIR/tools"
+          make clean >/dev/null
+          make test_classify >/dev/null
+          ./test_classify 500 --out /tmp/corpus-check >/dev/null
+          for f in manifest.csv SUMMARY.txt; do
+            if ! diff -q "/tmp/corpus-check/$f" "../../../$CORPUS_DIR/$f" >/dev/null; then
+              echo "::error::$f differs from what the generator emits."
+              diff -u "../../../$CORPUS_DIR/$f" "/tmp/corpus-check/$f" || true
+              exit 1
+            fi
+          done
+          echo "Corpus matches the generator."
+
+      - name: Upload the built FAP
+        uses: actions/upload-artifact@v4
+        with:
+          name: fobworks_flipper-fap
+          path: ${{ env.APP_DIR }}/dist/*.fap
+          if-no-files-found: error
+
+      - name: Attach the FAP to the v1.3 release
+        if: inputs.publish-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload v1.3 "$APP_DIR"/dist/*.fap --clobber --repo "$GITHUB_REPOSITORY"

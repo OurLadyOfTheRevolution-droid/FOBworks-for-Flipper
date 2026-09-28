@@ -2,54 +2,53 @@
 #include <string.h>
 
 /* ─────────────────────────────────────────────────────────────────────────── */
-/* VAG AUT64/XTEA Protocol — FOBworks implementation.                         */
-/*   3 hardcoded AUT64 keys + TEA key schedule for VAG Type 2.                */
-/*   VW-2 and VW-3 use fixed global master keys (no key diversification).     */
+/* This module parses the VAG AUT64 and Type 2/XTEA formats. It contains three
+   AUT64 keys and the fixed Type 2 TEA key schedule. VW-2 and VW-3 use global
+   master keys without key diversification. A parser match is not proof that a
+   paired vehicle receiver will accept a frame. */
 /* ─────────────────────────────────────────────────────────────────────────── */
 
-/* ── AUT64 Cipher (12-round SPN, 64-bit block, 120-bit key) ─────────────── */
-/* Key structure: { index, key[8], pbox[8], sbox[16] }                        */
-/* Three hardcoded keys:                                                      */
+/* AUT64's 12-round SPN uses 64-bit blocks and a 120-bit key.
+   Packed key layout: { index, key[8], pbox[8], sbox[16] }. */
 
 static const uint8_t vag_keys_packed[VAG_KEYS_COUNT][AUT64_KEY_STRUCT_PACKED_SIZE] = {
-    /* Key 1: VW-2 (434.4 MHz, Manchester, ~2004-2009) */
+    /* Key 1: VW-2, 434.4 MHz Manchester, approximately 2004–2009. */
     { 0x01, 0x37, 0x6C, 0x86, 0xAD, 0xAB, 0xCC, 0x43,
       0x07, 0x4D, 0xE8, 0x59, 0xC1, 0x2F, 0x36, 0xAB },
-    /* Key 2: VW-3 (434.4 MHz, Manchester, ~2006-2009) */
+    /* Key 2: VW-3, 434.4 MHz Manchester, approximately 2006–2009. */
     { 0x02, 0x37, 0x7C, 0x65, 0xCE, 0xDC, 0x42, 0xEA,
       0xA4, 0x53, 0xE8, 0x61, 0xD9, 0xB7, 0x20, 0xFC },
-    /* Key 3: VW-4 (434.4 MHz, Manchester, ~2008-2009) */
+    /* Key 3: VW-4, 434.4 MHz Manchester, approximately 2008–2009. */
     { 0x03, 0x8A, 0xA3, 0x7B, 0x1E, 0x56, 0x1F, 0x83,
       0x84, 0xB6, 0x19, 0xC5, 0x2E, 0x0A, 0x3F, 0xD7 },
 };
 
-/* ── XTEA Key Schedule (VAG Type 2) ─────────────────────────────────────── */
-/* TEA delta: 0x9E3779B9 (golden ratio * 2^32)                              */
-/* VAG uses a fixed 128-bit key schedule for all vehicles of this type.      */
+/* VAG Type 2 uses this fixed 128-bit XTEA key schedule. The TEA delta is
+   0x9E3779B9, the golden-ratio constant scaled by 2^32. */
 static const uint32_t vag_tea_key_schedule[4] = {
     0x0B46502D, 0x5E253718, 0x2BF93A19, 0x622C1206
 };
 
-/* ── AUT64 S-Box (16 entries, 4-bit → 4-bit) ────────────────────────────── */
+/* AUT64 substitution table: 16 entries, mapping 4-bit values to 4-bit values. */
 static const uint8_t aut64_sbox[16] = {
     0x0E, 0x04, 0x0D, 0x01, 0x02, 0x0F, 0x0B, 0x08,
     0x03, 0x0A, 0x06, 0x0C, 0x05, 0x09, 0x00, 0x07
 };
 
-/* ── AUT64 P-Box (8-element permutation) ────────────────────────────────── */
+/* AUT64 permutation table. */
 __attribute__((unused))
 static const uint8_t aut64_pbox[8] = {
     0x03, 0x06, 0x07, 0x00, 0x05, 0x02, 0x01, 0x04
 };
 
-/* ── AUT64 Round Offsets (256-entry lookup table) ───────────────────────── */
-/* Truncated — full table in VAG firmware. Using simplified 12-round version. */
+/* The full VAG firmware has 256 round offsets. This implementation uses a
+   simplified 12-round sequence, so these are the offsets it actually applies. */
 static const uint8_t aut64_offsets[12] = {
     0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
     0x08, 0x09, 0x0A, 0x0B
 };
 
-/* ── AUT64 Encrypt (12 rounds) ──────────────────────────────────────────── */
+/* Apply the simplified 12-round AUT64 transform used by this implementation. */
 static uint64_t aut64_encrypt_block(uint64_t plaintext, const uint8_t* key) {
     uint8_t left = (uint8_t)(plaintext >> 32);
     uint8_t right = (uint8_t)(plaintext >> 40);
@@ -58,7 +57,7 @@ static uint64_t aut64_encrypt_block(uint64_t plaintext, const uint8_t* key) {
         mid[i] = (uint8_t)(plaintext >> (8 + i * 8));
 
     for(int round = 0; round < 12; round++) {
-        /* Feistel function: S-box substitution + P-box permutation + XOR */
+        /* Combine the S-box, key byte, round offset, and Feistel XOR. */
         uint8_t f = aut64_sbox[right & 0x0F] ^
                     (aut64_sbox[(right >> 4) & 0x0F] << 4);
         f ^= key[round % 8];
@@ -76,7 +75,7 @@ static uint64_t aut64_encrypt_block(uint64_t plaintext, const uint8_t* key) {
     return result;
 }
 
-/* ── XTEA Encrypt (64 rounds, VAG variant) ──────────────────────────────── */
+/* XTEA encryption helper retained alongside the VAG decrypt path. */
 __attribute__((unused))
 static void xtea_encrypt(uint32_t* v, const uint32_t* key) {
     uint32_t v0 = v[0], v1 = v[1];
@@ -106,25 +105,21 @@ static void xtea_decrypt(uint32_t* v, const uint32_t* key) {
     v[1] = v1;
 }
 
-/* ── VAG Frame Parser ───────────────────────────────────────────────────── */
-/* VAG frame layout (64-bit Manchester-encoded):                            */
-/*   Preamble (16 bits): 0xAF3F (Type 1/3/4) or 0xAF1C (Type 2/XTEA)        */
-/*   Serial (28 bits): unique to key fob                                      */
-/*   Button (4 bits): lock/unlock/trunk/panic                                 */
-/*   Counter (12 bits): rolling counter                                       */
-/*   Encrypted (remaining): AUT64 or XTEA encrypted payload                   */
-/*   Type byte: 0x00=VW Passat, 0xC0=VW, 0xC1=Audi, 0xC2=Seat, 0xC3=Skoda   */
+/* Parse a 64-bit Manchester VAG frame. The preamble is 0xAF3F for Types 1/3/4
+   or 0xAF1C for Type 2/XTEA. The fields are a 28-bit serial, 4-bit button,
+   12-bit rolling counter, encrypted payload, and a type byte:
+   0x00=VW Passat, 0xC0=VW, 0xC1=Audi, 0xC2=Seat, 0xC3=Skoda. */
 
 bool vag_parse_frame(const uint8_t* raw, int raw_bits, VagFrame* out) {
     if(!raw || !out || raw_bits < 64) return false;
 
-    /* Extract preamble (first 16 bits) */
+    /* Read the 16-bit preamble. */
     uint16_t preamble = 0;
     for(int i = 0; i < 16; i++) {
         preamble = (preamble << 1) | ((raw[i / 8] >> (7 - (i % 8))) & 1);
     }
 
-    /* Determine VAG type from preamble */
+    /* Use the preamble to select the frame type. */
     if(preamble == 0xAF3F) {
         out->type = VagType_AUT64_300us;  /* Type 1, 3, or 4 */
     } else if(preamble == 0xAF1C) {
@@ -133,35 +128,35 @@ bool vag_parse_frame(const uint8_t* raw, int raw_bits, VagFrame* out) {
         return false;  /* Not a VAG frame */
     }
 
-    /* Extract serial (28 bits, bits 16-43) */
+    /* Extract the 28-bit serial from bits 16–43. */
     uint32_t serial = 0;
     for(int i = 16; i < 44; i++) {
         serial = (serial << 1) | ((raw[i / 8] >> (7 - (i % 8))) & 1);
     }
     out->serial = serial;
 
-    /* Extract button (4 bits, bits 44-47) */
+    /* Extract the 4-bit button from bits 44–47. */
     uint8_t btn = 0;
     for(int i = 44; i < 48; i++) {
         btn = (btn << 1) | ((raw[i / 8] >> (7 - (i % 8))) & 1);
     }
     out->button = btn;
 
-    /* Extract counter (12 bits, bits 48-59) */
+    /* Extract the 12-bit counter from bits 48–59. */
     uint16_t ctr = 0;
     for(int i = 48; i < 60; i++) {
         ctr = (ctr << 1) | ((raw[i / 8] >> (7 - (i % 8))) & 1);
     }
     out->counter = ctr;
 
-    /* Extract type byte (bits 60-63) */
+    /* Extract the type byte from bits 60–63. */
     uint8_t type_byte = 0;
     for(int i = 60; i < 64; i++) {
         type_byte = (type_byte << 1) | ((raw[i / 8] >> (7 - (i % 8))) & 1);
     }
     out->type_byte = type_byte;
 
-    /* Map type byte to vehicle brand */
+    /* Map recognized type-byte values to a brand label. */
     switch(type_byte & 0xC0) {
     case 0x00: out->brand = "VW Passat"; break;
     case 0xC0:
@@ -177,14 +172,14 @@ bool vag_parse_frame(const uint8_t* raw, int raw_bits, VagFrame* out) {
     return true;
 }
 
-/* ── VAG Decrypt (AUT64 or XTEA) ────────────────────────────────────────── */
+/* Decrypt the payload with the cipher selected by the parsed frame type. */
 bool vag_decrypt(const uint8_t* encrypted, int enc_bytes, VagFrame* frame,
                  uint8_t* out_plain, int* out_plain_len) {
     if(!encrypted || !frame || !out_plain || !out_plain_len) return false;
     if(enc_bytes < 8) return false;  /* Need at least one 64-bit block */
 
     if(frame->type == VagType_XTEA) {
-        /* XTEA decryption (Type 2) */
+        /* Type 2 uses XTEA. */
         uint32_t v[2];
         memcpy(v, encrypted, 8);
         xtea_decrypt(v, vag_tea_key_schedule);
@@ -192,8 +187,7 @@ bool vag_decrypt(const uint8_t* encrypted, int enc_bytes, VagFrame* frame,
         *out_plain_len = 8;
         return true;
     } else {
-        /* AUT64 decryption (Types 1, 3, 4) */
-        /* Try all 3 known keys */
+        /* Types 1, 3, and 4 use AUT64; test the three keys in this table. */
         for(int k = 0; k < VAG_KEYS_COUNT; k++) {
             uint64_t ct = 0;
             for(int i = 0; i < 8 && i < enc_bytes; i++)
@@ -203,7 +197,8 @@ bool vag_decrypt(const uint8_t* encrypted, int enc_bytes, VagFrame* frame,
             memcpy(out_plain, &pt, 8);
             *out_plain_len = 8;
 
-            /* Validate: decrypted button byte low nibble should be valid */
+            /* Every four-bit value is <= 0x0F, so this condition cannot reject
+               a candidate or distinguish a correct key from an incorrect one. */
             uint8_t dec_btn = out_plain[0] & 0x0F;
             if(dec_btn <= 0x0F) {
                 frame->key_index = k;
@@ -214,14 +209,13 @@ bool vag_decrypt(const uint8_t* encrypted, int enc_bytes, VagFrame* frame,
     }
 }
 
-/* ── VAG Next Counter Prediction ────────────────────────────────────────── */
-/* Counter increments by multiplier (typically 1-4) per button press.        */
+/* Advance the counter by the caller-supplied multiplier (typically 1–4). */
 uint32_t vag_next_counter(uint32_t current, int multiplier) {
     if(multiplier <= 0) multiplier = 1;
     return (current + multiplier) & 0xFFFFFF;  /* 24-bit counter */
 }
 
-/* ── VAG Key Lookup ─────────────────────────────────────────────────────── */
+/* Access the VAG key table by index. */
 const uint8_t* vag_get_key(int index, int* out_len) {
     if(index < 0 || index >= VAG_KEYS_COUNT) {
         if(out_len) *out_len = 0;

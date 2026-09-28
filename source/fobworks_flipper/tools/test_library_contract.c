@@ -1,9 +1,9 @@
 /*
  * Host contract tests for the FAP library boundary.
  *
- * This deliberately uses the pure library-rules seam plus the pure JSON
- * emitters. It does not emulate Flipper Storage and therefore cannot grant
- * filesystem access to production code. Build through tools/Makefile.
+ * These tests cover the library rules and JSON emitters without emulating
+ * Flipper Storage. They do not test production filesystem access. Build with
+ * the tools/Makefile.
  */
 #include "../link/flipper_link_proto.h"
 #include "../protocol/flipper_library_rules.h"

@@ -4,11 +4,8 @@
 #include <stdio.h>
 #include <string.h>
 
-/* On-device signal Library — browses SD-backed .sub captures the way the stock
- * SubGHz "Saved" section does: a category select (Decoded / Raw), a file list,
- * and a per-signal actions menu (Send / Info / Predict / Delete).  Functionally
- * mirrors the web dashboard library (replay, key prediction, export via .sub on
- * SD, delete) without copying its on-screen layout. */
+/* Browse captures stored as .sub files on the SD card. Choose Decoded or Raw,
+ * then select a capture to send, inspect, predict from, export, or delete. */
 
 /* ── Category select (Decoded / Raw) ──────────────────────────────────────── */
 enum { LibCatDecoded = 0, LibCatRaw = 1 };
@@ -102,7 +99,7 @@ static void library_item_cb(void* ctx, uint32_t idx) {
     FlipperApp* app = (FlipperApp*)ctx;
     switch(idx) {
     case LibActSend: {
-        /* Replay the saved pulses on their captured frequency/preset. */
+        /* Replay the saved pulses with their captured frequency and preset. */
         flipper_app_gui_radio_acquire(app);
         flipper_capture_tx_set_done_cb(
             app->capture, flipper_app_gui_tx_done, app);
@@ -136,13 +133,13 @@ static void library_item_cb(void* ctx, uint32_t idx) {
         scene_manager_next_scene(app->scene_manager, FlipperSceneLibScope);
         break;
     case LibActPredict:
-        /* KeeLoq next-code prediction from the single saved frame. */
+        /* Try the KeeLoq next-code predictor on this saved frame. */
         flipper_kl_predict(&app->lib_sel.decode, NULL);
         scene_manager_next_scene(app->scene_manager, FlipperSceneLibraryInfo);
         break;
     case LibActExport: {
-        /* Copy into the stock SubGHz "Saved" browser so it survives this app's
-           small library and can be replayed from the native SubGHz app. */
+        /* Copy the capture to the stock SubGHz Saved browser for access outside
+           this app. */
         bool ok = flipper_lib_export_subghz(app->storage, app->lib_sel_decoded,
                                             app->lib_sel_name);
         notification_message(app->notifications, ok ? &sequence_success : &sequence_error);
@@ -151,7 +148,7 @@ static void library_item_cb(void* ctx, uint32_t idx) {
     case LibActDelete: {
         bool ok = flipper_lib_delete(app->storage, app->lib_sel_decoded, app->lib_sel_name);
         notification_message(app->notifications, ok ? &sequence_success : &sequence_error);
-        /* Back to the (now-updated) list. */
+        /* Return to the updated file list. */
         scene_manager_previous_scene(app->scene_manager);
         break;
     }
@@ -169,7 +166,7 @@ void flipper_scene_library_item_on_enter(void* ctx) {
     submenu_add_item(app->submenu, "Info", LibActInfo, library_item_cb, app);
     submenu_add_item(app->submenu, "Read-only saved check", LibActCheck, library_item_cb, app);
     submenu_add_item(app->submenu, "LibScope waveform", LibActScope, library_item_cb, app);
-    /* Predict is KeeLoq-only (the on-device predictor). */
+    /* The on-device predictor supports KeeLoq only. */
     if(app->lib_sel_decoded && app->lib_sel.decode.rolling &&
        strncmp(app->lib_sel.decode.proto, "KeeLoq", 6) == 0)
         submenu_add_item(app->submenu, "Predict Next", LibActPredict, library_item_cb, app);

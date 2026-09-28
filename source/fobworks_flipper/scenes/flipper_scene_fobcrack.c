@@ -80,7 +80,7 @@ void flipper_fobcrack_draw_cb(Canvas* canvas, void* model) {
     canvas_set_font(canvas, FontSecondary);
 
     if(!s->armed) {
-        canvas_draw_str(canvas, 0, 22, "OK, then press the fob.");
+        canvas_draw_str(canvas, 0, 22, "Press OK, then the fob.");
         canvas_draw_str(canvas, 0, 32, "[OK]=start  [Back]=exit");
         return;
     }
@@ -89,7 +89,7 @@ void flipper_fobcrack_draw_cb(Canvas* canvas, void* model) {
     canvas_draw_str(canvas, 0, 22, s->status);
 
     if(s->running) {
-        canvas_draw_str(canvas, 0, 32, "Wait 1s, press fob");
+        canvas_draw_str(canvas, 0, 32, "Wait 1s; press fob.");
         canvas_draw_str(canvas, 0, 42, "[Up/Dn] freq  [Back] exit");
     } else if(s->done) {
         if(s->found) {

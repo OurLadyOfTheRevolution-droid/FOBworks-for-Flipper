@@ -1,9 +1,7 @@
 #include "../flipper_fobscan_app.h"
 
-/* Credits screen shown when the user backs out of the main menu (i.e. on the
- * way out of the app).  The main menu intercepts its Back event and pushes this
- * scene instead of exiting directly; any key press here stops the view
- * dispatcher, which ends the app run loop. */
+/* The main menu opens this screen on Back instead of exiting immediately.
+ * A key press stops the dispatcher and closes the app. */
 
 void flipper_credits_draw_cb(Canvas* canvas, void* model) {
     UNUSED(model);
@@ -26,8 +24,8 @@ void flipper_credits_draw_cb(Canvas* canvas, void* model) {
 
 bool flipper_credits_input_cb(InputEvent* e, void* ctx) {
     FlipperApp* app = (FlipperApp*)ctx;
-    /* Any short press exits the app.  Stopping the dispatcher unwinds the run
-       loop; scene on_exit handlers still fire during teardown. */
+    /* Stop the dispatcher to exit; scene exit handlers still run during
+       teardown. */
     if(e->type == InputTypeShort) {
         view_dispatcher_stop(app->view_dispatcher);
         return true;

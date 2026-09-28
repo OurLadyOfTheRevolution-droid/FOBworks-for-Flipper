@@ -1,11 +1,9 @@
 /*
- * Host conformance test for the dashboard control protocol.
+ * Host conformance checks for the dashboard control protocol.
  *
- * Verifies the two things that made the old bridge silently non-functional:
- *   1. Outbound frames use the keys the dashboard normalizer dispatches on
- *      (event / proto / cmd) — NOT the "type" key the old scaffold emitted.
- *   2. Inbound command names the dashboard actually sends parse to the right
- *      kind — including "setfreq" (the old FAP wrongly parsed "set_freq").
+ * Checks that outbound frames use the event/proto/cmd keys expected by the
+ * dashboard, and that inbound command names map to the right kinds. In
+ * particular, the dashboard sends "setfreq", not "set_freq".
  *
  * Build + run:
  *   cc -I.. -o test_link test_link.c ../link/flipper_link_proto.c && ./test_link
@@ -22,7 +20,7 @@ static void expect(int cond, const char* what) {
     if(!cond) { printf("  FAIL: %s\n", what); fails++; }
 }
 
-/* assert that `hay` contains substring `needle` */
+/* Check whether hay contains needle. */
 static void contains(const char* hay, const char* needle, const char* what) {
     checks++;
     if(!strstr(hay, needle)) {

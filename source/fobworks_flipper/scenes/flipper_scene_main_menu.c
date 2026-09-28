@@ -69,8 +69,7 @@ static void main_menu_cb(void* ctx, uint32_t idx) {
 
 void flipper_scene_main_menu_on_enter(void* ctx) {
     FlipperApp* app = (FlipperApp*)ctx;
-    /* Reclaim the guided-flow union whenever we return to the root menu, so its
-       ~11 KB is only resident while a guided flow is actually active. */
+    /* Release guided-flow memory when returning to the menu. */
     flipper_guided_release(app);
     submenu_reset(app->submenu);
     submenu_set_header(app->submenu, "FOBworks  v" FLIPPER_VERSION);
@@ -93,8 +92,7 @@ void flipper_scene_main_menu_on_enter(void* ctx) {
 
 bool flipper_scene_main_menu_on_event(void* ctx, SceneManagerEvent e) {
     FlipperApp* app = (FlipperApp*)ctx;
-    /* Main menu is the root scene, so Back would normally exit the app.  Show
-       the credits screen on the way out instead; any key there stops the app. */
+    /* Show credits on Back; a key press there exits the app. */
     if(e.type == SceneManagerEventTypeBack) {
         scene_manager_next_scene(app->scene_manager, FlipperSceneCredits);
         return true;

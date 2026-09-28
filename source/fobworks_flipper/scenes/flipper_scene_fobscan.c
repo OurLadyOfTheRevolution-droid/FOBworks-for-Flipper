@@ -3,22 +3,15 @@
 #include <stdio.h>
 #include <string.h>
 
-/* FOBSCAN_FREQS[] / FOBSCAN_FREQ_COUNT are shared (defined in
-   flipper_fobscan_app.c, declared in the app header) so Advanced Settings and
-   the on-device Up/Down tuning stay in lockstep.
+/* FOBSCAN_FREQS[] is shared with Advanced Settings so both screens use the
+   same channel table.
 
-   Interaction model (rebuilt):
-     - Scanning starts on enter and runs continuously; there is no OK pause.
-       To "pause", the user simply backs out to the menu.
-     - Modulation is NOT adjustable here — set it in Advanced Settings.
-     - Up / Down .......... step the tuned frequency
-     - Right .............. view the last auto-saved capture in the Library
-     - Left ............... enter custom-range setup (Scan → RangeSet)
-     - RangeSet: Up/Down move a cursor; OK sets max, OK again sets min;
-       Left confirms and starts a ranged sweep.
-     - Sweep: auto-advances across [min,max] and lingers on frequencies that
-       show a signal (like the dashboard sweep); OK stops and stays on the
-       landed frequency (back to single-frequency Scan). */
+   Scanning starts when this screen opens and runs until you leave it; OK does
+   not pause. Set modulation in Advanced Settings. Up/Down tune the frequency,
+   Right opens the last saved capture, and Left opens range setup. In RangeSet,
+   use Up/Down to position the cursor, OK to set MAX then MIN, and Left to start
+   the sweep. The sweep pauses briefly on a signal; OK returns to Scan at the
+   current frequency. */
 
 /* Ticks (500 ms each) to dwell on a frequency after a hit during a sweep. */
 #define FOBSCAN_SWEEP_LINGER 4
@@ -52,9 +45,9 @@ static int fobscan_clamp_idx(int i) {
     return i;
 }
 
-/* Stop → reconfigure → (re)start the radio on the state's current freq/preset.
-   Pulls squelch/force-proto straight from Advanced Settings each time so those
-   knobs take effect immediately. */
+/* Stop the radio, apply the current frequency and preset, then optionally
+   restart it. Read squelch and force-protocol from Advanced Settings each time
+   so changes take effect immediately. */
 static void fobscan_retune(FlipperApp* app, bool arm) {
     FlipperFobscanState* s = &app->fobscan;
     flipper_capture_stop(app->capture);
@@ -68,8 +61,7 @@ static void fobscan_retune(FlipperApp* app, bool arm) {
 
 /* ── Canvas draw ─────────────────────────────────────────────────────────── */
 void flipper_fobscan_draw_cb(Canvas* canvas, void* model) {
-    /* NB: a View draw callback receives the view MODEL, not the context.
-       Our model holds the FlipperApp pointer. */
+    /* Draw callbacks receive the view model, which holds FlipperApp*. */
     FlipperApp* app = *(FlipperApp**)model;
     FlipperFobscanState* s = &app->fobscan;
 
@@ -118,7 +110,7 @@ void flipper_fobscan_draw_cb(Canvas* canvas, void* model) {
              (double)s->freq_mhz, fobscan_preset_name(s->preset));
     canvas_draw_str(canvas, 0, 22, freq_str);
 
-    /* Live RSSI + squelch gate (so the Advanced Settings value is visible) */
+    /* Show RSSI alongside the squelch setting. */
     char rssi_str[40];
     snprintf(rssi_str, sizeof(rssi_str), "RSSI %.0f  Sq %d",
              (double)s->rssi_dbm, (int)app->adv.squelch_dbm);
@@ -147,7 +139,7 @@ void flipper_fobscan_draw_cb(Canvas* canvas, void* model) {
             canvas_draw_str(canvas, 0, 63, line);
         }
     } else if(s->flash_ticks > 0) {
-        /* Raw/undecoded burst just captured — say so instead of "Waiting...". */
+        /* Distinguish a saved raw burst from an undecoded capture. */
         canvas_draw_str(canvas, 0, 46, "Undecoded burst saved");
         canvas_draw_str(canvas, 0, 55, "R=view in library");
     } else if(s->ui_mode == FobscanModeSweep) {
@@ -160,9 +152,8 @@ void flipper_fobscan_draw_cb(Canvas* canvas, void* model) {
         canvas_draw_str(canvas, 0, 63, "L=set range");
     }
 
-    /* ── Capture toast ───────────────────────────────────────────────────────
-       A prominent inverted banner across the top for a few ticks after a
-       capture, so a hit is obvious even at a glance (the LED/vibro fires too). */
+    /* Briefly invert the header after a capture. The notification also blinks
+       the LED and vibrates. */
     if(s->flash_ticks > 0) {
         canvas_set_color(canvas, ColorBlack);
         canvas_draw_box(canvas, 0, 0, 128, 13);
@@ -206,7 +197,7 @@ bool flipper_fobscan_input_cb(InputEvent* e, void* ctx) {
             fobscan_redraw(app);
             return true;
         case InputKeyLeft:
-            /* Confirm once both bounds are set; otherwise cancel back to Scan. */
+            /* Confirm only after both bounds are set; otherwise return to Scan. */
             view_dispatcher_send_custom_event(app->view_dispatcher,
                 s->range_step == 2 ? FlipperEventRangeConfirm : FlipperEventRangeCancel);
             return true;
@@ -220,7 +211,7 @@ bool flipper_fobscan_input_cb(InputEvent* e, void* ctx) {
         switch(e->key) {
         case InputKeyOk:
             if(e->type != InputTypeShort) return false;
-            /* Stop the sweep and stay on the frequency it landed on. */
+            /* Stop on the current frequency and return to Scan. */
             view_dispatcher_send_custom_event(app->view_dispatcher, FlipperEventSweepStop);
             return true;
         case InputKeyRight:
@@ -248,7 +239,7 @@ bool flipper_fobscan_input_cb(InputEvent* e, void* ctx) {
         return true;
 
     case InputKeyRight:
-        /* View the last auto-saved capture in the Library. */
+        /* Open the most recently auto-saved capture. */
         if(app->fobscan_has_saved)
             view_dispatcher_send_custom_event(app->view_dispatcher,
                                               FlipperEventViewInLibrary);
@@ -266,12 +257,11 @@ bool flipper_fobscan_input_cb(InputEvent* e, void* ctx) {
 
 /* ── Capture edge callback (ISR — must be minimal) ──────────────────────── */
 /*
- * Send FlipperEventStatusTick on every RF edge.  We deliberately do NOT send a
- * mode-changing event here: the edge ISR fires on every single RF edge
- * (~100+ per fob press), so anything that mutates radio/HAL state would be run
- * hundreds of times per burst and drive the SubGHz state machine into a
- * furi_check() crash.  The FOBscan event handler flushes the capture ring on
- * every event regardless of type, so responsiveness is preserved.
+  * Send a status tick for each RF edge, but keep the ISR away from radio or HAL
+  * state changes. It can fire more than 100 times per press; changing modes
+  * here could call the SubGHz state machine repeatedly and trigger a furi_check.
+  * The FOBscan handler flushes the capture ring on every event, so the screen
+  * still updates promptly.
  */
 static void fobscan_edge_cb(void* ctx) {
     FlipperApp* app = (FlipperApp*)ctx;
@@ -475,14 +465,13 @@ bool flipper_scene_fobscan_on_event(void* ctx, SceneManagerEvent e) {
 
     /* ── Status tick / edge flush ────────────────────────────────────────── */
     if(e.event == FlipperEventStatusTick) {
-        /* Nothing to do in range-set (radio is stopped). */
+        /* Range setup has no active capture to process. */
         if(s->ui_mode == FobscanModeRangeSet) return true;
 
         bool hit = fobscan_consume_flush(app);
 
         if(s->ui_mode == FobscanModeSweep) {
-            /* SGP-style sweep: linger on frequencies that show a signal, then
-               step to the next frequency within the custom range. */
+            /* Pause briefly on a hit, then move to the next selected frequency. */
             if(hit) {
                 s->linger = FOBSCAN_SWEEP_LINGER;
             } else if(s->linger > 0) {

@@ -2,13 +2,12 @@
 #include <string.h>
 #include <stdio.h>
 
-/* Provisional generic vehicle-RKE extractor — see header for the caveat.
- * Frame model:
- *   preamble : >= 8 equal-width pairs (both halves <= ~1.5T)
- *   payload  : 64 bits, bit == 1 when the HIGH half exceeds ~1.5T
- *   fields   : [serial 32][counter 16][command 8][checksum 8]
- * The checksum gate rejects noise, so a forced selection stays honest even
- * though the field placement itself is unvalidated.
+/* Provisional generic vehicle-RKE extractor; see the header for its limits.
+   Assumed frame: at least eight equal-width preamble pairs (each half no more
+   than about 1.5T), followed by 64 bits. A HIGH half above 1.5T represents 1.
+   The guessed fields are [serial 32][counter 16][command 8][checksum 8].
+   The checksum can reject some noise, but it does not validate these field
+   positions or identify a real protocol. Keep callers force-only.
  */
 bool vehrke_decode(const FlipperPulseBuf* buf, FlipperDecodeResult* r,
                    const VehRkeSpec* s) {
@@ -19,7 +18,7 @@ bool vehrke_decode(const FlipperPulseBuf* buf, FlipperDecodeResult* r,
 
     const uint32_t thr = te + (te >> 1);   /* ~1.5T */
 
-    /* Anchor on a preamble run of >= 8 pairs. */
+    /* Find a preamble run with at least eight pairs. */
     int ds = -1;
     for(int i = 0; i + 1 < buf->len; i += 2) {
         int run = 0;
@@ -69,7 +68,7 @@ bool vehrke_decode(const FlipperPulseBuf* buf, FlipperDecodeResult* r,
     return true;
 }
 
-/* ── Nissan (NXP PCF7952-class) — provisional ────────────────────────────── */
+/* Nissan (NXP PCF7952-class) is also handled by the provisional extractor. */
 bool flipper_decode_nissan(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
     static const VehRkeSpec spec = { 220, 560, false, VehCkXor, "Nissan-RKE" };
     return vehrke_decode(buf, r, &spec);

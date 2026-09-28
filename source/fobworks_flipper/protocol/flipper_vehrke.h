@@ -2,15 +2,15 @@
 #include "flipper_decoders.h"
 
 /* ─────────────────────────────────────────────────────────────────────────── */
-/* Provisional vehicle RKE extractor.                                           */
-/*                                                                              */
-/* Mazda / Toyota / Nissan do not have a published, in-repo frame parser, so    */
-/* these decoders use a *provisional* generic OOK-PWM layout: a preamble run     */
-/* followed by 64 bits carved as [serial 32][counter 16][command 8][check 8].    */
-/* The field offsets and checksum kind are best-effort guesses — they have NOT   */
-/* been validated against real captures, so these decoders are force-only        */
-/* (never in the Auto chain) and a real fob will only decode once the layout is  */
-/* calibrated.  See the follow-up research task.                                 */
+/* Provisional vehicle-RKE extractor for Mazda, Toyota, and Nissan. No parser
+   for these models is available in this source tree, so this code assumes a
+   generic OOK-PWM frame: a preamble followed by 64 bits laid out as
+   [serial 32][counter 16][command 8][checksum 8].
+
+   The field positions and checksum type are guesses, not a recovered spec, and
+   have not been checked against real captures. These decoders stay force-only
+   and outside the Auto chain. A genuine frame may not match until its layout
+   is confirmed. */
 /* ─────────────────────────────────────────────────────────────────────────── */
 
 typedef enum {
@@ -26,6 +26,6 @@ typedef struct {
     const char* proto;       /* result label */
 } VehRkeSpec;
 
-/* Shared 64-bit OOK-PWM extractor used by the provisional decoders below. */
+/* Shared extractor for the provisional 64-bit OOK-PWM layouts below. */
 bool vehrke_decode(const FlipperPulseBuf* buf, FlipperDecodeResult* r,
                    const VehRkeSpec* s);

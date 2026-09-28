@@ -45,7 +45,7 @@ bool flipper_keyvault_upsert(FlipperVaultKey* keys, const char* name, uint64_t k
     if(n > 31) n = 31;
     if(!kv_name_ok(name, n)) return false;
 
-    /* in-place match wins; otherwise claim a free slot */
+    /* Reuse a matching entry when found; otherwise take a free slot. */
     FlipperVaultKey* slot = NULL;
     for(size_t i = 0; i < FLIPPER_KEYVAULT_MAX; i++) {
         if(!keys[i].used) { slot = &keys[i]; break; }
@@ -91,20 +91,20 @@ bool flipper_keyvault_from_text(const char* text, FlipperVaultKey* keys, int max
     if(max > FLIPPER_KEYVAULT_MAX) max = FLIPPER_KEYVAULT_MAX;
     *count = 0;
 
-    /* mutable working copy so '#' comments can be stripped in place */
+    /* Work on a copy so '#' comments can be removed without changing input. */
     char work[1024];
     size_t slen = strlen(text);
     if(slen == 0 || slen >= sizeof(work)) return false;
     memcpy(work, text, slen + 1);
 
-    /* Manual line splitting (strtok_r not available in Flipper firmware) */
+    /* Split lines manually because strtok_r() is unavailable in the firmware. */
     char* p = work;
     while(*p) {
         char* line = p;
-        /* Find end of line */
+        /* Locate the end of this line. */
         while(*p && *p != '\n' && *p != '\r') p++;
         char* end = p;
-        /* Skip line terminators */
+        /* Advance past CR/LF before processing the next line. */
         while(*p == '\n' || *p == '\r') p++;
         *end = '\0';
 
@@ -112,9 +112,9 @@ bool flipper_keyvault_from_text(const char* text, FlipperVaultKey* keys, int max
         if(hash) *hash = '\0';
         char* s = line;
         while(*s == ' ' || *s == '\t') s++;
-        if(*s == '\0') continue;                 /* blank / pure-comment line */
+        if(*s == '\0') continue;                 /* blank or comment-only line */
 
-        /* NAME HEXKEY */
+        /* Read the entry as NAME followed by a hexadecimal key. */
         size_t nlen = 0;
         while(s[nlen] != '\0' && s[nlen] != ' ' && s[nlen] != '\t') nlen++;
         if(!kv_name_ok(s, nlen)) continue;       /* malformed name */

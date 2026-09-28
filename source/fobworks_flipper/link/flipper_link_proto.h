@@ -19,14 +19,13 @@ typedef enum FlipperPreset FlipperPreset;
 /*
  * Transport-neutral wire protocol shared by the USB CDC and GPIO UART links.
  *
- * These functions are pure (no furi / no hardware) so they can be unit tested
- * on the host — see tools/test_link.c.  The transport wrappers in
- * flipper_link.c call them to format outbound lines and to parse inbound ones.
+ * These functions do not depend on Furi or hardware, so tools/test_link.c can
+ * exercise them on the host. flipper_link.c uses them to format outbound lines
+ * and parse inbound commands.
  *
- * CRITICAL: the schema below is dictated by the dashboard's JSON normalizer
- * (artifacts/sgp-scanner-dashboard/src/hooks/use-serial-manager.ts). That
- * parser dispatches on the "event", "proto", and "cmd" keys — it never looks
- * at a "type" key.  Any drift here means the dashboard silently drops frames.
+ * The dashboard's JSON normalizer dispatches on "event", "proto", and "cmd";
+ * it does not read a "type" key. Keep this schema in sync with that parser or
+ * the dashboard will drop frames.
  *
  * Outbound (Flipper -> dashboard), each newline-terminated:
  *   {"event":"boot", "freq":433.92, "cc1101":true}

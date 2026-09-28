@@ -1,8 +1,7 @@
-/* Host walk of every utility against synthetic signals.
- * Opening-radio noise, a KeeLoq frame under a listed manufacturer key,
- * a KeeLoq frame with no listed key, and a second press. Screen rules
- * match the scene source: FOBcrack stops after one KeeLoq frame; the
- * other listeners keep the radio open. */
+/* Exercise each utility's host-side path with synthetic signals: radio-open
+ * noise, a KeeLoq frame using a listed manufacturer key, a frame with no
+ * listed key, and a second press. The checks follow the scene rules: FOBcrack
+ * stops after one KeeLoq frame, while other listeners keep scanning. */
 #include "../protocol/flipper_decoders.h"
 #include "../protocol/flipper_keeloq.h"
 #include "../protocol/flipper_rollingpwn.h"
@@ -69,16 +68,16 @@ static void show(const char* label, int ok, const FlipperDecodeResult* r) {
 int main(void) {
     FlipperPulseBuf buf;
     FlipperDecodeResult a, b, noise;
-    /* Stored masked, as in FLIPPER_MFR_KEYS (tools/mask_mfrkeys.py). Unmasked once here so
-       the rest of this test uses the real key exactly as before. */
+    /* The table stores masked keys. Unmask this test value once so the
+       remaining checks use the original key. */
     const uint64_t doorhan_stored = 0xC9F1C7E5F53307FDULL;
     const uint64_t doorhan = kl_unmask_key(doorhan_stored);
     uint32_t sn = 0x00A1B2C3;
     uint8_t btn = 0x2;
     uint32_t plain1 = ((uint32_t)btn << 28) | ((sn & 0x3FFu) << 16) | 0x0101;
     uint32_t plain2 = ((uint32_t)btn << 28) | ((sn & 0x3FFu) << 16) | 0x0102;
-    /* The stored value must not be the key itself, or the mask is doing nothing. Checked
-       structurally so the test does not have to name the plaintext key. */
+    /* Check that the stored value differs from the plaintext key without
+       spelling that key out here. */
     expect(doorhan != doorhan_stored, "the stored manufacturer key is not the key itself");
     uint32_t enc1 = kl_encrypt(plain1, doorhan);
     uint32_t enc2 = kl_encrypt(plain2, doorhan);

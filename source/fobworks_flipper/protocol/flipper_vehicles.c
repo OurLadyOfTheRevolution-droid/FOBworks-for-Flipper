@@ -2,9 +2,8 @@
 #include <string.h>
 
 /* ─────────────────────────────────────────────────────────────────────────── */
-/* FOBclone frequency profiles (FC_P)                                         */
-/* Each profile names the primary capture frequency, tolerance offsets, and   */
-/* the CC1101 modulation mode to arm before the user presses the fob.         */
+/* FOBclone frequency presets (FC_P). Each supplies a primary frequency,
+   nearby offsets, and the CC1101 modulation to use before capture. */
 /* ─────────────────────────────────────────────────────────────────────────── */
 const FlipperFcProfile FLIPPER_FC_PROFILES[] = {
     {
@@ -93,13 +92,13 @@ const FlipperFcProfile FLIPPER_FC_PROFILES[] = {
 const int FLIPPER_FC_PROFILE_COUNT = (int)(sizeof(FLIPPER_FC_PROFILES) / sizeof(FLIPPER_FC_PROFILES[0]));
 
 /* ─────────────────────────────────────────────────────────────────────────── */
-/* FOBclone vehicles (FC_V)                                                   */
+/* FOBclone vehicle and year presets (FC_V). */
 /* ─────────────────────────────────────────────────────────────────────────── */
 #define PROFILE(k) flipper_fc_profile_by_key(k)
 
-/* The full year-by-year table is about 8.6 KB of .rodata. Official 1.3.3
-   refuses to load the FAP once .rodata crosses the free-block check.
-   Host builds keep every row. The device keeps one row per make. */
+/* The full year-by-year table takes about 8.6 KB of .rodata. On official
+   firmware 1.4.3 that exceeds the FAP loader's free-block check, so host builds
+   retain every row while the device build keeps one row per make. */
 #ifndef FLIPPER_FAP_SLIM
 const FlipperFcVehicle FLIPPER_FC_VEHICLES[] = {
     /* ── Hyundai / Kia ──────────────────────────────────────────────────── */
@@ -153,28 +152,29 @@ const FlipperFcVehicle FLIPPER_FC_VEHICLES[] = {
         .year_count = 3,
     },
     /* ── Toyota ──────────────────────────────────────────────────────────── */
-    /* Asia-specific models */
+    /* Asia-specific model entries. */
     {
         .make = "Toyota",
         .model = "Rush / Wigo S (Asia, 315 MHz)",
         .years = { "2017", "2018", "2019" },
         .year_count = 3,
     },
-    /* NA/global — Camry, Corolla, Prius use TG year split */
+    /* North American/global Camry, Corolla, and Prius entries use the TG
+       single- versus dual-band year split. */
     {
         .make = "Toyota",
         .model = "Camry / Corolla / Prius (315 MHz)",
         .years = { "1998-2017 (single-band)", "2018+ (dual-band Ch-B)" },
         .year_count = 2,
     },
-    /* NA/global — larger SUVs/trucks */
+    /* Larger North American/global SUVs and trucks use the same year split. */
     {
         .make = "Toyota",
         .model = "Highlander / Sienna / 4Runner / Sequoia (315 MHz)",
         .years = { "1998-2017 (single-band)", "2018+ (dual-band Ch-B)" },
         .year_count = 2,
     },
-    /* RAV4, Tacoma switch a year later (2019+) */
+    /* RAV4 and Tacoma switch to the later split in 2019. */
     {
         .make = "Toyota",
         .model = "RAV4 / Tacoma / Tundra (315 MHz)",
@@ -195,7 +195,8 @@ const FlipperFcVehicle FLIPPER_FC_VEHICLES[] = {
         .year_count = 2,
     },
     /* ── Ford / Lincoln (NA) ─────────────────────────────────────────────── */
-    /* All NA Ford/Lincoln use 315 MHz OOK rolling code throughout production */
+    /* The North American Ford/Lincoln entries below use 315 MHz OOK rolling
+       code profiles. */
     {
         .make = "Ford / Lincoln (NA)",
         .model = "F-150 / F-250 / F-350 / Expedition (315 MHz)",
@@ -644,7 +645,8 @@ const int FLIPPER_FBK_PROFILE_COUNT = (int)(sizeof(FLIPPER_FBK_PROFILES) / sizeo
 /* FOBback vehicle makes (FBK_V)                                              */
 /* ─────────────────────────────────────────────────────────────────────────── */
 
-/* Resolved at first use — avoids forward-reference problem with static init  */
+/* Resolve profile keys at first use; this avoids a forward reference in the
+   static model table. */
 static inline const FlipperFbkProfile* FP(const char* k) {
     return flipper_fbk_profile_by_key(k);
 }
@@ -682,7 +684,7 @@ static const FlipperFbkModel honda_models[] = {
     { "Brio EU 2016",           NULL },
 };
 
-/* Profile key lookup table — parallel arrays keep static init simple */
+/* Parallel profile-key arrays keep the static model table straightforward. */
 static const char* hyundai_pkeys[] = { "hy_kia_315", "hy_kia_433", "hy_ix20" };
 static const char* kia_pkeys[]     = { "hy_kia_315", "hy_kia_433" };
 static const char* nissan_pkeys[]  = { "nis_latio", "nis_sylphy", "nis_navara" };
@@ -701,7 +703,7 @@ const FlipperFbkMake FLIPPER_FBK_MAKES[] = {
 
 const int FLIPPER_FBK_MAKE_COUNT = (int)(sizeof(FLIPPER_FBK_MAKES) / sizeof(FLIPPER_FBK_MAKES[0]));
 
-/* ── Profile lookups ──────────────────────────────────────────────────────── */
+/* Look up a frequency or rollback profile by key. */
 const FlipperFcProfile* flipper_fc_profile_by_key(const char* key) {
     for(int i = 0; i < FLIPPER_FC_PROFILE_COUNT; i++)
         if(strcmp(FLIPPER_FC_PROFILES[i].key, key) == 0)
@@ -716,7 +718,7 @@ const FlipperFbkProfile* flipper_fbk_profile_by_key(const char* key) {
     return NULL;
 }
 
-/* Return the profile for FBK_MAKES[make_idx].models[model_idx] */
+/* Return the profile associated with a make/model pair, or NULL if invalid. */
 const FlipperFbkProfile* flipper_fbk_model_profile(int make_idx, int model_idx) {
     static const char** pkey_table[] = {
         hyundai_pkeys, kia_pkeys, nissan_pkeys,
@@ -727,7 +729,7 @@ const FlipperFbkProfile* flipper_fbk_model_profile(int make_idx, int model_idx) 
     return flipper_fbk_profile_by_key(pkey_table[make_idx][model_idx]);
 }
 
-/* Return the model name for FBK_MAKES[make_idx].models[model_idx] */
+/* Return the model name for a make/model pair, or NULL if invalid. */
 const char* flipper_fbk_model_name(int make_idx, int model_idx) {
     static const FlipperFbkModel* model_table[] = {
         hyundai_models, kia_models, nissan_models,

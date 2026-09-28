@@ -1,10 +1,10 @@
 # Corpus honesty
 
-Public report from `tools/sub_check --report`. Re-run 24 Sep 2026 on the
+This report records a `tools/sub_check --report` run on 24 Sep 2026 using the
 private capture folder. The tool counts `.sub` files only.
 
-This file has folder totals and protocol names. It does not list filenames,
-serials, hopping codes, or keys.
+It reports folder totals and protocol names, not filenames, serials, hopping
+codes, or keys.
 
 | Outcome | Count | Share | What it means on the Flipper |
 |---------|------:|------:|------------------------------|
@@ -22,7 +22,8 @@ Auto protocols in that run:
 | KIA/Hyundai | 2 |
 | Suzuki | 1 |
 
-Full histogram from the same run. A trailing `*` is force-only.
+The table below gives the full histogram from the same run. A trailing `*`
+marks a force-only result.
 
 | Protocol | Files |
 |----------|------:|
@@ -46,17 +47,17 @@ Folder bucket (one directory):
 |--------|-----:|------:|-----:|
 | keeloq_test_subs | 11 | 144 | 7 |
 
-The seven no-decode files stay no-decode. They need a cleaner capture or a
-stronger checksum before they join Auto. They are not promoted on a
-structural guess.
+The seven files with no decode remain in that category. They need a cleaner
+capture or a stronger checksum before they can be considered for Auto; a
+structural guess is not enough to promote them.
 
 ## Why this number is the product
 
-A Sub-GHz app that Auto-labels most of a mixed automotive folder is usually
-claiming frames it did not actually validate. On this set the honest Auto
-rate is 6.8%. The other decodes are still in the app, behind an explicit
-force, so a researcher can ask for them. Normal use does not.
+Auto labeling is a stricter bar than recognizing a frame after the user
+selects a protocol. In this set, 6.8% of files decoded on the Auto path. Other
+decoders remain available behind an explicit force selection for research;
+they are not used during normal Auto decoding.
 
-FOBscan shows the same split on the device: `Auto`, `Force`, or `None`, plus
-one next action. Saved `.sub` files stay openable in the stock Sub-GHz app
-and carry `FT_Confidence` and `FT_Action` for this result.
+On the device, FOBscan presents the result as `Auto`, `Force`, or `None`, with
+one next action. The saved `.sub` files remain openable in the stock Sub-GHz
+app and include `FT_Confidence` and `FT_Action` fields for the result.

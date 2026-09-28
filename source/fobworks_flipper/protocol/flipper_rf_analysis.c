@@ -3,18 +3,14 @@
 #include <string.h>
 
 /* ─────────────────────────────────────────────────────────────────────────── */
-/* RF Analysis Utilities — FOBworks implementation.                           */
-/*   • Shannon entropy calculator (crypto strength assessment)                */
-/*   • Encoding classifier (NRZ/Manchester/PWM/PPM from Te + Baud)            */
-/*   • FSPL calculator (link budget analysis)                                 */
-/*   • Protocol timing database (23 protocols)                                */
+/* Helpers for summarizing captured data: byte entropy, an encoding hint from
+   Te and baud, free-space path loss, and timing references for 23 protocols.
+   Entropy is a measure of this sample's byte distribution, not a crypto test. */
 /* ─────────────────────────────────────────────────────────────────────────── */
 
-/* ── Shannon Entropy Calculator ──────────────────────────────────────────── */
-/* Classifies captured key data by randomness:                                */
-/*   entropy < 2.0 → Low (fixed code, weak crypto)                            */
-/*   entropy < 6.0 → Medium (simple rolling code)                             */
-/*   entropy >= 6.0 → High (strong crypto, AES-like)                          */
+/* These thresholds put a sample into a rough entropy bucket. They describe
+   byte variation only; they do not identify a cipher or establish its strength:
+   below 2.0 = low, below 6.0 = medium, and 6.0 or above = high. */
 
 float rf_analysis_shannon_entropy(const uint8_t* data, size_t len) {
     if(!data || len == 0) return 0.0f;
@@ -50,10 +46,8 @@ const char* rf_analysis_entropy_label(RfEntropyClass cls) {
     }
 }
 
-/* ── Encoding Classifier ─────────────────────────────────────────────────── */
-/* Identifies modulation scheme from timing parameters (Te and Baud).         */
-/*   symbols_per_bit = (baud * te) / 1,000,000                                */
-/*   1 → NRZ, 2 → Manchester, 3 → 3-PWM, 4 → 4-PWM                           */
+/* Estimate symbols per bit as (baud * te) / 1,000,000, then map 1, 2, 3, or
+   4 symbols to NRZ, Manchester, 3-PWM, or 4-PWM. This is a timing-based hint. */
 
 RfEncoding rf_analysis_classify_encoding(uint32_t te_us, uint32_t baud) {
     if(te_us == 0 || baud == 0) return RfEncodingUnknown;
@@ -77,35 +71,33 @@ const char* rf_analysis_encoding_label(RfEncoding enc) {
     }
 }
 
-/* ── Symbol Rate Estimator ───────────────────────────────────────────────── */
-/* Estimates baud rate from minimum pulse width in a RAW capture.             */
+/* Estimate the baud rate from the shortest pulse in a RAW capture. */
 
 uint32_t rf_analysis_estimate_baud(int32_t min_pulse_us) {
     if(min_pulse_us <= 0) return 0;
     return 1000000 / min_pulse_us;
 }
 
-/* ── FSPL Calculator ─────────────────────────────────────────────────────── */
-/* Free Space Path Loss: FSPL(dB) = 20*log10(f_MHz) + 20*log10(d_m) - 147.55 */
+/* Free-space path loss in dB: 20*log10(f_MHz) + 20*log10(d_m) - 147.55. */
 
 float rf_analysis_fspl(float freq_mhz, float distance_m) {
     if(freq_mhz <= 0.0f || distance_m <= 0.0f) return 0.0f;
     return 20.0f * log10f(freq_mhz) + 20.0f * log10f(distance_m) - 147.55f;
 }
 
-/* Wavelength in mm: λ = c / f = 299,792,458,000 / f_Hz */
+/* Wavelength in millimetres, using the speed of light in metres per second. */
 float rf_analysis_wavelength_mm(float freq_mhz) {
     if(freq_mhz <= 0.0f) return 0.0f;
     return 299792458000.0f / (freq_mhz * 1000000.0f);
 }
 
-/* Quarter-wave antenna length in cm */
+/* Return one quarter of the wavelength in centimetres. */
 float rf_analysis_quarter_wave_cm(float freq_mhz) {
     float wl_mm = rf_analysis_wavelength_mm(freq_mhz);
     return (wl_mm / 4.0f) / 10.0f;  /* mm → cm */
 }
 
-/* ── TX Timing Analysis ──────────────────────────────────────────────────── */
+/* Estimate airtime and duty cycle from the supplied bit, baud, and repeat data. */
 
 uint32_t rf_analysis_tx_time_us(uint32_t bits, uint32_t baud) {
     if(baud == 0) return 0;
@@ -124,8 +116,7 @@ float rf_analysis_duty_cycle(uint32_t tx_time_ms, uint32_t repeat, uint32_t tota
     return (float)(tx_time_ms * repeat * 100) / (float)total_ms;
 }
 
-/* ── Protocol Timing Database ────────────────────────────────────────────── */
-/* 23 protocols with te_short, te_long, te_delta, min_count_bit.              */
+/* Timing reference entries for the 23 protocols listed below. */
 
 static const ProtoTimingEntry proto_timings[RF_PROTO_TIMING_COUNT] = {
     { "KeeLoq",       400,  800,  180, 66, NULL },
