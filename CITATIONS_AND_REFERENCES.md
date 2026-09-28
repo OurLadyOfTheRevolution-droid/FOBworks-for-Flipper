@@ -54,7 +54,7 @@ are kept separate from external references at the end.
 
 ## GitHub Repositories
 
-1. **Flipper-ARF** — Custom Flipper Zero firmware with enhanced SubGHz protocols.
+1. **Flipper-ARF** (@D4C1-Labs) — Custom Flipper Zero firmware with enhanced SubGHz protocols.
    - Provides CC1101 register configurations, including VAG, PSA, KIA, Honda,
      Renault, and FCA presets.
    - Includes a VAG AUT64/XTEA decoder, Ford V0-V3 decoders, and Chrysler and
@@ -63,7 +63,7 @@ are kept separate from external references at the end.
      a Hitag2 cipher core, and the Fiat V1 BCM attack.
    - Also includes region-unlock patterns.
 
-2. **ProtoPirate** — SubGHz protocol analysis toolkit.
+2. **ProtoPirate** (@RocketGod-git) — SubGHz protocol analysis toolkit.
    - Includes the KIA/Hyundai V0-V7 protocol suite (CRC8/4, mixer, AES-128),
      a PSA brute-force engine and crypto modules, a timing database for 23
      protocols, and Hitag2 Fiat V1 and Renault V1 implementations.
@@ -122,32 +122,32 @@ are kept separate from external references at the end.
      - VAG ID48 pre-2004 (64-bit PWM, inverted 8-bit byte-sum checksum)
      - Hyundai/Kia RIO early (64-bit fixed-code PWM, 16-bit inverted checksum)
 
-3. **Flipper-Zero-SUB-Analyzer** — Signal analysis utilities.
+3. **Flipper-Zero-SUB-Analyzer** (@RocketGod-git) — Signal analysis utilities.
    - Provides a Shannon entropy calculator, an NRZ/Manchester/PWM/PPM
      encoding classifier, an FSPL (Free Space Path Loss) calculator, TX
      timing analysis, and a symbol-rate estimator.
 
-4. **Flipper-Zero-SubGHz-Signal-Generator** — Radio-device management.
+4. **Flipper-Zero-SubGHz-Signal-Generator** (@RocketGod-git) — Radio-device management.
    - Covers internal or external CC1101 selection, region-unlock implementation,
      and OTG power management for external radios.
 
-5. **flipper-zero-carjacker** — RollJam and code-grabbing research.
+5. **flipper-zero-carjacker** (@RocketGod-git) — RollJam and code-grabbing research.
    - Describes a RollJam implementation and code-grabbing techniques.
 
-6. **RocketGods-SubGHz-Toolkit** — SubGHz utilities.
+6. **RocketGods-SubGHz-Toolkit** (@RocketGod-git) — SubGHz utilities.
    - Includes signal-generation patterns and frequency-sweep techniques.
 
-7. **HiennNek/non-flipper-rolling-code-support** — KeeLoq manufacturer-key
+7. **HiennNek/non-flipper-rolling-code-support** (@HiennNek) — KeeLoq manufacturer-key
    database.
    - Lists 73 real-world KeeLoq manufacturer keys, including gate, garage, and
      barrier (EU) keys; automotive and alarm (RU/CIS) keys; and factory-default
      patterns.
 
-8. **DarkFlippers/unleashed-firmware** — Custom Flipper firmware.
+8. **DarkFlippers/unleashed-firmware** (@DarkFlippers) — Custom Flipper firmware.
    - Consulted for build-integration patterns, the `SubGhzEnvironment`
      protocol registry, and HAL compatibility notes.
 
-9. **subarufobrob (tomwimmenhove)** — Subaru RKE reverse-engineering.
+9. **subarufobrob** (@tomwimmenhove) — Subaru RKE reverse-engineering.
    - Canonical Subaru 80-bit OOK Manchester frame: ~1013 µs half-symbol,
      `[0x55 sync][serial 24][cmd|cmd][counter 20|checksum 4]`, nibble-XOR
      checksum, sequential (rollback-able) counter, command map
@@ -156,13 +156,13 @@ are kept separate from external references at the end.
      for field order and checksum. The project reimplements it as a calibrated,
      Auto-safe decoder for FOBback's rollback profiles.
 
-10. **Pandora DXL (alarm firmware)** — automotive RKE framing reference.
+10. **Pandora DXL (alarm firmware)** (@ArtGudvin, pandora-DXL3910) — automotive RKE framing reference.
    - Provides upstream field-layout and checksum/CRC background for several
      OOK-PWM RKE framings (Mazda Siemens-VDO, VAG ID48, Hyundai/Kia RIO, Santa
      Fe TRW). These references were cross-checked against the ProtoPirate
      implementations above and reimplemented here as checksum-gated decoders.
 
-11. **rtl_433 (merbanan)** — ISM-band device decoder collection
+11. **rtl_433** (@merbanan, Benjamin Larsson) — ISM-band device decoder collection
    - Documents the Honda KR5V2X/KR5V1X keyfob frame: 2-FSK Manchester at
      ~60/120 µs, an `EC 0F 62` manufacturer preamble,
      `[idx][deviceID32][event][counter24][rolling32]` payload, and OpenSafety
@@ -228,8 +228,8 @@ are kept separate from external references at the end.
 ## Key databases
 
 1. **KeeLoq Manufacturer Keys** — 73 entries drawn from:
-   - HiennNek/non-flipper-rolling-code-support
-   - Unleashed firmware key tables
+   - HiennNek/non-flipper-rolling-code-support (@HiennNek)
+   - Unleashed firmware key tables (@DarkFlippers)
    - Mayhem firmware databases
    - ARF firmware key collections
    - Field research and leaked databases
