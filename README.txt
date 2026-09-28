@@ -109,3 +109,18 @@ out differently between runs and between toolchains, so the two are the same
 application in differently arranged bytes. Neither hash can be reproduced
 locally. Compare the API and target version instead, or run the workflow to
 build one yourself.
+
+Without the hard work of these developers, this project would not be possible.
+The specific repositories, protocols, data, and other info we relied on for this
+project are described in more detail in the CITATIONS_AND_REFERENCES document.
+These are the Saints of The Chapel of Our Lady Of The Revolution.
+
+@D4C1-Labs
+@RocketGod-git
+@HiennNek
+@ArtGudvin
+@merbanan
+@tomwimmenhove
+@DarkFlippers
+
+Please check them out, follow, and support their work!
