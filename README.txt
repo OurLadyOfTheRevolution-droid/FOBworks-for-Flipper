@@ -97,11 +97,15 @@ FOBback retains its guided profiles, beginning with FOBpwn (Honda). Hitag2 is
 not included in this FAP. The full vehicle table and JSON protocol remain in
 the source tree for host tests.
 
-SHA-256 of the bundled FAP as published:
+SHA-256 of the copy in this repository:
 529bad0cf14d1e3aee64b81b7635e457657cce98c24ab4da77cd1bf01edef8aa
 
-The build is not byte-reproducible: the linker lays code out differently
-between runs, so a rebuild of these same sources produces a working FAP with a
-different digest. The hash above identifies the committed file; it is not a
-value you can reproduce locally. Run the "Build FAP" workflow to build your own
-from the public source.
+SHA-256 of the binary attached to the v1.3 release, built by the "Build FAP"
+workflow from this same source on a GitHub runner:
+627aca168d8743295d3bafcc67fa8ee49131182931edf264ce527d6f9373c1e4
+
+These differ because the build is not byte-reproducible: the linker lays code
+out differently between runs and between toolchains, so the two are the same
+application in differently arranged bytes. Neither hash can be reproduced
+locally. Compare the API and target version instead, or run the workflow to
+build one yourself.
