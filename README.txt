@@ -71,10 +71,10 @@ against a real capture. The generator cannot provide that validation: the real
 format has no checksum, and generating frames that satisfy the current
 checksum-based decoder would only test the wrong format.
 
-In the synthetic corpus, none of 180 signals from the other twelve protocols
-was attributed to Sec+ 1.0 by the Auto path. That result applies only to this
-corpus. Security+1.0 remains marked `auto_safe` in `FLIPPER_DECODERS`, so the
-app can still present the decoder as available despite this known issue.
+Security+1.0 is marked `auto_safe = false` in `FLIPPER_DECODERS`, so it no
+longer runs in Auto. It remains available when selected explicitly. Running a
+decoder that cannot succeed in Auto bought no true positives and cost false
+ones, so the default path now excludes it.
 
 CITATIONS_AND_REFERENCES.md
   Lists the papers, repositories, datasheets, and in-house measurements
@@ -91,14 +91,25 @@ Menu labels put the tool name first, as in FOBcatch (rolljam) and FOBback
 shows a verdict with the protocol, Auto/Force/None status, and a next action.
 
 To fit within the official 1.4.3 loader limits, the FAP defers CC1101 setup
-until a radio scene, shares decoder scratch space, links a transport stub
-instead of the JSON dashboard, and includes one Generic KeeLoq row in FOBclone.
-FOBback retains its guided profiles, beginning with FOBpwn (Honda). Hitag2 is
-not included in this FAP. The full vehicle table and JSON protocol remain in
-the source tree for host tests.
+until a radio scene, shares decoder scratch space, and includes one Generic
+KeeLoq row in FOBclone. FOBback retains its guided profiles, beginning with
+FOBpwn (Honda). Hitag2 is not included in this FAP. The full vehicle table and
+JSON protocol remain in the source tree for host tests.
+
+The JSON dashboard link is compiled in and reachable from Settings -> Dashboard
+Link; it is off by default, which saves about 9 KB of heap at launch. Both USB
+and UART transports are allocated when it is switched on. Loader sizes for this
+image are `.text` 60328, `.rodata` 17437, `.bss` 5105 against limits of 61352,
+17645 and 5924.
+
+`link/flipper_link_stub.c` has been removed. It was never part of the build (absent
+from the `sources` list in `application.fam`) and redefined `flipper_link_alloc` and
+its neighbours, so adding it to the build would have produced duplicate symbols
+rather than a smaller image. Its header described a loader constraint that did not
+apply to the source tree as shipped.
 
 SHA-256 of the copy in this repository:
-529bad0cf14d1e3aee64b81b7635e457657cce98c24ab4da77cd1bf01edef8aa
+bd4f8e3059a26d648fad92b0bf1678eca13313f88df396a1ddac544708b10ec9
 
 The binary attached to the v1.3 release is built by the "Build FAP" workflow
 from this same source on a GitHub runner. Its digest is not recorded here: the

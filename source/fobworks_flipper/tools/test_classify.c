@@ -513,7 +513,8 @@ int main(int argc, char** argv) {
         OUT("\n");
         OUT("Fixing this requires rewriting the decoder for the ternary format and checking\n");
         OUT("it against a real capture. The generator cannot produce that validation data:\n");
-        OUT("the protocol has no checksum to compute.\n");
+        OUT("the protocol has no checksum to compute. It is marked auto_safe = false, so it\n");
+        OUT("no longer runs in Auto; it is reachable only when selected explicitly.\n");
     }
 
     OUT("\nAUTO uses `flipper_decode()` and only the `auto_safe` decoders; this is the\n");
