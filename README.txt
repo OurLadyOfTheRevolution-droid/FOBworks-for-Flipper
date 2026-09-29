@@ -100,15 +100,12 @@ the source tree for host tests.
 SHA-256 of the copy in this repository:
 529bad0cf14d1e3aee64b81b7635e457657cce98c24ab4da77cd1bf01edef8aa
 
-SHA-256 of the binary attached to the v1.3 release, built by the "Build FAP"
-workflow from this same source on a GitHub runner:
-627aca168d8743295d3bafcc67fa8ee49131182931edf264ce527d6f9373c1e4
-
-These differ because the build is not byte-reproducible: the linker lays code
-out differently between runs and between toolchains, so the two are the same
-application in differently arranged bytes. Neither hash can be reproduced
-locally. Compare the API and target version instead, or run the workflow to
-build one yourself.
+The binary attached to the v1.3 release is built by the "Build FAP" workflow
+from this same source on a GitHub runner. Its digest is not recorded here: the
+build is not byte-reproducible, so the workflow produces a differently arranged
+binary each time it runs and any hash written down goes stale at the next run.
+The two are the same application. Compare the API and target version instead
+(both report Target 7, API 87.1), or run the workflow to build one yourself.
 
 Without the hard work of these developers, this project would not be possible.
 The specific repositories, protocols, data, and other info we relied on for this
