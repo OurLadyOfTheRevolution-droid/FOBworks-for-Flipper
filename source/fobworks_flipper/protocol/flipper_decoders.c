@@ -931,7 +931,16 @@ const FlipperDecoderReg FLIPPER_DECODERS[] = {
     { FlipperForceFiat,      "Fiat",       flipper_decode_fiat,       true  },
     /* KeeLoq follows the OEM parsers; it can also recover keys across frames. */
     { FlipperForceKeeloq,   "KeeLoq",     flipper_decode_keeloq,   true  },
-    { FlipperForceSecplus1, "Sec+ 1.0",   flipper_decode_secplus1, true  },
+    /* Sec+ 1.0 is known-broken and must NOT run in Auto. flipper_decode_secplus1
+       implements a 40-bit binary frame with a 4-bit popcount checksum; the real
+       protocol is 42 ternary symbols (BIT_0/1/2 = 3T/2T/1T low pulses) over two
+       packets with no checksum field. Frames built to the real specification are
+       refused, and the ~3% of synthetic signals that pass are chance matches to
+       the checksum gate rather than decodes. Running it in Auto therefore bought
+       false positives and no true positives. Force-only until the ternary format
+       is implemented and validated against a real capture; see README.txt.
+       See also CORPUS_HONESTY.md for the measured rate. */
+    { FlipperForceSecplus1, "Sec+ 1.0",   flipper_decode_secplus1, false },
     /* These parsers lack a checksum or rely on weaker structural checks, so
        they run only when explicitly selected. */
     { FlipperForceSecplus2,  "Sec+ 2.0",   flipper_decode_secplus2,  false },
