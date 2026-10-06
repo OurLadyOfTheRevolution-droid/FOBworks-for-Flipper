@@ -1,23 +1,23 @@
 FOBworks for Flipper — FAP and source
 =============================================
 
-The source and bundled FAP identify this release as version 1.3: the FAP
-manifest, source header, and embedded version string agree. The older v1.1
-label in the upstream README did not match them. The upstream release notes
-report a successful launch on official firmware 1.4.3 (FAP target 7, API 87.1).
-A FAP loads only on an exact API match, so this build runs on 1.4.2 and 1.4.3,
-not on 1.3.x, whose API is 86.0.
+I ship this tree as version 1.4: the FAP manifest, source header, and menu
+string agree. Official firmware 1.4.2 / 1.4.3 (FAP target 7, API 87.1) is the
+supported runtime. A FAP loads only on an exact API match, so this build does
+not run on 1.3.x (API 86.0).
 
 Contents
 --------
 source/fobworks_flipper/dist/fobworks_flipper.fap
   Flipper Zero application. Copy it to:
   SD:/apps/Sub-GHz/fobworks_flipper.fap
+  Reboot after replacing an older copy. Catalog and Scher-Khan plugins are
+  already packed inside this one file; do not install standalone .fal files.
 
 source/fobworks_flipper/
-  FAP source, application.fam, protocol modules, scenes, and host tests.
-  From this directory, build with `ufbt`. See source/fobworks_flipper/README.md
-  for the build instructions.
+  FAP source, application.fam (host + embedded plugins), protocol modules,
+  scenes, and host tests. From this directory, build with `ufbt`. See
+  source/fobworks_flipper/README.md for the build steps.
 
 Notes
 -----
@@ -26,100 +26,70 @@ when it uses the table. FOBLoq displays the stored masked value; it does not
 show the keys in plaintext. `tools/mask_mfrkeys.py` reverses the masking.
 
 PROMO.md
-  Describes the app, its menu, and the features included in this release.
+  Short description of the app, menu, and what this release includes.
+
+SIZE_BASELINE.md
+  Loader section sizes for the host FAP and the embedded plugins.
 
 source/fobworks_flipper/CORPUS_HONESTY.md
-  Reports the private 162-file capture set by protocol and count, without
-  filenames, serials, hopping codes, or keys. Re-run 24 Sep 2026: Auto 11
-  (6.8%), force-only 144 (88.9%), and no decode 7 (4.3%).
+  Private 162-file capture set by protocol and count, without filenames,
+  serials, hopping codes, or keys. Re-run 24 Sep 2026: Auto 11 (6.8%),
+  force-only 144 (88.9%), no decode 7 (4.3%).
 
 source/deliverables/fobscan-classification-corpus/
   Synthetic decode/classification corpus: 1500 `.sub` files across 13
   protocols, with `manifest.csv` and `SUMMARY.txt`. All signals are generated;
-  the corpus contains no real vehicle or gate captures. Regenerate the corpus
-  or run its checks with:
+  the corpus contains no real vehicle or gate captures. Regenerate or check:
 
       cd source/fobworks_flipper/tools
       make corpus            # writes into ../../deliverables/...
       make test              # measures only, writes nothing
 
-  `make test` runs the generator in `--check` mode. It reports decode and
-  classification accuracy for the Auto path (`flipper_decode`, using only
-  `auto_safe` decoders) and the forced path (`flipper_decode_ex` after a
-  protocol is selected). A force-only protocol's 0% Auto score reflects the
-  registry policy, not a decoder failure.
-
-  Security+1.0 is force-only (no transmitted checksum). It is included in the
-  forced path figures and excluded from Auto; see “Known issues” below.
+  `make test` runs the generator in `--check` mode for Auto
+  (`flipper_decode`, `auto_safe` only) and forced (`flipper_decode_ex`)
+  paths. A force-only protocol's 0% Auto score is registry policy, not a
+  broken decoder.
 
 Known issues
 ------------
 
-Security+1.0 now uses the public ternary/OOK format (42 symbols over two
-packets, no checksum) from argilo/secplus, Flipper `secplus_v1.c`, and
-rtl_433. Forced decode recovers rolling and fixed fields from a frame built
-to that specification. Auto still skips it: the protocol has no checksum, so
-the false-positive rate on live captures is unmeasured. Keep it selected
-explicitly until a real capture set is checked.
+Security+1.0 uses the public ternary/OOK format (42 symbols over two packets,
+no checksum) from argilo/secplus, Flipper `secplus_v1.c`, and rtl_433. Forced
+decode recovers rolling and fixed fields from a frame built to that
+specification. Auto still skips it: no transmitted checksum, live
+false-positive rate unmeasured.
 
-Honda KR5 Manchester marks sit near 60 µs. The capture path used to drop any
-edge shorter than 75 µs, so those frames never reached the decoder. The floor
-is 40 µs.
+Security+2.0 uses Manchester plus the public ORDER/INVERT scramble. Force-
+only for the same Auto policy reason until I measure live false positives.
 
-The dashboard link still has no access code. The SGP firmware generates a
-per-device code and rejects unauthorized commands. Anyone on the Wi-Fi
-bridge AP can still send radio commands to this FAP.
+Honda KR5 Manchester marks sit near 60 µs. The capture floor is 40 µs so
+those edges reach the decoder.
 
-CITATIONS_AND_REFERENCES.md
-  Lists the papers, repositories, datasheets, and in-house measurements
-  referenced by the decoders and corpus report.
+The dashboard link still has no access code. Anyone on the Wi-Fi bridge AP can
+still send radio commands to this FAP. Host `.text` headroom is too thin to
+park a serious auth path in the main image.
 
-FIRMWARE_REVIEW.md
-  Notes from a pass over this FAP: Security+1.0 format, vault replace,
-  40 µs RX floor, owned sequence TX buffers, and what is still open.
+Architecture
+------------
+The host FAP is slim EXTERNAL. Vehicle/year tables live in `fw_catalog.fal`.
+Scher-Khan / Magicar lives in `fw_force.fal`. Both are `fal_embedded` under
+`/assets/plugins/`, mapped when FOBclone / FOBcatch / FOBback / Force need
+them, and unmapped on the main menu. Hitag2 is not in the host FAP.
 
-source/fobworks_wifi_bridge/
-  Optional ESP32 bridge source. The bundled FAP does not link the
-  USB/UART dashboard, so the bridge has no on-device peer in this build.
-
-What this FAP is
-----------------
-Menu labels put the tool name first, as in FOBcatch (rolljam) and FOBback
-(rollback). The other hubs follow the same pattern. After each burst, FOBscan
-shows a verdict with the protocol, Auto/Force/None status, and a next action.
-
-To fit within the official 1.4.3 loader limits, the FAP defers CC1101 setup
-until a radio scene, shares decoder scratch space, and includes one Generic
-KeeLoq row in FOBclone. FOBback retains its guided profiles, beginning with
-FOBpwn (Honda). Hitag2 is not included in this FAP. The full vehicle table and
-JSON protocol remain in the source tree for host tests.
-
-The JSON dashboard link is compiled in and reachable from Settings -> Dashboard
-Link; it is off by default, which saves about 9 KB of heap at launch. Both USB
-and UART transports are allocated when it is switched on. Loader sizes for this
-image are `.text` 60328, `.rodata` 17437, `.bss` 5105 against limits of 61352,
-17645 and 5924.
-
-`link/flipper_link_stub.c` has been removed. It was never part of the build (absent
-from the `sources` list in `application.fam`) and redefined `flipper_link_alloc` and
-its neighbours, so adding it to the build would have produced duplicate symbols
-rather than a smaller image. Its header described a loader constraint that did not
-apply to the source tree as shipped.
+Loader sizes for this host image (limits 61352 / 17645 / 5924):
+  .text 60648, .rodata 14236, .bss 5188.
 
 SHA-256 of the copy in this repository:
-bd4f8e3059a26d648fad92b0bf1678eca13313f88df396a1ddac544708b10ec9
+ab318daf2458ca4c1eec2017614264b30432e9dbf7d6661dfae9c5f768237134
 
-The binary attached to the v1.3 release is built by the "Build FAP" workflow
-from this same source on a GitHub runner. Its digest is not recorded here: the
-build is not byte-reproducible, so the workflow produces a differently arranged
-binary each time it runs and any hash written down goes stale at the next run.
-The two are the same application. Compare the API and target version instead
-(both report Target 7, API 87.1), or run the workflow to build one yourself.
+The binary attached to a GitHub release is built by the "Build FAP" workflow
+from this source. The build is not byte-reproducible, so digests drift between
+runs. Compare Target 7 / API 87.1, or run the workflow yourself.
 
 Without the hard work of these developers, this project would not be possible.
-The specific repositories, protocols, data, and other info we relied on for this
-project are described in more detail in the CITATIONS_AND_REFERENCES document.
-These are the Saints of The Chapel of Our Lady Of The Revolution.
+The repositories, protocols, datasheets, and measurements I relied on are in
+CITATIONS_AND_REFERENCES.md. These are the Saints of The Chapel of Our Lady Of
+The Revolution.
 
 @D4C1-Labs
 @RocketGod-git
@@ -128,5 +98,8 @@ These are the Saints of The Chapel of Our Lady Of The Revolution.
 @merbanan
 @tomwimmenhove
 @DarkFlippers
+@argilo
 
 Please check them out, follow, and support their work!
+
+— OurLadyOfTheRevolution-droid
