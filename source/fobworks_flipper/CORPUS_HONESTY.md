@@ -61,3 +61,6 @@ they are not used during normal Auto decoding.
 On the device, FOBscan presents the result as `Auto`, `Force`, or `None`, with
 one next action. The saved `.sub` files remain openable in the stock Sub-GHz
 app and include `FT_Confidence` and `FT_Action` fields for the result.
+
+— OurLadyOfTheRevolution-droid
+
