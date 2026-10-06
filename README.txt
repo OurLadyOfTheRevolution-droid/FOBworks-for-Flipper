@@ -49,36 +49,34 @@ source/deliverables/fobscan-classification-corpus/
   protocol is selected). A force-only protocol's 0% Auto score reflects the
   registry policy, not a decoder failure.
 
-  Security+1.0 is marked KNOWN-BROKEN and excluded from the headline figures.
-  The explanation is under “Known issues” below.
+  Security+1.0 is force-only (no transmitted checksum). It is included in the
+  forced path figures and excluded from Auto; see “Known issues” below.
 
 Known issues
 ------------
 
-Security+1.0 is not decoded correctly by this build. `flipper_decode_secplus1`
-uses a 40-bit binary model with a 4-bit popcount checksum. The protocol instead
-uses 42 ternary symbols (`BIT_0/1/2` are 3T/2T/1T low pulses) across two
-packets, with no checksum field. The Flipper-ARF reference,
-`lib/subghz/protocols/secplus_v1.c`, contains an encoder and decoder; a frame
-built to that specification is refused by this decoder.
+Security+1.0 now uses the public ternary/OOK format (42 symbols over two
+packets, no checksum) from argilo/secplus, Flipper `secplus_v1.c`, and
+rtl_433. Forced decode recovers rolling and fixed fields from a frame built
+to that specification. Auto still skips it: the protocol has no checksum, so
+the false-positive rate on live captures is unmeasured. Keep it selected
+explicitly until a real capture set is checked.
 
-The roughly 3% of synthetic signals that pass are chance matches to the
-checksum gate, not successful decodes. The corpus therefore reports this row
-separately instead of including it in the accuracy total.
+Honda KR5 Manchester marks sit near 60 µs. The capture path used to drop any
+edge shorter than 75 µs, so those frames never reached the decoder. The floor
+is 40 µs.
 
-Fixing the decoder requires implementing the ternary format and validating it
-against a real capture. The generator cannot provide that validation: the real
-format has no checksum, and generating frames that satisfy the current
-checksum-based decoder would only test the wrong format.
-
-Security+1.0 is marked `auto_safe = false` in `FLIPPER_DECODERS`, so it no
-longer runs in Auto. It remains available when selected explicitly. Running a
-decoder that cannot succeed in Auto bought no true positives and cost false
-ones, so the default path now excludes it.
+The dashboard link still has no access code. The SGP firmware generates a
+per-device code and rejects unauthorized commands. Anyone on the Wi-Fi
+bridge AP can still send radio commands to this FAP.
 
 CITATIONS_AND_REFERENCES.md
   Lists the papers, repositories, datasheets, and in-house measurements
   referenced by the decoders and corpus report.
+
+FIRMWARE_REVIEW.md
+  Notes from a pass over this FAP: Security+1.0 format, vault replace,
+  40 µs RX floor, owned sequence TX buffers, and what is still open.
 
 source/fobworks_wifi_bridge/
   Optional ESP32 bridge source. The bundled FAP does not link the

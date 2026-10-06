@@ -45,19 +45,26 @@ bool flipper_keyvault_upsert(FlipperVaultKey* keys, const char* name, uint64_t k
     if(n > 31) n = 31;
     if(!kv_name_ok(name, n)) return false;
 
-    /* Reuse a matching entry when found; otherwise take a free slot. */
-    FlipperVaultKey* slot = NULL;
+    char nm[32];
+    memcpy(nm, name, n);
+    nm[n] = '\0';
+
+    /* Match the name across the whole table first. Taking the first hole
+       would insert a duplicate when a later slot already holds that name. */
+    FlipperVaultKey* match = NULL;
+    FlipperVaultKey* free_slot = NULL;
     for(size_t i = 0; i < FLIPPER_KEYVAULT_MAX; i++) {
-        if(!keys[i].used) { slot = &keys[i]; break; }
-        if(strcmp(keys[i].name, name) == 0) slot = &keys[i];
+        if(keys[i].used) {
+            if(!match && strcmp(keys[i].name, nm) == 0) match = &keys[i];
+        } else if(!free_slot) {
+            free_slot = &keys[i];
+        }
     }
-    if(!slot) return false;                          /* unreachable */
-    if(!slot->used && flipper_keyvault_count(keys) >= FLIPPER_KEYVAULT_MAX)
-        return false;                                /* vault full */
+    FlipperVaultKey* slot = match ? match : free_slot;
+    if(!slot) return false;
 
     memset(slot->name, 0, sizeof(slot->name));
-    memcpy(slot->name, name, n);
-    slot->name[n] = '\0';
+    memcpy(slot->name, nm, n + 1);
     slot->key  = key;
     slot->used = true;
     return true;
@@ -90,9 +97,11 @@ bool flipper_keyvault_from_text(const char* text, FlipperVaultKey* keys, int max
     if(!text || !keys || !count) return false;
     if(max > FLIPPER_KEYVAULT_MAX) max = FLIPPER_KEYVAULT_MAX;
     *count = 0;
+    if(max <= 0) return false;
+    memset(keys, 0, sizeof(FlipperVaultKey) * (size_t)max);
 
     /* Work on a copy so '#' comments can be removed without changing input. */
-    char work[1024];
+    char work[2048];
     size_t slen = strlen(text);
     if(slen == 0 || slen >= sizeof(work)) return false;
     memcpy(work, text, slen + 1);
@@ -117,6 +126,7 @@ bool flipper_keyvault_from_text(const char* text, FlipperVaultKey* keys, int max
         /* Read the entry as NAME followed by a hexadecimal key. */
         size_t nlen = 0;
         while(s[nlen] != '\0' && s[nlen] != ' ' && s[nlen] != '\t') nlen++;
+        if(nlen > 31) nlen = 31;
         if(!kv_name_ok(s, nlen)) continue;       /* malformed name */
         const char* hp = s + nlen;
         while(*hp == ' ' || *hp == '\t') hp++;
@@ -133,20 +143,12 @@ bool flipper_keyvault_from_text(const char* text, FlipperVaultKey* keys, int max
         if(after != '\0' && after != '\r' && after != '\n' &&
            after != ' ' && after != '\t') continue; /* trailing junk */
 
-        /* in-place match wins; otherwise claim a free slot */
-        FlipperVaultKey* slot = NULL;
-        for(int i = 0; i < max; i++) {
-            if(!keys[i].used) { slot = &keys[i]; break; }
-            if(strcmp(keys[i].name, "") != 0 && strncmp(keys[i].name, s, nlen + 1) == 0)
-                slot = &keys[i];
-        }
-        if(!slot) continue;                        /* vault full */
-        memset(slot->name, 0, sizeof(slot->name));
-        memcpy(slot->name, s, nlen);
-        slot->name[nlen] = '\0';
-        slot->key  = key;
-        slot->used = true;
-        (*count)++;
+        char nm[32];
+        memcpy(nm, s, nlen);
+        nm[nlen] = '\0';
+        if(!flipper_keyvault_upsert(keys, nm, key)) continue;
     }
+    *count = (int)flipper_keyvault_count(keys);
+    (void)max;
     return true;
 }

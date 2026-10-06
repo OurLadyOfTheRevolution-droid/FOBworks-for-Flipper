@@ -19,7 +19,7 @@ uint32_t flipper_estimate_te(const uint32_t* buf, int n) {
 
     for(int i = 0; i < n; i++) {
         uint32_t v = buf[i];
-        if(v < 75 || v > 16383) continue;
+        if(v < FLIPPER_MIN_PULSE_US || v > 16383) continue;
         uint32_t bucket = v >> 5;
         if(bucket < 512) hist[bucket]++;
     }
@@ -139,87 +139,219 @@ bool flipper_decode_keeloq(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
 
 /* ── Security+ 1.0 decoder ───────────────────────────────────────────────── */
 /*
- * This decoder is a known-broken 40-bit binary approximation with a 4-bit
- * popcount check. The real Security+ 1.0 protocol uses 42 ternary symbols
- * (BIT_0/1/2 = 3T/2T/1T low pulses) across two packets and has no checksum.
- * Frames built to that protocol are rejected here; matches may be chance hits
- * on this parser's checksum. Its model expects nine short preamble pairs,
- * then symbols with '0' = T HIGH + 2T LOW and '1' = 2T HIGH + T LOW. It reads
- * 10-bit fixed, 7-bit button, and 10-bit rolling fields. Typical TE is about
- * 500 µs. Reference: Flipper-ARF lib/subghz/protocols/secplus_v1.c.
+ * Two packets of 21 ternary symbols (header + 20 payload) at TE ≈ 500 µs.
+ * OOK grouping is 4 chips per symbol (argilo/secplus encode_ook, Flipper
+ * firmware lib/subghz/protocols/secplus_v1.c, rtl_433 secplus_v1.c):
+ *   0001 → 0, 0011 → 1, 0111 → 2, 0000 → inter-packet blank.
+ * Packet 1 starts with header 0, packet 2 with header 2. The 40 payload
+ * symbols recover rolling (bit-reversed 32-bit) and fixed (base-3) fields.
+ * There is no transmitted checksum; Auto stays off until a live capture set
+ * confirms the false-positive rate.
  */
-bool flipper_decode_secplus1(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
-    if(!buf || !r) return false;
-    uint32_t te = buf->te_us;
-    if(te < 300 || te > 800) return false;
-
-    const uint32_t* p = buf->durations;
-    int n = buf->len;
-
-    /* Look for 9-pair preamble (total ≈ 2T per pair) */
-    uint32_t thr_tot = te + (te >> 1);   /* 1.5T */
-    int preamble_end = -1;
-    for(int i = 0; i + 1 < n - 40; i += 2) {
-        int pc = 0, j = i;
-        while(j + 1 < n && p[j] + p[j+1] <= thr_tot) { pc++; j += 2; }
-        if(pc >= 9) { preamble_end = j; break; }
+static uint32_t secplus1_reverse32(uint32_t n) {
+    uint32_t r = 0;
+    for(int i = 0; i < 32; i++) {
+        r = (r << 1) | (n & 1u);
+        n >>= 1;
     }
-    if(preamble_end < 0) return false;
+    return r;
+}
 
-    /* Extract tribits */
-    uint8_t tribits[40];
-    int tb = 0;
-    for(int i = preamble_end; i + 1 < n && tb < 40; i += 2) {
-        uint32_t hi = p[i]; (void)p[i+1];
-        uint32_t hi_t = (hi * 10 / te);
-        if     (hi_t <= 15) tribits[tb++] = 0;   /* 1T hi = bit 0 */
-        else if(hi_t <= 25) tribits[tb++] = 1;   /* 2T hi = bit 1 */
-        else return false;
+static int secplus1_mod3(int v) {
+    int m = v % 3;
+    return m < 0 ? m + 3 : m;
+}
+
+static bool secplus1_decode_payload(
+    const uint8_t* code, uint32_t* rolling, uint32_t* fixed) {
+    uint32_t roll = 0, fix = 0;
+    int acc = 0;
+    for(int i = 0; i < 40; i += 2) {
+        if(i == 0 || i == 20) acc = 0;
+        if(code[i] > 2 || code[i + 1] > 2) return false;
+        roll = roll * 3u + code[i];
+        acc += code[i];
+        int digit = secplus1_mod3((int)code[i + 1] - acc);
+        fix = fix * 3u + (uint32_t)digit;
+        acc += digit;
     }
-    if(tb < 40) return false;
+    *rolling = secplus1_reverse32(roll);
+    *fixed = fix;
+    return true;
+}
 
-    /* Reconstruct 40-bit word */
-    uint64_t word = 0;
-    for(int i = 0; i < 40; i++)
-        if(tribits[i]) word |= (1ULL << i);
+static bool secplus1_accept(
+    FlipperDecodeResult* r, uint32_t te, float mhz, const uint8_t* payload);
 
-    uint32_t fixed   = (uint32_t)((word >>  0) & 0x3FF);
-    uint32_t btn     = (uint32_t)((word >> 10) & 0x7F);
-    uint32_t rolling = (uint32_t)((word >> 17) & 0x3FF);
-    uint32_t csum    = (uint32_t)((word >> 27) & 0xF);
+static int secplus1_chip_count(uint32_t duration, uint32_t te) {
+    if(te == 0) return 0;
+    uint32_t units = (duration + (te / 2u)) / te;
+    if(units < 1) return 0;
+    if(units > 48) return 48;
+    return (int)units;
+}
 
-    /* This approximation checks a 4-bit popcount of the low 13 bits of
-       rolling XOR fixed XOR button. It is not a checksum from the real
-       Security+ 1.0 protocol. */
-    uint32_t csum_calc = 0;
-    {
-        uint32_t x = ((rolling & 0x3FF) ^ (fixed & 0x3FF) ^ (btn & 0x7F)) & 0x1FFF;
-        while(x) { csum_calc += (uint32_t)(x & 1u); x >>= 1; }
+static bool secplus1_try_te(
+    const FlipperPulseBuf* buf, FlipperDecodeResult* r, uint32_t te) {
+    if(te < 300 || te > 800 || buf->len < 16) return false;
+
+    uint8_t bits[512];
+    int nb = 0;
+    int high = 1;
+    for(int i = 0; i < buf->len && nb < (int)sizeof(bits); i++) {
+        int u = secplus1_chip_count(buf->durations[i], te);
+        if(u <= 0) return false;
+        while(u-- > 0 && nb < (int)sizeof(bits))
+            bits[nb++] = (uint8_t)high;
+        high ^= 1;
     }
-    if((csum_calc & 0xF) != (csum & 0xF)) {
-        /* Reject frames that do not pass this parser's approximate check. */
-        return false;
+    if(nb < 84) return false;
+
+    for(int off = 0; off < 4; off++) {
+        uint8_t payload[40];
+        int plen = 0;
+        int stage = 0; /* 0 hunt hdr0, 1 collect p1, 2 hunt hdr2, 3 collect p2 */
+        int ok = 1;
+        for(int i = off; i + 3 < nb && ok; i += 4) {
+            int v = (bits[i] << 3) | (bits[i + 1] << 2) |
+                    (bits[i + 2] << 1) | bits[i + 3];
+            int trit;
+            if(v == 0) continue; /* blank / gap */
+            if(v == 1) trit = 0;
+            else if(v == 3) trit = 1;
+            else if(v == 7) trit = 2;
+            else if(stage == 0) continue; /* still hunting the header */
+            else {
+                ok = 0;
+                break;
+            }
+
+            if(stage == 0) {
+                if(trit != 0) continue;
+                stage = 1;
+                plen = 0;
+            } else if(stage == 1) {
+                if(plen < 20) payload[plen++] = (uint8_t)trit;
+                if(plen == 20) stage = 2;
+            } else if(stage == 2) {
+                if(trit != 2) {
+                    ok = 0;
+                    break;
+                }
+                stage = 3;
+            } else {
+                if(plen < 40) payload[plen++] = (uint8_t)trit;
+                if(plen == 40) break;
+            }
+        }
+        if(!ok || plen != 40) continue;
+        if(secplus1_accept(r, te, buf->freq_mhz, payload)) return true;
     }
+    return false;
+}
 
-    /* Minimal button validation — at least one bit set */
-    if(btn == 0 && rolling == 0) return false;
-
-    r->addr    = fixed;
-    r->cnt     = rolling;
-    r->hop     = (uint32_t)(word & 0xFFFFFFFF);
-    r->btn     = (uint8_t)btn;
+static bool secplus1_accept(
+    FlipperDecodeResult* r, uint32_t te, float mhz,
+    const uint8_t* payload) {
+    uint32_t rolling = 0, fixed = 0;
+    if(!secplus1_decode_payload(payload, &rolling, &fixed)) return false;
+    if(fixed == 0 && rolling == 0) return false;
+    r->addr = fixed;
+    r->cnt = rolling;
+    r->hop = rolling;
+    r->btn = (uint8_t)(fixed % 3u);
     r->rolling = true;
-    r->te_us   = te;
-    r->bits    = 40;
-    r->freq_mhz = buf->freq_mhz;
-    r->predict_window = 256;
-    r->predict_lo     = (rolling + 1) & 0x3FF;
-    r->predict_hi     = (rolling + 8) & 0x3FF;
+    r->te_us = te;
+    r->bits = 42;
+    r->freq_mhz = mhz;
+    r->predict_window = 0;
+    r->predict_lo = 0;
+    r->predict_hi = 0;
     strncpy(r->proto, "Security+1.0", sizeof(r->proto) - 1);
     snprintf(r->predict_note, sizeof(r->predict_note),
-             "LiftMaster Sec+ 1.0  fixed=0x%03X", (unsigned)fixed);
-    (void)csum;
+             "Sec+1.0 fixed=%lu switch=%u",
+             (unsigned long)fixed, (unsigned)r->btn);
     return true;
+}
+
+static int secplus1_trit_from_low(uint32_t low, uint32_t te) {
+    uint32_t d0 = low > te * 3u ? low - te * 3u : te * 3u - low;
+    uint32_t d1 = low > te * 2u ? low - te * 2u : te * 2u - low;
+    uint32_t d2 = low > te ? low - te : te - low;
+    uint32_t lim = (te / 2u) + 1u;
+    if(d0 <= lim && d0 <= d1 && d0 <= d2) return 0;
+    if(d1 <= lim && d1 <= d2) return 1;
+    if(d2 <= lim) return 2;
+    return -1;
+}
+
+static bool secplus1_try_pairs(
+    const FlipperPulseBuf* buf, FlipperDecodeResult* r, uint32_t te) {
+    if(te < 300 || te > 800) return false;
+    uint32_t gap = te * 8u;
+    for(int phase = 0; phase <= 1; phase++) {
+        uint8_t payload[40];
+        int plen = 0;
+        int stage = 0;
+        int ok = 1;
+        for(int i = phase; i + 1 < buf->len && ok; i += 2) {
+            uint32_t low = buf->durations[i];
+            uint32_t high = buf->durations[i + 1];
+            (void)high;
+            if(low >= gap) {
+                if(stage == 1 && plen == 20) stage = 2;
+                continue;
+            }
+            int trit = secplus1_trit_from_low(low, te);
+            if(trit < 0) {
+                if(stage == 0) continue;
+                ok = 0;
+                break;
+            }
+            if(stage == 0) {
+                if(trit != 0) continue;
+                stage = 1;
+                plen = 0;
+            } else if(stage == 1) {
+                if(plen < 20) payload[plen++] = (uint8_t)trit;
+                if(plen == 20) stage = 2;
+            } else if(stage == 2) {
+                if(trit != 2) {
+                    ok = 0;
+                    break;
+                }
+                stage = 3;
+            } else if(plen < 40) {
+                payload[plen++] = (uint8_t)trit;
+                if(plen == 40) break;
+            }
+        }
+        if(ok && plen == 40 &&
+           secplus1_accept(r, te, buf->freq_mhz, payload))
+            return true;
+    }
+    return false;
+}
+
+bool flipper_decode_secplus1(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
+    if(!buf || !r || buf->len < 16 || buf->len > FLIPPER_PULSE_MAX) return false;
+
+    uint32_t cands[4];
+    int nc = 0;
+    if(buf->te_us >= 300 && buf->te_us <= 800) cands[nc++] = buf->te_us;
+    cands[nc++] = 500;
+    if(buf->te_us >= 300 && buf->te_us <= 800) {
+        uint32_t lo = buf->te_us * 85u / 100u;
+        uint32_t hi = buf->te_us * 115u / 100u;
+        if(lo >= 300 && lo <= 800) cands[nc++] = lo;
+        if(hi >= 300 && hi <= 800 && nc < 4) cands[nc++] = hi;
+    }
+
+    for(int k = 0; k < nc; k++) {
+        if(secplus1_try_te(buf, r, cands[k])) return true;
+        if(secplus1_try_pairs(buf, r, cands[k])) return true;
+    }
+    return false;
 }
 
 /* ── Security+ 2.0 decoder ───────────────────────────────────────────────── */
@@ -931,15 +1063,9 @@ const FlipperDecoderReg FLIPPER_DECODERS[] = {
     { FlipperForceFiat,      "Fiat",       flipper_decode_fiat,       true  },
     /* KeeLoq follows the OEM parsers; it can also recover keys across frames. */
     { FlipperForceKeeloq,   "KeeLoq",     flipper_decode_keeloq,   true  },
-    /* Sec+ 1.0 is known-broken and must NOT run in Auto. flipper_decode_secplus1
-       implements a 40-bit binary frame with a 4-bit popcount checksum; the real
-       protocol is 42 ternary symbols (BIT_0/1/2 = 3T/2T/1T low pulses) over two
-       packets with no checksum field. Frames built to the real specification are
-       refused, and the ~3% of synthetic signals that pass are chance matches to
-       the checksum gate rather than decodes. Running it in Auto therefore bought
-       false positives and no true positives. Force-only until the ternary format
-       is implemented and validated against a real capture; see README.txt.
-       See also CORPUS_HONESTY.md for the measured rate. */
+    /* Sec+ 1.0 now matches the public ternary/OOK format (argilo/secplus,
+       Flipper secplus_v1, rtl_433). It still has no transmitted checksum, so
+       it stays force-only until a live capture set measures false positives. */
     { FlipperForceSecplus1, "Sec+ 1.0",   flipper_decode_secplus1, false },
     /* These parsers lack a checksum or rely on weaker structural checks, so
        they run only when explicitly selected. */

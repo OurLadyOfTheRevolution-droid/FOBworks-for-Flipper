@@ -24,7 +24,7 @@
 
 /* ── pulse buffer builder ─────────────────────────────────────────────── */
 static void push(FlipperPulseBuf* b, uint32_t d) {
-    if(b->len < 1024) b->durations[b->len++] = d;
+    if(b->len < FLIPPER_PULSE_MAX) b->durations[b->len++] = d;
 }
 static void reset(FlipperPulseBuf* b, float mhz) {
     memset(b, 0, sizeof(*b));
@@ -143,17 +143,65 @@ static void synth_doorhan(FlipperPulseBuf* b, float mhz, uint32_t te,
     while(b->len < 84) push(b, te);   /* len>=80 */
 }
 
-/* ── Security+ 1.0 synth ──────────────────────────────────────────────── */
-static void synth_secplus1(FlipperPulseBuf* b, float mhz, uint32_t te, uint64_t word40) {
-    reset(b, mhz);
-    /* preamble: >=9 pairs each total <=1.5T. use (te/3,te/3) ~ 0.66T */
-    uint32_t pp = te / 3;
-    for(int i = 0; i < 10; i++) { push(b, pp); push(b, pp); }
-    /* tribits: bit0 => 1T HIGH + 2T LOW ; bit1 => 2T HIGH + 1T LOW */
-    for(int i = 0; i < 40; i++) {
-        if((word40 >> i) & 1) { push(b, te * 2); push(b, te); }
-        else                  { push(b, te);     push(b, te * 2); }
+/* ── Security+ 1.0 synth (argilo/secplus OOK, two ternary packets) ─────── */
+static uint32_t synth_secplus1_rev32(uint32_t n) {
+    uint32_t r = 0;
+    for(int i = 0; i < 32; i++) {
+        r = (r << 1) | (n & 1u);
+        n >>= 1;
     }
+    return r;
+}
+
+static void synth_secplus1(FlipperPulseBuf* b, float mhz, uint32_t te,
+                           uint32_t rolling, uint32_t fixed) {
+    reset(b, mhz);
+    rolling &= 0xFFFFFFFEu;
+    uint32_t rr = synth_secplus1_rev32(rolling);
+    uint8_t rb[20], fb[20], code[40];
+    uint32_t fx = fixed;
+    for(int i = 19; i >= 0; i--) {
+        rb[i] = (uint8_t)(rr % 3u); rr /= 3u;
+        fb[i] = (uint8_t)(fx % 3u); fx /= 3u;
+    }
+    int acc = 0;
+    for(int i = 0; i < 20; i++) {
+        if(i == 0 || i == 10) acc = 0;
+        acc += rb[i];
+        code[2 * i] = rb[i];
+        acc += fb[i];
+        code[2 * i + 1] = (uint8_t)(acc % 3);
+    }
+
+    static const uint8_t pat[3][4] = {
+        {0, 0, 0, 1}, {0, 0, 1, 1}, {0, 1, 1, 1}
+    };
+    uint8_t bits[400];
+    int nb = 0;
+    bits[nb++] = 0; bits[nb++] = 0; bits[nb++] = 0; bits[nb++] = 1; /* hdr 0 */
+    for(int i = 0; i < 20 && nb + 4 <= (int)sizeof(bits); i++) {
+        memcpy(bits + nb, pat[code[i]], 4); nb += 4;
+    }
+    for(int i = 0; i < 40 && nb < (int)sizeof(bits); i++) bits[nb++] = 0; /* blank */
+    bits[nb++] = 0; bits[nb++] = 1; bits[nb++] = 1; bits[nb++] = 1; /* hdr 2 */
+    for(int i = 20; i < 40 && nb + 4 <= (int)sizeof(bits); i++) {
+        memcpy(bits + nb, pat[code[i]], 4); nb += 4;
+    }
+    for(int i = 0; i < 40 && nb < (int)sizeof(bits); i++) bits[nb++] = 0;
+
+    /* Dummy HIGH so the buffer is HIGH-first; header 0 then starts with LOW. */
+    push(b, te);
+    uint8_t cur = 0;
+    uint32_t run = 0;
+    for(int i = 0; i < nb; i++) {
+        if(bits[i] == cur) run++;
+        else {
+            if(run) push(b, run * te);
+            cur = bits[i];
+            run = 1;
+        }
+    }
+    if(run) push(b, run * te);
 }
 
 /* ── Security+ 2.0 synth ──────────────────────────────────────────────── */
@@ -260,13 +308,7 @@ typedef struct {
 static const ProtoSpec CATALOG[N_PROTO] = {
     { "KeeLoq",          "SynMotors",   "RollGuard",  433.92f, 400, 1, FlipperForceKeeloq, 0 },
     { "Security+2.0",    "SynGate",     "SecPlusII",  315.00f, 250, 1, FlipperForceSecplus2, 0 },
-    /* Security+1.0 is known-broken: flipper_decode_secplus1 implements a 40-bit binary
-       model with a 4-bit popcount checksum, but the real protocol is 42 TERNARY symbols
-       (BIT_0/1/2 = 3T/2T/1T low pulses) across two packets, with NO checksum. The
-       reference encoder and decoder are in Flipper-ARF lib/subghz/protocols/secplus_v1.c.
-       A frame built to that spec is refused. The ~3% that pass are chance matches of the
-       checksum gate, so the row is excluded from the headline rather than averaged in. */
-    { "Security+1.0",    "SynGate",     "SecPlusI",   315.00f, 400, 1, FlipperForceSecplus1, 1 },
+    { "Security+1.0",    "SynGate",     "SecPlusI",   315.00f, 500, 1, FlipperForceSecplus1, 0 },
     { "DoorHan",         "SynPortal",   "HanRoll",    433.92f, 800, 1, FlipperForceDoorhan, 0 },
     { "CAME",            "SynBarrier",  "Cam12",      433.92f, 320, 0, FlipperForceCame12, 0 },
     { "Nice-FLO",        "SynBarrier",  "FloFix",     433.92f, 600, 0, FlipperForceNiceFlo, 0 },
@@ -295,7 +337,8 @@ static void synth_set(int proto, uint32_t serial, int press, FlipperPulseBuf* b)
         break; }
     case P_SECP1:
         synth_secplus1(b, s->mhz, s->te,
-                       ((uint64_t)serial << 10) | ((0x2AA + roll) & 0x3FF));
+                       ((serial + (uint32_t)roll) * 2u) + 2u,
+                       100u + (serial % 2000u));
         break;
     case P_DOORHAN:
         synth_doorhan(b, s->mhz, s->te, serial & 0xFFFF, (serial + roll) & 0xFFFF);

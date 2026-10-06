@@ -162,7 +162,7 @@ are kept separate from external references at the end.
      Fe TRW). These references were cross-checked against the ProtoPirate
      implementations above and reimplemented here as checksum-gated decoders.
 
-11. **rtl_433** (@merbanan, Benjamin Larsson) — ISM-band device decoder collection
+3. **rtl_433** (@merbanan, Benjamin Larsson) — ISM-band device decoder collection
    - Documents the Honda KR5V2X/KR5V1X keyfob frame: 2-FSK Manchester at
      ~60/120 µs, an `EC 0F 62` manufacturer preamble,
      `[idx][deviceID32][event][counter24][rolling32]` payload, and OpenSafety
@@ -171,6 +171,13 @@ are kept separate from external references at the end.
    - Also provides broader context on automotive remotes, including GM
      ABO1502T, Chrysler, Ford, Continental, Siemens, and HCS361/HCS362 KeeLoq
      framings.
+
+12. **secplus** (@argilo, Clayton Smith) — Security+ 1.0 / 2.0 encode and decode.
+   - `encode()` / `decode()` recover the 40 payload trits; `encode_ook()` emits
+     2000-baud OOK with symbols 0001/0011/0111 and a 0000 inter-packet blank.
+   - Cross-checked against Flipper `lib/subghz/protocols/secplus_v1.c` and
+     rtl_433 `src/devices/secplus_v1.c`. FOBworks uses this format for forced
+     Security+1.0 decode.
 
 ---
 

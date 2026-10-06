@@ -35,6 +35,11 @@ typedef struct {
    dominant term in the app's single contiguous allocation on the Flipper. */
 #define FLIPPER_PULSE_MAX 256
 
+/* Drop only sub-chip noise. Honda KR5 Manchester marks sit near 60 µs and the
+   Renault 66 µs family is in the same band; a 75 µs floor erased those edges
+   before any decoder ran. */
+#define FLIPPER_MIN_PULSE_US 40u
+
 typedef struct {
     uint32_t  durations[FLIPPER_PULSE_MAX]; /* alternating H/L durations, µs; [0] = HIGH */
     int       len;
