@@ -21,7 +21,7 @@ bool hitag2_brute_force(uint32_t uid, uint32_t challenge, uint32_t expected,
                         uint64_t* found_key, int max_keys, uint64_t* found_keys,
                         int* found_count);
 
-/* Invert init phase for Fiat V1 BCM (FOBworks Hitag2Hell attack). */
+/* Invert init phase for Fiat V1 BCM (listed Hitag2 invert helper). */
 uint64_t hitag2_fiat_invert_init(uint32_t uid, uint32_t authenticator);
 
 /* Known Hitag2 keys dictionary (factory defaults + ASCII patterns + weak). */

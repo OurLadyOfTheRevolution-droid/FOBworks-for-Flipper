@@ -1,10 +1,14 @@
 #include "flipper_radio_loader.h"
 #include <furi.h>
 #include <furi_hal_power.h>
+#include <lib/subghz/devices/devices.h>
+#include <applications/drivers/subghz/cc1101_ext/cc1101_ext_interconnect.h>
 #include <string.h>
 
 /* Selects the internal or OTG-powered external CC1101. Version acceptance
-   matches the SGP Card Mini probe (CC1101 VERSION status 0x04 or 0x14). */
+   matches the SGP Card Mini probe (CC1101 VERSION status 0x04 or 0x14).
+   External presence uses the official cc1101_ext interconnect's is_connect
+   path (SPI VERSION under the hood) after OTG is up. */
 
 static bool s_otg_enabled = false;
 
@@ -41,14 +45,28 @@ bool radio_loader_is_external(void) {
     return s_otg_enabled;
 }
 
+static bool radio_loader_probe_external(void) {
+    /* OTG rail alone is not proof — ask the external CC1101 driver whether
+       SPI VERSION looks like a live chip (0x04 / 0x14). */
+    subghz_devices_init();
+    const SubGhzDevice* dev = subghz_devices_get_by_name(SUBGHZ_DEVICE_CC1101_EXT_NAME);
+    bool ok = false;
+    if(dev) {
+        if(subghz_devices_begin(dev)) {
+            ok = subghz_devices_is_connect(dev);
+            subghz_devices_end(dev);
+        } else {
+            /* begin() failed; is_connect may still report a VERSION hit. */
+            ok = subghz_devices_is_connect(dev);
+        }
+    }
+    subghz_devices_deinit();
+    return ok;
+}
+
 bool radio_loader_is_connected(void) {
-    /* Internal CC1101 is always present on Flipper Zero. An OTG-powered
-       external module is not proven by rail alone — SPI VERSION status must
-       read 0x04 or 0x14 (radio_loader_chip_version_ok). This FAP does not
-       own an alternate SPI bus to an external part, so "connected" while
-       OTG is enabled stays false until a bus probe is added. */
-    if(s_otg_enabled) return false;
-    return true;
+    if(!s_otg_enabled) return true; /* internal CC1101 */
+    return radio_loader_probe_external();
 }
 
 void radio_loader_end(void) {

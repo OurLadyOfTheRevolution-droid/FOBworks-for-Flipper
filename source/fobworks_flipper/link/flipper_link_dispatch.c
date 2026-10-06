@@ -168,11 +168,53 @@ void flipper_app_handle_command(void* app_ctx, const FlipperCmd* cmd, FlipperLin
        committed. */
     furi_mutex_acquire(app->radio_mutex, FuriWaitForever);
 
+    /* SGP-style access code: when set, every command except hello/auth must
+       carry a matching code= field. auth itself uses code= as the current
+       secret and new_code= as the value to install (empty clears). */
+    if(app->adv.access_code[0] &&
+       cmd->kind != FlipperCmdHello &&
+       cmd->kind != FlipperCmdAuth) {
+        if(!cmd->has_code || strcmp(cmd->code, app->adv.access_code) != 0) {
+            ack(origin, cmd, false, "auth");
+            furi_mutex_release(app->radio_mutex);
+            return;
+        }
+    }
+
     switch(cmd->kind) {
     case FlipperCmdHello:
         len = flipper_proto_emit_capabilities(buf, sizeof(buf), true, cmd->has_id, cmd->id);
         reply(origin, buf, len);
         break;
+
+    case FlipperCmdAuth: {
+        /* Install or clear the access code. When a code is already set, the
+           caller must prove it with code= before new_code= is accepted. */
+        if(app->adv.access_code[0] &&
+           (!cmd->has_code || strcmp(cmd->code, app->adv.access_code) != 0)) {
+            ack(origin, cmd, false, "auth");
+            break;
+        }
+        if(!cmd->has_new_code) {
+            ack(origin, cmd, false, "need new_code");
+            break;
+        }
+        /* Digits only, max 6. Empty new_code clears the gate. */
+        size_t i = 0;
+        while(i + 1 < sizeof(app->adv.access_code) &&
+              cmd->new_code[i] >= '0' && cmd->new_code[i] <= '9') {
+            app->adv.access_code[i] = cmd->new_code[i];
+            i++;
+        }
+        if(cmd->new_code[0] && i == 0) {
+            ack(origin, cmd, false, "digits-only");
+            break;
+        }
+        app->adv.access_code[i] = '\0';
+        flipper_adv_settings_save(app);
+        ack(origin, cmd, true, NULL);
+        break;
+    }
 
     case FlipperCmdStatus:
         FlipperTxSession tx_snapshot;

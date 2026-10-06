@@ -137,12 +137,25 @@ catalog load failed, `flipper_fbk_make_count()` returned 0, and the Make
 submenu showed only the header. Caps are a separate heap block allocated
 on the listen scene now; Make maps the catalog first.
 
+### 12. Force extras and link auth
+
+Security+ 1.0 / 2.0 parsers moved into `fw_force.fal` with Scher-Khan (host
+stubs only). Hitag2 cipher helpers live in the same FAL (ABI 2); Auto stays
+clean. Dashboard commands honor an optional access code (`auth` /
+`code=`), matching the SGP per-device gate pattern. External CC1101 uses
+`subghz_devices_is_connect` on `cc1101_ext` after OTG — Advanced Settings
+has Internal / External.
+
+Live Security+ `.sub` captures from owned hardware go in
+`source/deliverables/secplus-live-captures/`; `make secplus-live` reports
+them for CORPUS_HONESTY.md. None are checked in yet.
+
 ## Measurements
 
 `cd source/fobworks_flipper/tools && make test`
 
 - Link, library contract, TX session, rolling-pwn analyzer, saved-check,
-  keyvault: pass.
+  keyvault, Hitag2, link-auth: pass.
 - Vehicle decoder: Honda force-only still holds; Security+1.0 ternary and
   Security+2.0 Manchester+scramble vectors recover fields and stay out of
   Auto (Security+2.0 may still be claimed by KeeLoq on Auto — registry policy
@@ -156,13 +169,15 @@ on the listen scene now; Make maps the catalog first.
 Further families follow the same ABI (`FOBWORKS_PLUGIN_APPID` /
 `FOBWORKS_PLUGIN_ABI`). I am not forking into firmware for size.
 
-**Dashboard auth.** Still no per-device access code on the JSON link. Host
-`.text` headroom is 20 B — not enough for a serious auth path in the host.
+**Dashboard auth.** Access code gate is in; rotate the lab default `0000`
+over the link with `{"cmd":"auth","code":"0000","new_code":"...."}` before
+leaving a machine on.
 
-**Hitag2.** Keep it out of the host image; park it in a force FAL when I want
-it on device.
+**Hitag2.** Cipher helpers sit in `fw_force.fal` (not Auto). No Sub-GHz
+pulse decoder for LF Hitag2 in this FAP.
 
-**Security+ Auto.** Waits on live capture false-positive data.
+**Security+ Auto.** Waits on live capture false-positive data in
+`secplus-live-captures/`.
 
 **Land Rover preamble vs 256 edges.** Unchanged physics; advisory is honest.
 
@@ -187,14 +202,12 @@ Jam buffers in FOBcatch / the dashboard dispatcher are already built to the
 
 ## Next steps
 
-1. Re-check FOBback Make → Vehicle on device after the lazy capture alloc
-   (blank Make was catalog map starving behind the old 11 KB embed).
-2. Park Hitag2 in `fw_force.fal` only if that FAL stays small and Auto stays
-   clean.
-3. Collect real Security+ 1.0 / 2.0 `.sub` files (own hardware) for
-   CORPUS_HONESTY.md before considering Auto.
-4. Port SGP’s command-auth pattern once host headroom is reserved for it.
-5. Wire external CC1101 SPI VERSION probe into `radio_loader_is_connected`.
+1. Drop owned-hardware Security+ 1.0 / 2.0 `.sub` files into
+   `secplus-live-captures/` and paste `make secplus-live` into
+   CORPUS_HONESTY.md before any Auto debate.
+2. Rotate the lab link auth default off `0000` on any machine that leaves
+   the bench.
+3. Port further OEM families as FALs when they earn the flash.
 
 KeeLoq decrypt in this tree already follows AN1064 (NLF 0x3A5C742E, 528
 rounds) and passes the three published vectors. I left that core alone.

@@ -118,6 +118,8 @@ typedef struct {
     bool              autosave_raw;    /* auto-save undecoded bursts to library  */
     bool              lib_evict_oldest;/* library full: true=drop oldest, false=skip new */
     bool              dashboard_link;  /* alloc USB+UART dashboard links (off saves ~9KB heap at launch) */
+    char              access_code[8];  /* empty = open link; else require code= on cmds */
+    bool              prefer_external; /* OTG external CC1101 when VERSION probe passes */
 } FlipperAdvSettings;
 
 /* ── Mode-specific state ──────────────────────────────────────────────────── */

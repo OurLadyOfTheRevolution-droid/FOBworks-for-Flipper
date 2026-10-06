@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../protocol/flipper_decoders.h"
+#include "../protocol/flipper_hitag2.h"
 #include "../protocol/flipper_vehicles.h"
 
 /*
@@ -12,7 +13,8 @@
  * (catalog vs force extras) without a second loader.
  */
 #define FOBWORKS_PLUGIN_APPID "fobworks_flipper"
-#define FOBWORKS_PLUGIN_ABI   ((uint32_t)1)
+/* Bump when FobworksForceApi / FobworksCatalogApi layout changes. */
+#define FOBWORKS_PLUGIN_ABI   ((uint32_t)2)
 
 typedef enum {
     FobworksPluginKindCatalog = 1,
@@ -42,4 +44,9 @@ typedef struct {
         const FlipperPulseBuf* buf,
         FlipperDecodeResult* r,
         FlipperForceProto force);
+    /* Hitag2 cipher helpers (Fiat/Renault). Parked in the force FAL so the
+       host image stays under the loader .text cap. Not an Auto decoder. */
+    uint32_t (*hitag2_authenticate)(uint64_t key, uint32_t uid, uint32_t challenge);
+    int (*hitag2_known_key_count)(void);
+    const Hitag2KnownKey* (*hitag2_get_known_key)(int index);
 } FobworksForceApi;
