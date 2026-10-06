@@ -24,7 +24,7 @@ extern const float FOBSCAN_FREQS[];
 extern const int   FOBSCAN_FREQ_COUNT;
 #define FOBSCAN_FREQ_DEFAULT 9   /* index of 433.92 MHz */
 
-#define FLIPPER_VERSION        "1.3"
+#define FLIPPER_VERSION        "1.4"
 #define FLIPPER_APP_NAME       "FOBworks for Flipper"
 #define FLIPPER_LIB_PATH       EXT_PATH("flipper_fobscan/library")
 #define FLIPPER_SIGNAL_LIB_MAX 8

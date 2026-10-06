@@ -96,9 +96,10 @@ const int FLIPPER_FC_PROFILE_COUNT = (int)(sizeof(FLIPPER_FC_PROFILES) / sizeof(
 /* ─────────────────────────────────────────────────────────────────────────── */
 #define PROFILE(k) flipper_fc_profile_by_key(k)
 
-/* The full year-by-year table takes about 8.6 KB of .rodata. On official
-   firmware 1.4.3 that exceeds the FAP loader's free-block check, so host builds
-   retain every row while the device build keeps one row per make. */
+/* The full year-by-year table is about 8.6 KB of .rodata. The host FAP does
+   not compile this file; fw_catalog.fal ships every row (FLIPPER_FAP_SLIM
+   unset). The slim one-row-per-make table remains only as a fallback if this
+   unit is ever linked into the host image again. */
 #ifndef FLIPPER_FAP_SLIM
 const FlipperFcVehicle FLIPPER_FC_VEHICLES[] = {
     /* ── Hyundai / Kia ──────────────────────────────────────────────────── */
@@ -702,6 +703,24 @@ const FlipperFbkMake FLIPPER_FBK_MAKES[] = {
 };
 
 const int FLIPPER_FBK_MAKE_COUNT = (int)(sizeof(FLIPPER_FBK_MAKES) / sizeof(FLIPPER_FBK_MAKES[0]));
+
+int flipper_fc_vehicle_count(void) {
+    return FLIPPER_FC_VEHICLE_COUNT;
+}
+
+const FlipperFcVehicle* flipper_fc_vehicle_at(int i) {
+    if(i < 0 || i >= FLIPPER_FC_VEHICLE_COUNT) return NULL;
+    return &FLIPPER_FC_VEHICLES[i];
+}
+
+int flipper_fbk_make_count(void) {
+    return FLIPPER_FBK_MAKE_COUNT;
+}
+
+const FlipperFbkMake* flipper_fbk_make_at(int i) {
+    if(i < 0 || i >= FLIPPER_FBK_MAKE_COUNT) return NULL;
+    return &FLIPPER_FBK_MAKES[i];
+}
 
 /* Look up a frequency or rollback profile by key. */
 const FlipperFcProfile* flipper_fc_profile_by_key(const char* key) {

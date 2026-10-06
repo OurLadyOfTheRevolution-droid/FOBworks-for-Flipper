@@ -1,6 +1,6 @@
 # FOBworks for Flipper
 
-The source manifest and bundled FAP identify this release as version 1.3. The
+The source manifest and bundled FAP identify this release as version 1.4. The
 upstream release notes report a successful launch on official firmware 1.4.3
 (FAP target 7, API 87.1). A FAP loads only on an exact API match, so this build
 runs on 1.4.2 and 1.4.3, not on 1.3.x, whose API is 86.0.
@@ -32,9 +32,9 @@ replacing an older copy; a failed launch can fragment the heap.
 - **FOBpwn** counts three different Honda presses after consent. A repeated
   hop does not increase the count.
 
-FOBclone and FOBcatch use a short on-device list of makes and frequencies
-(for example, `315 MHz` or `433 MHz`). The full year table is in
-`protocol/flipper_vehicles.c`; it is compiled when `FLIPPER_FAP_SLIM` is unset.
+FOBclone and FOBcatch load `fw_catalog.fal` for the full make/model/year table
+in `protocol/flipper_vehicles.c`. The host FAP does not keep that table in
+its own `.rodata`. Returning to the main menu unmaps the catalog.
 
 ## Decode
 
