@@ -204,16 +204,138 @@ static void synth_secplus1(FlipperPulseBuf* b, float mhz, uint32_t te,
     if(run) push(b, run * te);
 }
 
-/* ── Security+ 2.0 synth ──────────────────────────────────────────────── */
-static void synth_secplus2(FlipperPulseBuf* b, float mhz, uint32_t te, const uint8_t* syms) {
-    reset(b, mhz);
-    for(int i = 0; i < 40; i++) push(b, te);  /* equal-width preamble locks TE */
-    push(b, te * 6);                          /* long gap >=5T */
-    /* 62 ternary symbols: total T/2T/3T per symbol (pair) */
-    for(int i = 0; i < 62; i++) {
-        uint32_t tot = (syms[i] + 1) * te;    /* 0->1T,1->2T,2->3T */
-        push(b, tot / 2 + (tot & 1)); push(b, tot / 2);
+/* ── Security+ 2.0 synth (argilo encode_v2_manchester, TE = half-bit) ─── */
+static const uint8_t SP2_ORDER[11][3] = {
+    {0, 2, 1}, {2, 0, 1}, {0, 1, 2}, {0, 0, 0}, {1, 2, 0}, {1, 0, 2},
+    {2, 1, 0}, {0, 0, 0}, {1, 2, 0}, {2, 1, 0}, {0, 1, 2},
+};
+static const uint8_t SP2_INVERT[11][3] = {
+    {1, 1, 0}, {0, 1, 0}, {0, 0, 1}, {0, 0, 0}, {1, 1, 1}, {1, 0, 1},
+    {0, 1, 1}, {0, 0, 0}, {1, 0, 0}, {0, 0, 0}, {1, 0, 1},
+};
+
+static uint32_t synth_secplus2_rev28(uint32_t n) {
+    uint32_t r = 0;
+    for(int i = 0; i < 28; i++) {
+        r = (r << 1) | (n & 1u);
+        n >>= 1;
     }
+    return r;
+}
+
+static void synth_secplus2_scramble(
+    const uint8_t ind[8], uint8_t parts[3][18], int plen3, uint8_t* payload) {
+    uint8_t okey = (uint8_t)((ind[0] << 3) | (ind[1] << 2) | (ind[2] << 1) | ind[3]);
+    uint8_t ikey = (uint8_t)((ind[4] << 3) | (ind[5] << 2) | (ind[6] << 1) | ind[7]);
+    const uint8_t* order = SP2_ORDER[okey];
+    const uint8_t* invert = SP2_INVERT[ikey];
+    uint8_t pp[3][18];
+    for(int i = 0; i < 3; i++) {
+        memcpy(pp[i], parts[order[i]], (size_t)plen3);
+        if(invert[i])
+            for(int j = 0; j < plen3; j++) pp[i][j] ^= 1;
+    }
+    for(int i = 0; i < plen3; i++) {
+        payload[i * 3] = pp[0][i];
+        payload[i * 3 + 1] = pp[1][i];
+        payload[i * 3 + 2] = pp[2][i];
+    }
+}
+
+static void synth_secplus2_half(
+    const uint8_t rolling[9], const uint8_t fixed20[20], uint8_t out[40]) {
+    uint8_t ind[8];
+    for(int i = 0; i < 4; i++) {
+        ind[i * 2] = (uint8_t)(rolling[i] >> 1);
+        ind[i * 2 + 1] = (uint8_t)(rolling[i] & 1u);
+    }
+    uint8_t parts[3][18];
+    memcpy(parts[0], fixed20, 10);
+    memcpy(parts[1], fixed20 + 10, 10);
+    for(int i = 0; i < 5; i++) {
+        parts[2][i * 2] = (uint8_t)(rolling[4 + i] >> 1);
+        parts[2][i * 2 + 1] = (uint8_t)(rolling[4 + i] & 1u);
+    }
+    uint8_t payload[30];
+    synth_secplus2_scramble(ind, parts, 10, payload);
+    out[0] = 0;
+    out[1] = 0; /* packet_type 0 */
+    memcpy(out + 2, ind, 8);
+    memcpy(out + 10, payload, 30);
+}
+
+static void synth_secplus2(FlipperPulseBuf* b, float mhz, uint32_t te,
+                           uint32_t rolling, uint64_t fixed) {
+    reset(b, mhz);
+    rolling &= 0x0FFFFFFFu;
+    fixed &= 0xFFFFFFFFFFull;
+    /* Button nibble in bits 32..35; keep out of {0, 0xF}. */
+    uint8_t btn = (uint8_t)((fixed >> 32) & 0xFull);
+    if(btn == 0 || btn == 0xF)
+        fixed = (fixed & ~0xF00000000ull) | (0x2ull << 32);
+
+    uint32_t rr = synth_secplus2_rev28(rolling);
+    uint8_t rb[18];
+    for(int i = 17; i >= 0; i--) {
+        rb[i] = (uint8_t)(rr % 3u);
+        rr /= 3u;
+    }
+    uint8_t roll1[9], roll2[9];
+    memcpy(roll1, rb + 14, 4);
+    memcpy(roll1 + 4, rb + 6, 4);
+    roll1[8] = rb[1];
+    memcpy(roll2, rb + 10, 4);
+    memcpy(roll2 + 4, rb + 2, 4);
+    roll2[8] = rb[0];
+
+    uint8_t fb[40];
+    for(int i = 0; i < 40; i++)
+        fb[i] = (uint8_t)((fixed >> (39 - i)) & 1u);
+
+    uint8_t h1[40], h2[40];
+    synth_secplus2_half(roll1, fb, h1);
+    synth_secplus2_half(roll2, fb + 20, h2);
+
+    /* preamble(16×0+4×1) + frame-id + half; raw chip blank; second packet.
+     * argilo encode_v2_manchester: manchester(p1) + [0]*blank + manchester(p2). */
+    uint8_t bits[80];
+    uint8_t chips[400];
+    int nc = 0;
+    for(int p = 0; p < 2; p++) {
+        int nb = 0;
+        for(int i = 0; i < 16; i++) bits[nb++] = 0;
+        for(int i = 0; i < 4; i++) bits[nb++] = 1;
+        bits[nb++] = 0;
+        bits[nb++] = (uint8_t)p;
+        memcpy(bits + nb, p ? h2 : h1, 40);
+        nb += 40;
+        for(int i = 0; i < nb && nc + 2 <= (int)sizeof(chips); i++) {
+            if(bits[i] == 0) {
+                chips[nc++] = 1;
+                chips[nc++] = 0;
+            } else {
+                chips[nc++] = 0;
+                chips[nc++] = 1;
+            }
+        }
+        if(p == 0) {
+            /* Fast blank: 33 raw LOW chips between manchester packets. */
+            for(int i = 0; i < 33 && nc < (int)sizeof(chips); i++) chips[nc++] = 0;
+        }
+    }
+
+    uint8_t cur = chips[0];
+    uint32_t run = 1;
+    for(int i = 1; i < nc; i++) {
+        if(chips[i] == cur) run++;
+        else {
+            push(b, run * te);
+            cur = chips[i];
+            run = 1;
+        }
+    }
+    if(run) push(b, run * te);
+    b->te_us = te;
 }
 
 /* ── FAAC SLH synth ───────────────────────────────────────────────────── */
@@ -331,9 +453,10 @@ static void synth_set(int proto, uint32_t serial, int press, FlipperPulseBuf* b)
                      (serial ^ (roll * 0x1111)) & 0xFFFFF);
         break;
     case P_SECP2: {
-        uint8_t syms[62];
-        for(int i = 0; i < 62; i++) syms[i] = (uint8_t)((serial >> (i % 20)) + roll) % 3;
-        synth_secplus2(b, s->mhz, s->te, syms);
+        uint32_t rolling = (serial + (uint32_t)roll * 7u + 3u) & 0x0FFFFFFFu;
+        uint64_t fixed = ((uint64_t)(0x2u + (serial % 0xDu)) << 32) |
+                         ((uint64_t)(0xA0000000u | (serial & 0x0FFFFFFFu)));
+        synth_secplus2(b, s->mhz, s->te, rolling, fixed);
         break; }
     case P_SECP1:
         synth_secplus1(b, s->mhz, s->te,

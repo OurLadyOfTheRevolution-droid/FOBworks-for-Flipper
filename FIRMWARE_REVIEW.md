@@ -112,55 +112,60 @@ frees them when the session goes idle, when worker start fails, and in
 
 - Link, library contract, TX session, rolling-pwn analyzer, saved-check,
   keyvault: pass.
-- Vehicle decoder: Honda force-only still holds; new Security+1.0 vector
-  recovers rolling/fixed and stays out of Auto.
-- Classify (`40 --check`): Security+1.0 forced 100% / Auto 0% (registry
-  policy). Overall forced 97.5% — Security+2.0 is still the weak row at
-  66.7% on this seed. That 2.0 parser still takes only the low bit of each
-  trit; it is not argilo’s 80-bit Manchester + scramble. Left alone in this
-  pass (FAP size, and it is already force-only).
+- Vehicle decoder: Honda force-only still holds; Security+1.0 ternary and
+  Security+2.0 Manchester+scramble vectors recover fields and stay out of
+  Auto (Sec+2.0 may still be claimed by KeeLoq on Auto — registry policy
+  keeps Sec+2.0 force-only).
+- Classify (`40 --check`): Security+1.0 and Security+2.0 forced 100%. Overall
+  forced 100% on this seed.
+
+## Bugs fixed (this pass)
+
+### 6. Security+ 2.0 was a low-bit trit fold
+
+Replaced with argilo/Flipper Manchester + `_ORDER`/`_INVERT` scramble. Force-
+only. Segment decode splits on raw LOW blanks so odd-length gaps do not break
+pairing. Device build packs the scramble tables; Scher-Khan stays host-only
+under `FLIPPER_FAP_SLIM` so Sec+2.0 fits the loader.
+
+### 7. CC1101 preset table footgun
+
+`flipper_cc1101_presets.c` quarantined (fail-closed stubs). Still not in
+`application.fam`. Live radio uses official SubGhz presets only.
+
+### 8. External radio “connected” lied
+
+`radio_loader_is_connected()` no longer treats OTG power as proof. Version
+helper accepts CC1101 VERSION `0x04` / `0x14` (SGP). External presence is probed through the cc1101_ext interconnect.
+
+### 9. Land Rover predict window overstated
+
+Truncated 256-edge captures cannot support a 256-step counter window.
+`predict_window = 0` with a trunc-risk note.
 
 ## Remaining firmware debt
 
-**Security+ 2.0.** Public decode is 80- or 128-bit Manchester with the
-`_ORDER` / `_INVERT` scramble (argilo `decode_v2`). This tree’s 62-symbol
-low-bit fold will keep missing real openers. Same honesty rule as 1.0: no
-Auto until a checksum or scramble check exists.
+**Plugin split (next size move).** ProtoPirate keeps OEM registries and fat
+scenes in `FlipperAppType.PLUGIN` FALs loaded on demand. Flipper-ARF does not —
+it is a firmware fork with protocols in flash. This FAP stays on official
+SDK; when `.text` headroom cannot absorb the next decoder, split like
+ProtoPirate (slim host + AM/FM or OEM family plugins, optional
+`fal_embedded`). Trigger already hit once during Sec+2.0; Scher-Khan omission
+is a stopgap, not the long-term plan. First plugin candidate: vehicle catalog
+/ FOBclone–FOBback tables, then OEM family registries.
 
-**Dashboard auth.** The Wi-Fi bridge comment is accurate: anyone on
-`FOBworks-Flipper` can send JSON radio commands. SGP prints a 26-character
-access code at boot and returns `unauthorized` without it. No token landed
-in this FAP — `.text` has about a kilobyte of headroom, and a weak shared
-password in the binary is worse than an honest “off until Settings” plus AP
-password. Next step, if the size budget allows: generate a code on first run,
-store it on SD, require it on `hello`.
+**Dashboard auth.** Still no per-device access code on the JSON link. About
+252 B `.text` free after Sec+2.0 — not enough for a serious auth path. Lands
+after the plugin split frees a few KiB.
 
-**Unused CC1101 preset table.** `flipper_cc1101_presets.c` is not in
-`application.fam`. Comments map `{0x04}` to MDMCFG4 and `{0x29}` to PATABLE;
-on the CC1101 those addresses are SYNC1 and FSTEST. PATABLE is burst 0x3E.
-That table must not load onto a live chip as-is. Live TX uses
-`subghz_devices_load_preset()` with the official Ook650 / Ook270 / 2FSK
-presets.
+**Hitag2.** Host-only until plugin headroom exists (≥1 KiB `.text` free).
 
-**Land Rover preamble vs 256 edges.** The V0 reference needs ~319 pairs.
-`FLIPPER_PULSE_MAX` is 256 because the pulse buffer is copied through the
-app allocation. The decoder already anchors on ≥8 preamble pairs. Counter
-values from a truncated live capture stay untrusted.
+**Sec+1.0 / Sec+2.0 Auto.** No transmitted Sec+1.0 checksum; Sec+2.0 scramble
+is the integrity gate but Auto waits on live capture false-positive data.
 
-**Hitag2.** Cipher core is in the tree and omitted from the FAP (size). Host
-tests can see it; the device image cannot.
+**Land Rover preamble vs 256 edges.** Unchanged physics; advisory is honest.
 
-**External radio.** `radio_loader_is_connected()` returns true whenever OTG
-was enabled. That is a stub, not a GDO0 / version-register check (SGP
-accepts CC1101 version `0x04` and `0x14`).
-
-**Manufacturer-key masking.** FOBLoq shows the stored mask; `mask_mfrkeys.py`
-reverses it. Masking is not encryption. Treat the table as public material
-that happens not to be plaintext in the listing.
-
-**FAP size.** The Security+1.0 rewrite and vault/TX copies stayed small on
-purpose. Security+2.0, Hitag2, or dashboard auth should not land in the same
-change without a `ufbt` size readout.
+**Manufacturer-key masking.** Unchanged: masking is not encryption.
 
 ## TX / RF notes (existing contract)
 
@@ -181,15 +186,12 @@ Jam buffers in FOBcatch / the dashboard dispatcher are already built to the
 
 ## Next steps
 
-1. Run `ufbt` on a 1.4.3 SDK and record `.text` / `.rodata` / `.bss` against
-   the loader caps before any larger decoder.
-2. Collect a handful of real Security+ 1.0 `.sub` files (own hardware) and
-   add them to the private histogram in CORPUS_HONESTY.md. Only then consider
-   Auto.
-3. Port SGP’s command-auth pattern to the Flipper JSON link if the dashboard
-   stays on a shared AP.
-4. Rewrite Security+ 2.0 against argilo `encode_v2_manchester` the same way
-   1.0 was rewritten — force-only until the scramble check is in.
+1. Plugin architecture: slim EXTERNAL host + OEM/catalog PLUGIN FALs (ProtoPirate
+   pattern). Restore Scher-Khan and grow Hitag2/auth only after that lands.
+2. Collect real Security+ 1.0 / 2.0 `.sub` files (own hardware) for
+   CORPUS_HONESTY.md before considering Auto.
+3. Port SGP’s command-auth pattern once plugin headroom exists.
+4. Wire external CC1101 SPI VERSION probe into `radio_loader_is_connected`.
 
 KeeLoq decrypt in this tree already follows AN1064 (NLF 0x3A5C742E, 528
 rounds) and passes the three published vectors. That core was left alone.

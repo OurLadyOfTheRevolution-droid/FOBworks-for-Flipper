@@ -749,14 +749,14 @@ bool flipper_decode_land_rover(const FlipperPulseBuf* buf, FlipperDecodeResult* 
                     r->te_us = LR_S;
                     r->bits = 81;
                     r->freq_mhz = buf->freq_mhz;
-                    r->predict_window = 256;
-                    r->predict_lo = (count + 1) & 0x1FF;
-                    r->predict_hi = (count + 8) & 0x1FF;
+                    r->predict_window = 0;
+                    r->predict_lo = 0;
+                    r->predict_hi = 0;
                     strncpy(r->proto, "LandRover-V0", sizeof(r->proto) - 1);
                     snprintf(
                         r->predict_note,
                         sizeof(r->predict_note),
-                        "sig=%06lX cnt=%u chk",
+                        "sig=%06lX cnt=%u; trunc risk",
                         (unsigned long)sig,
                         (unsigned)count);
                     return true;

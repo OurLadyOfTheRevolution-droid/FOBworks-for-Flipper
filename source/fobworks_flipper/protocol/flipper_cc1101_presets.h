@@ -1,18 +1,26 @@
 #pragma once
 #include <stdint.h>
 
-/* ─────────────────────────────────────────────────────────────────────────── */
-/* CC1101 Custom Presets — FOBworks optimized configurations.                  */
-/*   Tuned per manufacturer for enhanced RX/TX performance.                    */
-/* ─────────────────────────────────────────────────────────────────────────── */
+/*
+ * DO NOT LOAD THESE TABLES ONTO A LIVE CC1101.
+ *
+ * Historical register pairs borrowed from third-party lists. Several address
+ * labels in the old comments do not match the CC1101 map (SWRS061):
+ *   0x04 = SYNC1, not MDMCFG4 (MDMCFG4 is 0x10)
+ *   0x05 = SYNC0, not MDMCFG3 (MDMCFG3 is 0x11)
+ *   0x29 = FSTEST, not PATABLE (PATABLE is burst access at 0x3E)
+ *
+ * The FAP does not compile this file (absent from application.fam). Live TX/RX
+ * uses subghz_devices_load_preset() with the official Ook650 / Ook270 / 2FSK
+ * presets. Keep this header only as a quarantine marker so the tables are not
+ * mistaken for a ready-to-write register dump.
+ */
 
-/* CC1101 register entry (address, value). Terminated by {0x00, 0x00}.        */
 typedef struct {
     uint8_t addr;
     uint8_t val;
 } Cc1101Reg;
 
-/* CC1101 custom preset identifiers — matches FlipperPreset enum offset.      */
 typedef enum {
     FbwPresetVAG_Pro = 0,
     FbwPresetPSA_Pro,
@@ -26,15 +34,8 @@ typedef enum {
     FBW_PRESET_COUNT
 } FbwPresetId;
 
-/* Get register array for a preset. Returns NULL if id is invalid.             */
-/* out_count receives the number of registers (excluding terminator).          */
+/* Always returns NULL — tables are quarantined. */
 const Cc1101Reg* fbw_preset_regs(FbwPresetId id, int* out_count);
-
-/* Human-readable preset name. */
 const char* fbw_preset_name(FbwPresetId id);
-
-/* Default center frequency for the preset (Hz). */
 uint32_t fbw_preset_freq_hz(FbwPresetId id);
-
-/* Find preset ID by name. Returns FBW_PRESET_COUNT if not found. */
 FbwPresetId fbw_preset_find(const char* name);
