@@ -2,15 +2,15 @@
 
 I measured these with `ufbt` against
 `https://update.flipperzero.one/builds/firmware/1.4.3/flipper-z-f7-sdk-1.4.3.zip`
-on branch `firmware-review-fixes` after the plugin split (v1.4 host FAP).
+after the FOBback lazy-capture fix (catalog maps before the Make list).
 
 Host FAP (`fobworks_flipper.fap`) — what the loader maps at launch:
 
 | Section  | This build | Loader limit | Headroom |
 |----------|-----------:|-------------:|---------:|
-| `.text`  |      60648 |        61352 |       92 |
-| `.rodata`|      14236 |        17645 |     3409 |
-| `.bss`   |       5188 |         5924 |      736 |
+| `.text`  |      61332 |        61352 |       20 |
+| `.rodata`|      14292 |        17645 |     3353 |
+| `.bss`   |       5183 |         5924 |      741 |
 
 Embedded plugins (mapped on demand, unmapped on the main menu):
 
@@ -25,7 +25,6 @@ mapped.
 
 APPCHK: Target 7, API 87.1 for host and both plugins.
 
-`.rodata` headroom is back. `.text` is still tight. Further OEM growth goes
-in a FAL, not the host image.
+`.text` headroom is thin (20 B). Further OEM growth stays in a FAL.
 
 — OurLadyOfTheRevolution-droid

@@ -155,10 +155,8 @@ static void flipper_custom_view_set_model(View* view, FlipperApp* app) {
 /* ── Guided-flow union lifecycle (heap-allocated off the FlipperApp block) ─── */
 bool flipper_guided_ensure(FlipperApp* app, size_t bytes) {
     if(app->guided) return true;
-    /* Allocate only the active flow's state. The union is sized for FOBback's
-       capture array (~11 KB), which can exceed available contiguous heap on
-       lower-headroom devices when FOBclone needs only ~4 KB. Clamp the request
-       to the union's size. */
+    /* Allocate only the active flow's state. Clamp the request to the union's
+       size. FOBback's capture block is a separate malloc after the pickers. */
     if(bytes == 0 || bytes > sizeof(FlipperGuided)) bytes = sizeof(FlipperGuided);
     app->guided = malloc(bytes);
     if(!app->guided) return false;
