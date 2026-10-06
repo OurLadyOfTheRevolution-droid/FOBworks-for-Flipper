@@ -1,5 +1,7 @@
 #include "../flipper_fobscan_app.h"
+#include "../protocol/flipper_plugin.h"
 #include <notification/notification_messages.h>
+#include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 
@@ -7,6 +9,15 @@
 /* FOBback guides make and vehicle selection, then captures frames for ordered
    RollBack replay. */
 /* ─────────────────────────────────────────────────────────────────────────── */
+
+static void fobback_caps_free(FlipperFobbackState* fb) {
+    if(fb->caps) {
+        free(fb->caps);
+        fb->caps = NULL;
+    }
+    fb->cap_count = 0;
+    fb->ready = false;
+}
 
 /* ── Make picker ─────────────────────────────────────────────────────────── */
 static void fobback_make_cb(void* ctx, uint32_t idx) {
@@ -20,24 +31,37 @@ static void fobback_make_cb(void* ctx, uint32_t idx) {
 
 void flipper_scene_fobback_make_on_enter(void* ctx) {
     FlipperApp* app = (FlipperApp*)ctx;
-    /* Allocate guided state on entry; the main menu releases it. Clear any
-       state left from an earlier mode. */
+    submenu_reset(app->submenu);
+
+    /* Map the catalog before the guided alloc so the Make list is not empty
+       when heap headroom is tight. */
+    if(!flipper_catalog_ensure()) {
+        submenu_set_header(app->submenu, "FOBback: no catalog");
+        submenu_add_item(app->submenu, "Back", 0, NULL, app);
+        view_dispatcher_switch_to_view(app->view_dispatcher, FlipperViewMenu);
+        return;
+    }
+
     if(!flipper_guided_ensure(app, sizeof(FlipperFobbackState))) {
-        submenu_reset(app->submenu);
         submenu_set_header(app->submenu, "FOBback: OOM");
         submenu_add_item(app->submenu, "Back", 0, NULL, app);
         view_dispatcher_switch_to_view(app->view_dispatcher, FlipperViewMenu);
         return;
     }
+    fobback_caps_free(&app->guided->fobback);
     memset(&app->guided->fobback, 0, sizeof(app->guided->fobback));
-    submenu_reset(app->submenu);
+
     int n = flipper_fbk_make_count();
     submenu_set_header(app->submenu, "FOBback: Make");
-    for(int i = 0; i < n; i++) {
-        const FlipperFbkMake* mk = flipper_fbk_make_at(i);
-        if(!mk || !mk->make) continue;
-        submenu_add_item(app->submenu, mk->make,
-                         (uint32_t)i, fobback_make_cb, app);
+    if(n <= 0) {
+        submenu_add_item(app->submenu, "(empty catalog)", 0, NULL, app);
+    } else {
+        for(int i = 0; i < n; i++) {
+            const FlipperFbkMake* mk = flipper_fbk_make_at(i);
+            if(!mk || !mk->make) continue;
+            submenu_add_item(app->submenu, mk->make,
+                             (uint32_t)i, fobback_make_cb, app);
+        }
     }
     view_dispatcher_switch_to_view(app->view_dispatcher, FlipperViewMenu);
 }
@@ -117,6 +141,11 @@ void flipper_fobback_draw_cb(Canvas* canvas, void* model) {
     }
     canvas_draw_line(canvas, 0, 32, 127, 32);
 
+    if(!fb->caps) {
+        canvas_draw_str(canvas, 0, 43, "OOM: capture buffers");
+        canvas_draw_str(canvas, 0, 53, "[Back] = exit");
+        return;
+    }
     if(!fb->armed) {
         canvas_draw_str(canvas, 0, 43, "Arming CC1101...");
         return;
@@ -151,7 +180,7 @@ bool flipper_fobback_input_cb(InputEvent* e, void* ctx) {
 /* ── Strict counter-sequence validation ──────────────────────────────────── */
 static bool fbk_is_ready(FlipperFobbackState* fb) {
     const FlipperFbkProfile* p = fb->profile;
-    if(!p || fb->cap_count < p->n_captures) return false;
+    if(!p || !fb->caps || fb->cap_count < p->n_captures) return false;
     if(p->seq == FbkSeqLoose) return true;
 
     for(int i = 1; i < p->n_captures; i++) {
@@ -170,25 +199,30 @@ void flipper_scene_fobback_listen_on_enter(void* ctx) {
     FlipperApp* app = (FlipperApp*)ctx;
     FlipperFobbackState* fb = &app->guided->fobback;
 
+    const FlipperFbkProfile* p = fb->profile;
+    if(!p) { scene_manager_previous_scene(app->scene_manager); return; }
+
+    fobback_caps_free(fb);
+    fb->caps = malloc(sizeof(FlipperCaptureResult) * (size_t)FLIPPER_FBK_CAPS_MAX);
     fb->cap_count = 0;
     fb->armed     = false;
     fb->ready     = false;
     fb->tx_pending = false;
-    memset(fb->caps, 0, sizeof(fb->caps));
+    if(fb->caps) {
+        memset(fb->caps, 0, sizeof(FlipperCaptureResult) * (size_t)FLIPPER_FBK_CAPS_MAX);
+    }
 
-    const FlipperFbkProfile* p = fb->profile;
-    if(!p) { scene_manager_previous_scene(app->scene_manager); return; }
-
-    app->capture->freq_mhz    = p->freqs[0];
-    app->capture->preset       = (p->mod == FlipperMod2FSK) ?
-                                  FlipperPreset2FSKDev238 : FlipperPresetOOK650;
-    app->capture->squelch_dbm  = -90.0f;
-    flipper_app_gui_radio_acquire(app);
-    app->capture->on_edge      = fobback_edge_cb;
-    app->capture->on_edge_ctx  = app;
-
-    flipper_capture_start(app->capture);
-    fb->armed = true;
+    if(fb->caps) {
+        app->capture->freq_mhz    = p->freqs[0];
+        app->capture->preset       = (p->mod == FlipperMod2FSK) ?
+                                      FlipperPreset2FSKDev238 : FlipperPresetOOK650;
+        app->capture->squelch_dbm  = -90.0f;
+        flipper_app_gui_radio_acquire(app);
+        app->capture->on_edge      = fobback_edge_cb;
+        app->capture->on_edge_ctx  = app;
+        flipper_capture_start(app->capture);
+        fb->armed = true;
+    }
     view_dispatcher_switch_to_view(app->view_dispatcher, FlipperViewFobback);
 }
 
@@ -196,6 +230,7 @@ bool flipper_scene_fobback_listen_on_event(void* ctx, SceneManagerEvent e) {
     FlipperApp* app = (FlipperApp*)ctx;
     FlipperFobbackState* fb = &app->guided->fobback;
     if(e.type != SceneManagerEventTypeCustom) return false;
+    if(!fb->caps) return false;
 
     if(e.event == FlipperEventCaptureDone && !fb->ready) {
         if(flipper_capture_flush(app->capture)) {
@@ -238,7 +273,7 @@ bool flipper_scene_fobback_listen_on_event(void* ctx, SceneManagerEvent e) {
             fb->tx_pending = false;
             fb->cap_count = 0;
             fb->ready = false;
-            memset(fb->caps, 0, sizeof(fb->caps));
+            memset(fb->caps, 0, sizeof(FlipperCaptureResult) * (size_t)FLIPPER_FBK_CAPS_MAX);
             app->capture->on_edge = fobback_edge_cb;
             app->capture->on_edge_ctx = app;
             flipper_capture_start(app->capture);
@@ -281,5 +316,6 @@ void flipper_scene_fobback_listen_on_exit(void* ctx) {
     app->capture->on_edge_ctx = NULL;
     app->guided->fobback.armed = false;
     app->guided->fobback.ready = false;
+    fobback_caps_free(&app->guided->fobback);
     flipper_app_gui_radio_release(app);
 }

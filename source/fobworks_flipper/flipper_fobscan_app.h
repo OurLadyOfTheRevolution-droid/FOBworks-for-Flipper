@@ -223,15 +223,17 @@ typedef struct {
 } FlipperFobcatchState;
 
 /* Holds captures for ordered RollBack replay. The largest profile currently
-   needs five captures; each result includes a ~2 KB pulse buffer. Increase
-   this limit if a profile requires more. */
+   needs five captures; each result includes a ~1 KB pulse buffer. The block is
+   allocated only after the make/model pickers close — embedding all five made
+   entering FOBback require ~11 KB contiguous heap before fw_catalog.fal could
+   map, so the Make list came up empty. */
 #define FLIPPER_FBK_CAPS_MAX 5
 
 typedef struct {
     int         make_idx;
     int         model_idx;
     const FlipperFbkProfile* profile;
-    FlipperCaptureResult     caps[FLIPPER_FBK_CAPS_MAX];
+    FlipperCaptureResult*    caps; /* FLIPPER_FBK_CAPS_MAX, heap, listen-only */
     int                  cap_count;
     bool                 armed;
     bool                 ready;
@@ -271,12 +273,9 @@ typedef struct {
     char        result[80];
 } FlipperFobcrackState;
 
-typedef char FlipperFobpwnStateFitsFobbackBudget[
-    sizeof(FlipperFobpwnState) <= sizeof(FlipperFobbackState) ? 1 : -1];
-
-/* Guided flows never overlap, so they share one union. Its FOBback capture
-   array is about 11 KB; allocate it separately to keep the main app allocation
-   small enough for the Flipper's limited contiguous heap. */
+/* Guided flows never overlap, so they share one union. Allocate it separately
+   to keep the main app allocation small enough for the Flipper's limited
+   contiguous heap. */
 typedef union {
     FlipperFobcloneState fobclone;
     FlipperFobcatchState fobcatch;
@@ -318,8 +317,8 @@ typedef struct {
     int                  lib_scope_offset;
 
     /* FOBscan and FOBsweep keep their small tuning state here. Guided scenes
-       share a lazily allocated union because FOBback holds large capture
-       buffers (~11 KB); FOBpwn stores only three decoded frames. */
+       share a lazily allocated union; FOBback's capture block is a second
+       heap alloc after the pickers so the catalog FAL can map first. */
     FlipperFobscanState  fobscan;
     FlipperFobsweepState fobsweep;
     FlipperRxToolState   rx_tool;

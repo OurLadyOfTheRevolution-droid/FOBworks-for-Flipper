@@ -129,6 +129,14 @@ slim EXTERNAL host, `fw_catalog.fal` for the full year table, `fw_force.fal`
 for Scher-Khan. Both plugins are embedded in the FAP, mapped on demand, and
 dropped on the main menu. FOBclone / FOBcatch / FOBback use catalog accessors.
 
+### 11. FOBback Make list was blank
+
+Entering FOBback malloc'd the guided union with five embedded capture
+results (~11 KB) before `fw_catalog.fal` could map. On a tight heap the
+catalog load failed, `flipper_fbk_make_count()` returned 0, and the Make
+submenu showed only the header. Caps are a separate heap block allocated
+on the listen scene now; Make maps the catalog first.
+
 ## Measurements
 
 `cd source/fobworks_flipper/tools && make test`
@@ -149,7 +157,7 @@ Further families follow the same ABI (`FOBWORKS_PLUGIN_APPID` /
 `FOBWORKS_PLUGIN_ABI`). I am not forking into firmware for size.
 
 **Dashboard auth.** Still no per-device access code on the JSON link. Host
-`.text` headroom is 92 B — not enough for a serious auth path in the host.
+`.text` headroom is 20 B — not enough for a serious auth path in the host.
 
 **Hitag2.** Keep it out of the host image; park it in a force FAL when I want
 it on device.
@@ -179,8 +187,8 @@ Jam buffers in FOBcatch / the dashboard dispatcher are already built to the
 
 ## Next steps
 
-1. On-device smoke: FOBclone full catalog, Force → Scher-Khan, back to menu
-   unmaps plugins.
+1. Re-check FOBback Make → Vehicle on device after the lazy capture alloc
+   (blank Make was catalog map starving behind the old 11 KB embed).
 2. Park Hitag2 in `fw_force.fal` only if that FAL stays small and Auto stays
    clean.
 3. Collect real Security+ 1.0 / 2.0 `.sub` files (own hardware) for
