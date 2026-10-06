@@ -1,5 +1,6 @@
 #include "flipper_fobscan_app.h"
 #include "protocol/flipper_plugin.h"
+#include "protocol/flipper_radio_loader.h"
 #include <furi.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -26,6 +27,8 @@ void flipper_adv_settings_load(FlipperApp* app) {
     app->adv.autosave_raw     = true;
     app->adv.lib_evict_oldest = true;   /* default: drop oldest to make room */
     app->adv.dashboard_link   = false;  /* default OFF: saves ~9KB heap at launch */
+    app->adv.access_code[0]   = '\0';
+    app->adv.prefer_external  = false;
 
     File* f = storage_file_alloc(app->storage);
     if(storage_file_open(f, FLIPPER_SETTINGS_PATH, FSAM_READ, FSOM_OPEN_EXISTING)) {
@@ -44,6 +47,17 @@ void flipper_adv_settings_load(FlipperApp* app) {
                 if((p = strstr(t, "save_raw=")))   app->adv.autosave_raw     = atoi(p + 9) != 0;
                 if((p = strstr(t, "evict=")))      app->adv.lib_evict_oldest = atoi(p + 6) != 0;
                 if((p = strstr(t, "link=")))       app->adv.dashboard_link   = atoi(p + 5) != 0;
+                if((p = strstr(t, "ext=")))        app->adv.prefer_external  = atoi(p + 4) != 0;
+                if((p = strstr(t, "code="))) {
+                    /* Digits only, max 6. Empty after code= clears auth. */
+                    p += 5;
+                    size_t i = 0;
+                    while(i + 1 < sizeof(app->adv.access_code) && p[i] >= '0' && p[i] <= '9') {
+                        app->adv.access_code[i] = p[i];
+                        i++;
+                    }
+                    app->adv.access_code[i] = '\0';
+                }
                 free(t);
             }
         }
@@ -60,18 +74,30 @@ void flipper_adv_settings_load(FlipperApp* app) {
         app->adv.preset = FlipperPresetOOK650;
     if((unsigned)app->adv.force_proto >= FlipperForceCount)
         app->adv.force_proto = FlipperForceAuto;
+
+    /* Apply the preferred radio after settings load. External stays selected
+       only when OTG comes up and the SPI VERSION probe passes. */
+    if(app->adv.prefer_external) {
+        if(!radio_loader_set(RadioDeviceExternal) || !radio_loader_is_connected()) {
+            radio_loader_set(RadioDeviceInternal);
+            app->adv.prefer_external = false;
+        }
+    } else {
+        radio_loader_set(RadioDeviceInternal);
+    }
 }
 
 void flipper_adv_settings_save(FlipperApp* app) {
     File* f = storage_file_alloc(app->storage);
     if(storage_file_open(f, FLIPPER_SETTINGS_PATH, FSAM_WRITE, FSOM_CREATE_ALWAYS)) {
-        char buf[256];
+        char buf[288];
         int n = snprintf(buf, sizeof(buf),
-            "freq_idx=%d\npreset=%d\nsquelch=%d\nforce=%d\nsave_dec=%d\nsave_raw=%d\nevict=%d\nlink=%d\n",
+            "freq_idx=%d\npreset=%d\nsquelch=%d\nforce=%d\nsave_dec=%d\nsave_raw=%d\nevict=%d\nlink=%d\next=%d\ncode=%s\n",
             app->adv.freq_idx, (int)app->adv.preset, (int)app->adv.squelch_dbm,
             (int)app->adv.force_proto, app->adv.autosave_decoded ? 1 : 0,
             app->adv.autosave_raw ? 1 : 0, app->adv.lib_evict_oldest ? 1 : 0,
-            app->adv.dashboard_link ? 1 : 0);
+            app->adv.dashboard_link ? 1 : 0, app->adv.prefer_external ? 1 : 0,
+            app->adv.access_code);
         storage_file_write(f, buf, n);
     }
     storage_file_close(f);

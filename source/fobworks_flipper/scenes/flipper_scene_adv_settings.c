@@ -1,4 +1,5 @@
 #include "../flipper_fobscan_app.h"
+#include "../protocol/flipper_radio_loader.h"
 #include <stdio.h>
 
 /* Advanced Settings uses the shared VariableItemList for FOBscan's frequency,
@@ -82,6 +83,39 @@ static void on_link(VariableItem* item) {
     variable_item_set_current_value_text(item, app->adv.dashboard_link ? "On" : "Off");
 }
 
+static void on_link_auth(VariableItem* item) {
+    FlipperApp* app = variable_item_get_context(item);
+    uint8_t i = variable_item_get_current_value_index(item);
+    if(i == 0) {
+        app->adv.access_code[0] = '\0';
+        variable_item_set_current_value_text(item, "Off");
+    } else {
+        /* Lab default. Change over the link with {"cmd":"auth","new_code":"...."}. */
+        snprintf(app->adv.access_code, sizeof(app->adv.access_code), "0000");
+        variable_item_set_current_value_text(item, "0000");
+    }
+}
+
+static void on_ext_radio(VariableItem* item) {
+    FlipperApp* app = variable_item_get_context(item);
+    uint8_t i = variable_item_get_current_value_index(item);
+    if(i == 0) {
+        radio_loader_set(RadioDeviceInternal);
+        app->adv.prefer_external = false;
+        variable_item_set_current_value_text(item, "Internal");
+        return;
+    }
+    if(radio_loader_set(RadioDeviceExternal) && radio_loader_is_connected()) {
+        app->adv.prefer_external = true;
+        variable_item_set_current_value_text(item, "External");
+    } else {
+        radio_loader_set(RadioDeviceInternal);
+        app->adv.prefer_external = false;
+        variable_item_set_current_value_index(item, 0);
+        variable_item_set_current_value_text(item, "No EXT");
+    }
+}
+
 /* ── Scene lifecycle ──────────────────────────────────────────────────────── */
 void flipper_scene_adv_settings_on_enter(void* ctx) {
     FlipperApp* app = (FlipperApp*)ctx;
@@ -125,6 +159,14 @@ void flipper_scene_adv_settings_on_enter(void* ctx) {
     it = variable_item_list_add(vl, "Dashboard Link", 2, on_link, app);
     variable_item_set_current_value_index(it, app->adv.dashboard_link ? 1 : 0);
     variable_item_set_current_value_text(it, app->adv.dashboard_link ? "On" : "Off");
+
+    it = variable_item_list_add(vl, "Link Auth", 2, on_link_auth, app);
+    variable_item_set_current_value_index(it, app->adv.access_code[0] ? 1 : 0);
+    variable_item_set_current_value_text(it, app->adv.access_code[0] ? "On" : "Off");
+
+    it = variable_item_list_add(vl, "CC1101", 2, on_ext_radio, app);
+    variable_item_set_current_value_index(it, app->adv.prefer_external ? 1 : 0);
+    variable_item_set_current_value_text(it, app->adv.prefer_external ? "External" : "Internal");
 
     view_dispatcher_switch_to_view(app->view_dispatcher, FlipperViewVarList);
 }

@@ -8,7 +8,7 @@ App(
     stack_size=4 * 1024,
     fap_category="Sub-GHz",
     fap_version=(1, 4),
-    fap_description="v1.4 for official 1.4.3. Slim host FAP; catalog and Scher-Khan live in embedded plugins.",
+    fap_description="v1.4 for official 1.4.3. Slim host FAP; catalog, Sec+, Scher-Khan, and Hitag2 live in embedded plugins.",
     sources=[
         "flipper_fobscan_app.c",
         "link/flipper_link.c",
@@ -29,6 +29,7 @@ App(
         "protocol/flipper_oem_wire.c",
         "protocol/flipper_plugin.c",
         "protocol/flipper_psa.c",
+        "protocol/flipper_radio_loader.c",
         "protocol/flipper_rollingpwn.c",
         "protocol/flipper_saved_check.c",
         "protocol/flipper_scratch.c",
@@ -81,5 +82,7 @@ App(
     sources=[
         "plugins/fw_force.c",
         "protocol/flipper_scher_khan.c",
+        "protocol/flipper_secplus.c",
+        "protocol/flipper_hitag2.c",
     ],
 )

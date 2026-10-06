@@ -65,6 +65,7 @@ typedef enum {
     FlipperCmdLibraryDelete, /* library_delete                                 */
     FlipperCmdLibraryExport, /* library_export                                 */
     FlipperCmdUtility,       /* device-only utility lifecycle query             */
+    FlipperCmdAuth,          /* auth — set/clear dashboard access code          */
     /* Recognized but not possible on single-CC1101 Flipper hardware.
        Dispatched as an honest {"ok":false,"error":"unsupported..."} reply so
        the UI reflects reality instead of hanging. */
@@ -85,6 +86,10 @@ typedef struct {
     int            limit;
     bool           has_decoded;
     bool           decoded;
+    bool           has_code;
+    char           code[8];    /* dashboard access code (SGP-style gate)        */
+    bool           has_new_code;
+    char           new_code[8];/* auth command: code to install                 */
 } FlipperCmd;
 
 /* Parse one newline-free JSON line into a command.

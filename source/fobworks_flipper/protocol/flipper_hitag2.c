@@ -241,13 +241,14 @@ static const Hitag2KnownKey hitag2_known_keys[] = {
     { "123456789ABC", 0x123456789ABC },
 };
 
-const Hitag2KnownKey* hitag2_get_known_key(int index) {
-    if(index < 0 || index >= HITAG2_KNOWN_KEY_COUNT) return NULL;
-    return &hitag2_known_keys[index];
+int hitag2_known_key_count(void) {
+    return (int)(sizeof(hitag2_known_keys) / sizeof(hitag2_known_keys[0]));
 }
 
-int hitag2_known_key_count(void) {
-    return HITAG2_KNOWN_KEY_COUNT;
+const Hitag2KnownKey* hitag2_get_known_key(int index) {
+    int n = hitag2_known_key_count();
+    if(index < 0 || index >= n) return NULL;
+    return &hitag2_known_keys[index];
 }
 
 /* ── Hitag2 Serial Permutation (Renault V1) ─────────────────────────────── */

@@ -117,6 +117,7 @@ static FlipperCmdKind classify(const char* name) {
         {"library_delete", FlipperCmdLibraryDelete},
         {"library_export", FlipperCmdLibraryExport},
         {"utility_status", FlipperCmdUtility},
+        {"auth",           FlipperCmdAuth},
     };
     for(size_t i = 0; i < sizeof(map) / sizeof(map[0]); i++)
         if(strcmp(name, map[i].n) == 0) return map[i].k;
@@ -168,6 +169,9 @@ bool flipper_proto_parse_cmd(const char* line, FlipperCmd* out) {
         out->has_decoded = true;
         out->decoded = false;
     }
+    if(read_str(line, "code", out->code, sizeof(out->code))) out->has_code = true;
+    if(read_str(line, "new_code", out->new_code, sizeof(out->new_code)))
+        out->has_new_code = true;
     return true;
 }
 
