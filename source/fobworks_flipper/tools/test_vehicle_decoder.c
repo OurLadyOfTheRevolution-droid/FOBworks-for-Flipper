@@ -143,9 +143,150 @@ static void test_secplus1_ternary(void) {
            "Security+1.0 stays force-only");
 }
 
+static uint32_t secplus2_rev28(uint32_t n) {
+    uint32_t r = 0;
+    for(int i = 0; i < 28; i++) {
+        r = (r << 1) | (n & 1u);
+        n >>= 1;
+    }
+    return r;
+}
+
+static const uint8_t SP2_ORDER_T[11][3] = {
+    {0, 2, 1}, {2, 0, 1}, {0, 1, 2}, {0, 0, 0}, {1, 2, 0}, {1, 0, 2},
+    {2, 1, 0}, {0, 0, 0}, {1, 2, 0}, {2, 1, 0}, {0, 1, 2},
+};
+static const uint8_t SP2_INVERT_T[11][3] = {
+    {1, 1, 0}, {0, 1, 0}, {0, 0, 1}, {0, 0, 0}, {1, 1, 1}, {1, 0, 1},
+    {0, 1, 1}, {0, 0, 0}, {1, 0, 0}, {0, 0, 0}, {1, 0, 1},
+};
+
+static void make_secplus2_vector(
+    FlipperPulseBuf* buf, uint32_t rolling, uint64_t fixed) {
+    uint32_t te = 250;
+    memset(buf, 0, sizeof(*buf));
+    buf->te_us = te;
+    buf->freq_mhz = 315.0f;
+    rolling &= 0x0FFFFFFFu;
+    fixed &= 0xFFFFFFFFFFull;
+
+    uint32_t rr = secplus2_rev28(rolling);
+    uint8_t rb[18];
+    for(int i = 17; i >= 0; i--) {
+        rb[i] = (uint8_t)(rr % 3u);
+        rr /= 3u;
+    }
+    uint8_t roll1[9], roll2[9];
+    memcpy(roll1, rb + 14, 4);
+    memcpy(roll1 + 4, rb + 6, 4);
+    roll1[8] = rb[1];
+    memcpy(roll2, rb + 10, 4);
+    memcpy(roll2 + 4, rb + 2, 4);
+    roll2[8] = rb[0];
+
+    uint8_t fb[40];
+    for(int i = 0; i < 40; i++)
+        fb[i] = (uint8_t)((fixed >> (39 - i)) & 1u);
+
+    uint8_t halves[2][40];
+    for(int h = 0; h < 2; h++) {
+        const uint8_t* rolling_h = h ? roll2 : roll1;
+        const uint8_t* fixed_h = h ? fb + 20 : fb;
+        uint8_t ind[8];
+        for(int i = 0; i < 4; i++) {
+            ind[i * 2] = (uint8_t)(rolling_h[i] >> 1);
+            ind[i * 2 + 1] = (uint8_t)(rolling_h[i] & 1u);
+        }
+        uint8_t parts[3][18];
+        memcpy(parts[0], fixed_h, 10);
+        memcpy(parts[1], fixed_h + 10, 10);
+        for(int i = 0; i < 5; i++) {
+            parts[2][i * 2] = (uint8_t)(rolling_h[4 + i] >> 1);
+            parts[2][i * 2 + 1] = (uint8_t)(rolling_h[4 + i] & 1u);
+        }
+        uint8_t okey =
+            (uint8_t)((ind[0] << 3) | (ind[1] << 2) | (ind[2] << 1) | ind[3]);
+        uint8_t ikey =
+            (uint8_t)((ind[4] << 3) | (ind[5] << 2) | (ind[6] << 1) | ind[7]);
+        const uint8_t* order = SP2_ORDER_T[okey];
+        const uint8_t* invert = SP2_INVERT_T[ikey];
+        uint8_t pp[3][18];
+        for(int i = 0; i < 3; i++) {
+            memcpy(pp[i], parts[order[i]], 10);
+            if(invert[i])
+                for(int j = 0; j < 10; j++) pp[i][j] ^= 1;
+        }
+        uint8_t* out = halves[h];
+        out[0] = 0;
+        out[1] = 0;
+        memcpy(out + 2, ind, 8);
+        for(int i = 0; i < 10; i++) {
+            out[10 + i * 3] = pp[0][i];
+            out[11 + i * 3] = pp[1][i];
+            out[12 + i * 3] = pp[2][i];
+        }
+    }
+
+    uint8_t bits[80];
+    uint8_t chips[400];
+    int nc = 0;
+    for(int p = 0; p < 2; p++) {
+        int nb = 0;
+        for(int i = 0; i < 16; i++) bits[nb++] = 0;
+        for(int i = 0; i < 4; i++) bits[nb++] = 1;
+        bits[nb++] = 0;
+        bits[nb++] = (uint8_t)p;
+        memcpy(bits + nb, halves[p], 40);
+        nb += 40;
+        for(int i = 0; i < nb && nc + 2 <= (int)sizeof(chips); i++) {
+            if(bits[i] == 0) {
+                chips[nc++] = 1;
+                chips[nc++] = 0;
+            } else {
+                chips[nc++] = 0;
+                chips[nc++] = 1;
+            }
+        }
+        if(p == 0)
+            for(int i = 0; i < 33 && nc < (int)sizeof(chips); i++) chips[nc++] = 0;
+    }
+    uint8_t cur = chips[0];
+    uint32_t run = 1;
+    for(int i = 1; i < nc; i++) {
+        if(chips[i] == cur) run++;
+        else {
+            push_dur(buf, run * te);
+            cur = chips[i];
+            run = 1;
+        }
+    }
+    if(run) push_dur(buf, run * te);
+}
+
+static void test_secplus2_manchester(void) {
+    FlipperPulseBuf buf;
+    FlipperDecodeResult result;
+    uint32_t rolling = 0x123456u;
+    /* bits 35..32 = button; 0x2A… → button 0xA. Keep out of {0, 0xF}. */
+    uint64_t fixed = 0x2A2B3C4D5Eull;
+    make_secplus2_vector(&buf, rolling, fixed);
+    expect(flipper_decode_ex(&buf, &result, FlipperForceSecplus2),
+           "Manchester Security+2.0 vector decodes");
+    expect(result.cnt == rolling && result.btn == 0xAu,
+           "Security+2.0 rolling and button recovered");
+    expect(strcmp(result.proto, "Security+2.0") == 0, "Sec+2.0 protocol label");
+    expect(result.predict_window == 0, "Sec+2.0 prediction stays off");
+    /* Registry keeps Sec+2.0 force-only. Another Auto decoder (e.g. KeeLoq)
+       may still claim the manchester edges; that is not a Sec+2.0 Auto path. */
+    bool auto_hit = flipper_decode_ex(&buf, &result, FlipperForceAuto);
+    expect(!auto_hit || strcmp(result.proto, "Security+2.0") != 0,
+           "Security+2.0 stays force-only");
+}
+
 int main(void) {
     test_honda_force_only();
     test_secplus1_ternary();
+    test_secplus2_manchester();
     printf("%d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;
 }
