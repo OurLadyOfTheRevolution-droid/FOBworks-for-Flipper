@@ -1,6 +1,7 @@
 #pragma once
 #include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 /* ── FOBclone frequency profile ──────────────────────────────────────────── */
 #define FC_PROFILE_FREQS_MAX 4
@@ -68,6 +69,9 @@ typedef struct {
 } FlipperFbkMake;
 
 /* ── Counts ───────────────────────────────────────────────────────────────── */
+/* Globals live in flipper_vehicles.c (host tests + fw_catalog.fal). The
+   device host FAP does not link that file; scenes use the accessors below,
+   which forward into the catalog plugin. */
 extern const int FLIPPER_FC_PROFILE_COUNT;
 extern const int FLIPPER_FC_VEHICLE_COUNT;
 extern const int FLIPPER_FBK_MAKE_COUNT;
@@ -79,6 +83,10 @@ extern const FlipperFbkProfile FLIPPER_FBK_PROFILES[];
 extern const FlipperFbkMake    FLIPPER_FBK_MAKES[];
 
 /* ── Lookups ──────────────────────────────────────────────────────────────── */
+int flipper_fc_vehicle_count(void);
+const FlipperFcVehicle* flipper_fc_vehicle_at(int i);
+int flipper_fbk_make_count(void);
+const FlipperFbkMake* flipper_fbk_make_at(int i);
 const FlipperFcProfile*  flipper_fc_profile_by_key(const char* key);
 const FlipperFbkProfile* flipper_fbk_profile_by_key(const char* key);
 const FlipperFbkProfile* flipper_fbk_model_profile(int make_idx, int model_idx);

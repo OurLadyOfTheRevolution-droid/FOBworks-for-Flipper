@@ -106,7 +106,8 @@ typedef struct {
     FlipperPulseBuf tx_owned;
     FlipperTxWorkState tx_work;
     const FlipperPulseBuf* tx_buf;
-    const FlipperCaptureResult* tx_caps;
+    FlipperPulseBuf* tx_seq;
+    int tx_seq_n;
     int tx_count;
     int tx_index;
     float tx_freq_mhz;

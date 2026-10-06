@@ -62,3 +62,5 @@ The bridge supports one CC1101 radio at a time. This hardware does not support
 simultaneous multi-radio jamming and capture, multi-channel sweeps, the
 Toyota-band SX1278, or CAN/BLE/UWB. Commands for those features return
 `unsupported`.
+
+— OurLadyOfTheRevolution-droid

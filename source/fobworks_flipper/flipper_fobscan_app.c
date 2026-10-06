@@ -1,4 +1,5 @@
 #include "flipper_fobscan_app.h"
+#include "protocol/flipper_plugin.h"
 #include <furi.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -349,6 +350,7 @@ static void flipper_app_free(FlipperApp* app) {
 
     flipper_capture_free(app->capture);
     flipper_guided_release(app);
+    flipper_plugin_unload_all();
 
     view_dispatcher_remove_view(app->view_dispatcher, FlipperViewMenu);
     view_dispatcher_remove_view(app->view_dispatcher, FlipperViewVarList);

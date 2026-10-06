@@ -46,9 +46,9 @@ static int g_checks = 0, g_fail = 0;
 static void sim_guided_nav(void) {
     printf("== Sim A: guided make/model/year index safety ==\n");
 
-    const char* makes[24];
+    const char* makes[32];
     int make_count = 0;
-    for(int i = 0; i < FLIPPER_FC_VEHICLE_COUNT && make_count < 24; i++) {
+    for(int i = 0; i < FLIPPER_FC_VEHICLE_COUNT && make_count < 32; i++) {
         bool seen = false;
         for(int m = 0; m < make_count; m++)
             if(strcmp(makes[m], FLIPPER_FC_VEHICLES[i].make) == 0) { seen = true; break; }

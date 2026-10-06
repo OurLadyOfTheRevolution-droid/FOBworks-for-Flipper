@@ -9,17 +9,20 @@
 /* ─────────────────────────────────────────────────────────────────────────── */
 
 /* ── Shared make list ─────────────────────────────────────────────────────── */
-static const char* fcc_makes[24];
+static const char* fcc_makes[32];
 static int         fcc_make_count = 0;
 static uint32_t    s_catch_ready;
 
 static void build_fcc_makes(void) {
     fcc_make_count = 0;
-    for(int i = 0; i < FLIPPER_FC_VEHICLE_COUNT && fcc_make_count < 24; i++) {
+    int n = flipper_fc_vehicle_count();
+    for(int i = 0; i < n && fcc_make_count < 32; i++) {
+        const FlipperFcVehicle* v = flipper_fc_vehicle_at(i);
+        if(!v || !v->make) continue;
         bool found = false;
         for(int m = 0; m < fcc_make_count; m++)
-            if(strcmp(fcc_makes[m], FLIPPER_FC_VEHICLES[i].make) == 0) { found = true; break; }
-        if(!found) fcc_makes[fcc_make_count++] = FLIPPER_FC_VEHICLES[i].make;
+            if(strcmp(fcc_makes[m], v->make) == 0) { found = true; break; }
+        if(!found) fcc_makes[fcc_make_count++] = v->make;
     }
 }
 
@@ -79,13 +82,14 @@ void flipper_scene_fobcatch_model_on_enter(void* ctx) {
     const char* make = (app->guided->fobcatch.make_idx >= 0 && app->guided->fobcatch.make_idx < fcc_make_count)
                        ? fcc_makes[app->guided->fobcatch.make_idx] : "";
     fcc_model_count = 0;
-    for(int i = 0; i < FLIPPER_FC_VEHICLE_COUNT && fcc_model_count < 32; i++) {
-        if(strcmp(FLIPPER_FC_VEHICLES[i].make, make) == 0) {
-            fcc_model_veh[fcc_model_count] = i;
-            submenu_add_item(app->submenu, FLIPPER_FC_VEHICLES[i].model,
-                             (uint32_t)fcc_model_count, fobcatch_model_cb, app);
-            fcc_model_count++;
-        }
+    int n = flipper_fc_vehicle_count();
+    for(int i = 0; i < n && fcc_model_count < 32; i++) {
+        const FlipperFcVehicle* v = flipper_fc_vehicle_at(i);
+        if(!v || !v->make || strcmp(v->make, make) != 0) continue;
+        fcc_model_veh[fcc_model_count] = i;
+        submenu_add_item(app->submenu, v->model,
+                         (uint32_t)fcc_model_count, fobcatch_model_cb, app);
+        fcc_model_count++;
     }
     view_dispatcher_switch_to_view(app->view_dispatcher, FlipperViewMenu);
 }
@@ -109,10 +113,10 @@ void flipper_scene_fobcatch_year_on_enter(void* ctx) {
     submenu_reset(app->submenu);
     submenu_set_header(app->submenu, "FOBcatch: Year");
     int vidx = app->guided->fobcatch.model_idx;
-    if(vidx < 0 || vidx >= FLIPPER_FC_VEHICLE_COUNT) {
+    const FlipperFcVehicle* v = flipper_fc_vehicle_at(vidx);
+    if(!v) {
         scene_manager_previous_scene(app->scene_manager); return;
     }
-    const FlipperFcVehicle* v = &FLIPPER_FC_VEHICLES[vidx];
     for(int i = 0; i < v->year_count; i++)
         submenu_add_item(app->submenu, v->years[i], (uint32_t)i, fobcatch_year_cb, app);
     view_dispatcher_switch_to_view(app->view_dispatcher, FlipperViewMenu);
@@ -143,10 +147,10 @@ void flipper_fobcatch_draw_cb(Canvas* canvas, void* model) {
     canvas_draw_str(canvas, 0, 10, "FOBcatch");
     canvas_set_font(canvas, FontSecondary);
 
-    int vidx = fc->model_idx;
-    if(vidx >= 0 && vidx < FLIPPER_FC_VEHICLE_COUNT) {
-        canvas_draw_str(canvas, 0, 20, FLIPPER_FC_VEHICLES[vidx].make);
-        canvas_draw_str(canvas, 0, 29, FLIPPER_FC_VEHICLES[vidx].model);
+    const FlipperFcVehicle* dv = flipper_fc_vehicle_at(fc->model_idx);
+    if(dv) {
+        canvas_draw_str(canvas, 0, 20, dv->make);
+        canvas_draw_str(canvas, 0, 29, dv->model);
     }
     canvas_draw_line(canvas, 0, 32, 127, 32);
 
@@ -233,8 +237,9 @@ void flipper_scene_fobcatch_active_on_enter(void* ctx) {
     int vidx = fc->model_idx;
     float freq = 433.92f;
     FlipperPreset preset = FlipperPresetOOK650;
-    if(vidx >= 0 && vidx < FLIPPER_FC_VEHICLE_COUNT) {
-        const char* model = FLIPPER_FC_VEHICLES[vidx].model;
+    const FlipperFcVehicle* av = flipper_fc_vehicle_at(vidx);
+    if(av) {
+        const char* model = av->model;
         /* Select the model's primary frequency. */
         if     (strstr(model, "915"))                          { freq = 915.00f; }
         else if(strstr(model, "868"))                          { freq = 868.00f; }
