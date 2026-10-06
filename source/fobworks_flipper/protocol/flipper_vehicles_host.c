@@ -1,5 +1,6 @@
 #include "flipper_plugin.h"
 #include "flipper_vehicles.h"
+#include <stddef.h>
 
 /*
  * Device FAP forwards catalog lookups into fw_catalog.fal. Host tests compile

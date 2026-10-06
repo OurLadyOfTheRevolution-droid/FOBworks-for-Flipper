@@ -65,12 +65,6 @@ void flipper_scene_fobclone_make_on_enter(void* ctx) {
     memset(&app->guided->fobclone, 0, sizeof(app->guided->fobclone));
     build_unique_makes(s_makes, &s_make_count, 32);
     submenu_reset(app->submenu);
-    if(s_make_count <= 0) {
-        submenu_set_header(app->submenu, "FOBclone: catalog missing");
-        submenu_add_item(app->submenu, "Back", 0, NULL, app);
-        view_dispatcher_switch_to_view(app->view_dispatcher, FlipperViewMenu);
-        return;
-    }
     submenu_set_header(app->submenu, "FOBclone: Make");
     for(int i = 0; i < s_make_count; i++)
         submenu_add_item(app->submenu, s_makes[i], (uint32_t)i, fobclone_make_cb, app);

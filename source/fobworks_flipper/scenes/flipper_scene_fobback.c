@@ -32,12 +32,6 @@ void flipper_scene_fobback_make_on_enter(void* ctx) {
     memset(&app->guided->fobback, 0, sizeof(app->guided->fobback));
     submenu_reset(app->submenu);
     int n = flipper_fbk_make_count();
-    if(n <= 0) {
-        submenu_set_header(app->submenu, "FOBback: catalog missing");
-        submenu_add_item(app->submenu, "Back", 0, NULL, app);
-        view_dispatcher_switch_to_view(app->view_dispatcher, FlipperViewMenu);
-        return;
-    }
     submenu_set_header(app->submenu, "FOBback: Make");
     for(int i = 0; i < n; i++) {
         const FlipperFbkMake* mk = flipper_fbk_make_at(i);

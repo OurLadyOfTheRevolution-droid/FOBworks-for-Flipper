@@ -1,6 +1,7 @@
 #pragma once
 #include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 /* ── FOBclone frequency profile ──────────────────────────────────────────── */
 #define FC_PROFILE_FREQS_MAX 4

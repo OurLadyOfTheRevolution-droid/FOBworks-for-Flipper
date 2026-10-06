@@ -17,9 +17,9 @@ FOBworks for Flipper is a Sub-GHz FAP on official firmware 1.4.2 / 1.4.3
 (API 87.1, target 7). Live receive, KeeLoq manufacturer-key check, a library
 of `.sub` files, and a JSON dashboard link (off until Settings) are the
 product. Menu names put the tool first (FOBscan, FOBclone, FOBcatch, FOBback,
-FOBpwn). Loader limits on this image are tight: `.text` 60328 / 61352,
-`.rodata` 17437 / 17645, `.bss` 5105 / 5924. Anything that grows the FAP has
-to earn that space.
+FOBpwn). The host FAP is slim: `.text` 61260 / 61352, `.rodata` 14236 / 17645,
+`.bss` 5188 / 5924. Vehicle tables and Scher-Khan live in embedded plugins.
+Anything that grows the host image still has to earn that space.
 
 Host tests live in `source/fobworks_flipper/tools`. `make test` is the check
 run after these edits.
@@ -160,8 +160,9 @@ Further families (Hitag2, auth, heavier scenes) follow the same ABI
 (`FOBWORKS_PLUGIN_APPID` / `FOBWORKS_PLUGIN_ABI`). Do not fork into firmware
 for size.
 
-**Dashboard auth.** Still no per-device access code on the JSON link. Lands
-once host `.text` headroom after the plugin split is measured and reserved.
+**Dashboard auth.** Still no per-device access code on the JSON link. Host
+`.text` headroom after the split is 92 B — still not a serious auth path.
+Lands in a later FAL or after more host `.text` is moved out.
 
 **Hitag2.** Host-only until a force-plugin slot has room (≥1 KiB `.text` in
 that FAL is easy; keep it out of the host image).
