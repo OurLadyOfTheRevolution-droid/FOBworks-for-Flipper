@@ -1,8 +1,7 @@
 FOBworks for Flipper — FAP and source
 =============================================
 
-I ship this tree as version 1.4: the FAP manifest, source header, and menu
-string agree. Official firmware 1.4.2 / 1.4.3 (FAP target 7, API 87.1) is the
+Official firmware 1.4.2 / 1.4.3 (FAP target 7, API 87.1) is the
 supported runtime. A FAP loads only on an exact API match, so this build does
 not run on 1.3.x (API 86.0).
 
