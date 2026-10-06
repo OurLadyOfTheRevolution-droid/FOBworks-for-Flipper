@@ -1,12 +1,13 @@
 # FOBworks for Flipper
 
-The source manifest and bundled FAP identify this release as version 1.3. The
-upstream release notes report a successful launch on official firmware 1.4.3
-(FAP target 7, API 87.1). A FAP loads only on an exact API match, so this build
-runs on 1.4.2 and 1.4.3, not on 1.3.x, whose API is 86.0.
+I identify this release as version 1.4 in the source manifest and bundled FAP.
+Official firmware 1.4.2 / 1.4.3 (FAP target 7, API 87.1) is the supported
+runtime. A FAP loads only on an exact API match, so this build does not run on
+1.3.x (API 86.0).
 
 Copy `dist/fobworks_flipper.fap` to `SD:/apps/Sub-GHz/`. Reboot before
-replacing an older copy; a failed launch can fragment the heap.
+replacing an older copy; a failed launch can fragment the heap. Catalog and
+Scher-Khan plugins are already packed inside that one FAP.
 
 ## Menu
 
@@ -32,9 +33,10 @@ replacing an older copy; a failed launch can fragment the heap.
 - **FOBpwn** counts three different Honda presses after consent. A repeated
   hop does not increase the count.
 
-FOBclone and FOBcatch use a short on-device list of makes and frequencies
-(for example, `315 MHz` or `433 MHz`). The full year table is in
-`protocol/flipper_vehicles.c`; it is compiled when `FLIPPER_FAP_SLIM` is unset.
+FOBclone, FOBcatch, and FOBback map `fw_catalog.fal` for the full
+make/model/year table in `protocol/flipper_vehicles.c`. The host FAP does not
+keep that table in its own `.rodata`. Returning to the main menu unmaps the
+catalog. Force → Scher-Khan maps `fw_force.fal`.
 
 ## Decode
 
@@ -43,6 +45,8 @@ that path uses the V0 Manchester frame. KeeLoq recognition requires a 66-bit
 frame, a hop word, and one function button. The app then checks the
 manufacturer-key list. If no key matches, the frame remains classified as
 KeeLoq, with no device key.
+
+Security+1.0, Security+2.0, and Scher-Khan stay force-only.
 
 Receivers skip the first second after the radio opens.
 
@@ -87,7 +91,8 @@ runs, so rebuilds of the same sources have different hashes. Compare the API and
 target version, not the digest. `.github/workflows/build-fap.yml` does this on
 demand from the public source if you would rather not build locally.
 
-Loader limits for this image: `.text` 61352, `.rodata` 17645, `.bss` 5924.
+Loader limits for the host image: `.text` 61352, `.rodata` 17645, `.bss` 5924.
+See `SIZE_BASELINE.md` for the numbers on this tree.
 
 ```sh
 cd tools && make test
@@ -97,3 +102,5 @@ cd tools && make test
 
 `CORPUS_HONESTY.md` reports the capture histogram. Auto matches are uncommon
 in that set; files that none of the decoders accepts remain undecoded.
+
+— OurLadyOfTheRevolution-droid

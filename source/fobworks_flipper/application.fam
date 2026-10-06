@@ -7,8 +7,8 @@ App(
     cdefines=["FLIPPER_FAP_SLIM=1"],
     stack_size=4 * 1024,
     fap_category="Sub-GHz",
-    fap_version=(1, 3),
-    fap_description="v1.3 for official 1.4.3. Live receive, KeeLoq check, dashboard link off until Settings.",
+    fap_version=(1, 4),
+    fap_description="v1.4 for official 1.4.3. Slim host FAP; catalog and Scher-Khan live in embedded plugins.",
     sources=[
         "flipper_fobscan_app.c",
         "link/flipper_link.c",
@@ -27,6 +27,7 @@ App(
         "protocol/flipper_library_rules.c",
         "protocol/flipper_mazda.c",
         "protocol/flipper_oem_wire.c",
+        "protocol/flipper_plugin.c",
         "protocol/flipper_psa.c",
         "protocol/flipper_rollingpwn.c",
         "protocol/flipper_saved_check.c",
@@ -36,7 +37,7 @@ App(
         "protocol/flipper_toyota.c",
         "protocol/flipper_tx_session.c",
         "protocol/flipper_vag.c",
-        "protocol/flipper_vehicles.c",
+        "protocol/flipper_vehicles_host.c",
         "protocol/flipper_vehrke.c",
         "scenes/flipper_scene_adv_settings.c",
         "scenes/flipper_scene_credits.c",
@@ -54,5 +55,31 @@ App(
         "scenes/flipper_scene_libscope.c",
         "scenes/flipper_scene_main_menu.c",
         "scenes/flipper_scene_rx_tools.c",
+    ],
+)
+
+App(
+    appid="fw_catalog",
+    name="FOBworks catalog",
+    apptype=FlipperAppType.PLUGIN,
+    entry_point="fw_catalog_ep",
+    requires=["fobworks_flipper"],
+    fal_embedded=True,
+    sources=[
+        "plugins/fw_catalog.c",
+        "protocol/flipper_vehicles.c",
+    ],
+)
+
+App(
+    appid="fw_force",
+    name="FOBworks force extras",
+    apptype=FlipperAppType.PLUGIN,
+    entry_point="fw_force_ep",
+    requires=["fobworks_flipper"],
+    fal_embedded=True,
+    sources=[
+        "plugins/fw_force.c",
+        "protocol/flipper_scher_khan.c",
     ],
 )

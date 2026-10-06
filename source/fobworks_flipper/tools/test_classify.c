@@ -24,7 +24,7 @@
 
 /* ── pulse buffer builder ─────────────────────────────────────────────── */
 static void push(FlipperPulseBuf* b, uint32_t d) {
-    if(b->len < 1024) b->durations[b->len++] = d;
+    if(b->len < FLIPPER_PULSE_MAX) b->durations[b->len++] = d;
 }
 static void reset(FlipperPulseBuf* b, float mhz) {
     memset(b, 0, sizeof(*b));
@@ -143,29 +143,199 @@ static void synth_doorhan(FlipperPulseBuf* b, float mhz, uint32_t te,
     while(b->len < 84) push(b, te);   /* len>=80 */
 }
 
-/* ── Security+ 1.0 synth ──────────────────────────────────────────────── */
-static void synth_secplus1(FlipperPulseBuf* b, float mhz, uint32_t te, uint64_t word40) {
+/* ── Security+ 1.0 synth (argilo/secplus OOK, two ternary packets) ─────── */
+static uint32_t synth_secplus1_rev32(uint32_t n) {
+    uint32_t r = 0;
+    for(int i = 0; i < 32; i++) {
+        r = (r << 1) | (n & 1u);
+        n >>= 1;
+    }
+    return r;
+}
+
+static void synth_secplus1(FlipperPulseBuf* b, float mhz, uint32_t te,
+                           uint32_t rolling, uint32_t fixed) {
     reset(b, mhz);
-    /* preamble: >=9 pairs each total <=1.5T. use (te/3,te/3) ~ 0.66T */
-    uint32_t pp = te / 3;
-    for(int i = 0; i < 10; i++) { push(b, pp); push(b, pp); }
-    /* tribits: bit0 => 1T HIGH + 2T LOW ; bit1 => 2T HIGH + 1T LOW */
-    for(int i = 0; i < 40; i++) {
-        if((word40 >> i) & 1) { push(b, te * 2); push(b, te); }
-        else                  { push(b, te);     push(b, te * 2); }
+    rolling &= 0xFFFFFFFEu;
+    uint32_t rr = synth_secplus1_rev32(rolling);
+    uint8_t rb[20], fb[20], code[40];
+    uint32_t fx = fixed;
+    for(int i = 19; i >= 0; i--) {
+        rb[i] = (uint8_t)(rr % 3u); rr /= 3u;
+        fb[i] = (uint8_t)(fx % 3u); fx /= 3u;
+    }
+    int acc = 0;
+    for(int i = 0; i < 20; i++) {
+        if(i == 0 || i == 10) acc = 0;
+        acc += rb[i];
+        code[2 * i] = rb[i];
+        acc += fb[i];
+        code[2 * i + 1] = (uint8_t)(acc % 3);
+    }
+
+    static const uint8_t pat[3][4] = {
+        {0, 0, 0, 1}, {0, 0, 1, 1}, {0, 1, 1, 1}
+    };
+    uint8_t bits[400];
+    int nb = 0;
+    bits[nb++] = 0; bits[nb++] = 0; bits[nb++] = 0; bits[nb++] = 1; /* hdr 0 */
+    for(int i = 0; i < 20 && nb + 4 <= (int)sizeof(bits); i++) {
+        memcpy(bits + nb, pat[code[i]], 4); nb += 4;
+    }
+    for(int i = 0; i < 40 && nb < (int)sizeof(bits); i++) bits[nb++] = 0; /* blank */
+    bits[nb++] = 0; bits[nb++] = 1; bits[nb++] = 1; bits[nb++] = 1; /* hdr 2 */
+    for(int i = 20; i < 40 && nb + 4 <= (int)sizeof(bits); i++) {
+        memcpy(bits + nb, pat[code[i]], 4); nb += 4;
+    }
+    for(int i = 0; i < 40 && nb < (int)sizeof(bits); i++) bits[nb++] = 0;
+
+    /* Dummy HIGH so the buffer is HIGH-first; header 0 then starts with LOW. */
+    push(b, te);
+    uint8_t cur = 0;
+    uint32_t run = 0;
+    for(int i = 0; i < nb; i++) {
+        if(bits[i] == cur) run++;
+        else {
+            if(run) push(b, run * te);
+            cur = bits[i];
+            run = 1;
+        }
+    }
+    if(run) push(b, run * te);
+}
+
+/* ── Security+ 2.0 synth (argilo encode_v2_manchester, TE = half-bit) ─── */
+static const uint8_t SP2_ORDER[11][3] = {
+    {0, 2, 1}, {2, 0, 1}, {0, 1, 2}, {0, 0, 0}, {1, 2, 0}, {1, 0, 2},
+    {2, 1, 0}, {0, 0, 0}, {1, 2, 0}, {2, 1, 0}, {0, 1, 2},
+};
+static const uint8_t SP2_INVERT[11][3] = {
+    {1, 1, 0}, {0, 1, 0}, {0, 0, 1}, {0, 0, 0}, {1, 1, 1}, {1, 0, 1},
+    {0, 1, 1}, {0, 0, 0}, {1, 0, 0}, {0, 0, 0}, {1, 0, 1},
+};
+
+static uint32_t synth_secplus2_rev28(uint32_t n) {
+    uint32_t r = 0;
+    for(int i = 0; i < 28; i++) {
+        r = (r << 1) | (n & 1u);
+        n >>= 1;
+    }
+    return r;
+}
+
+static void synth_secplus2_scramble(
+    const uint8_t ind[8], uint8_t parts[3][18], int plen3, uint8_t* payload) {
+    uint8_t okey = (uint8_t)((ind[0] << 3) | (ind[1] << 2) | (ind[2] << 1) | ind[3]);
+    uint8_t ikey = (uint8_t)((ind[4] << 3) | (ind[5] << 2) | (ind[6] << 1) | ind[7]);
+    const uint8_t* order = SP2_ORDER[okey];
+    const uint8_t* invert = SP2_INVERT[ikey];
+    uint8_t pp[3][18];
+    for(int i = 0; i < 3; i++) {
+        memcpy(pp[i], parts[order[i]], (size_t)plen3);
+        if(invert[i])
+            for(int j = 0; j < plen3; j++) pp[i][j] ^= 1;
+    }
+    for(int i = 0; i < plen3; i++) {
+        payload[i * 3] = pp[0][i];
+        payload[i * 3 + 1] = pp[1][i];
+        payload[i * 3 + 2] = pp[2][i];
     }
 }
 
-/* ── Security+ 2.0 synth ──────────────────────────────────────────────── */
-static void synth_secplus2(FlipperPulseBuf* b, float mhz, uint32_t te, const uint8_t* syms) {
-    reset(b, mhz);
-    for(int i = 0; i < 40; i++) push(b, te);  /* equal-width preamble locks TE */
-    push(b, te * 6);                          /* long gap >=5T */
-    /* 62 ternary symbols: total T/2T/3T per symbol (pair) */
-    for(int i = 0; i < 62; i++) {
-        uint32_t tot = (syms[i] + 1) * te;    /* 0->1T,1->2T,2->3T */
-        push(b, tot / 2 + (tot & 1)); push(b, tot / 2);
+static void synth_secplus2_half(
+    const uint8_t rolling[9], const uint8_t fixed20[20], uint8_t out[40]) {
+    uint8_t ind[8];
+    for(int i = 0; i < 4; i++) {
+        ind[i * 2] = (uint8_t)(rolling[i] >> 1);
+        ind[i * 2 + 1] = (uint8_t)(rolling[i] & 1u);
     }
+    uint8_t parts[3][18];
+    memcpy(parts[0], fixed20, 10);
+    memcpy(parts[1], fixed20 + 10, 10);
+    for(int i = 0; i < 5; i++) {
+        parts[2][i * 2] = (uint8_t)(rolling[4 + i] >> 1);
+        parts[2][i * 2 + 1] = (uint8_t)(rolling[4 + i] & 1u);
+    }
+    uint8_t payload[30];
+    synth_secplus2_scramble(ind, parts, 10, payload);
+    out[0] = 0;
+    out[1] = 0; /* packet_type 0 */
+    memcpy(out + 2, ind, 8);
+    memcpy(out + 10, payload, 30);
+}
+
+static void synth_secplus2(FlipperPulseBuf* b, float mhz, uint32_t te,
+                           uint32_t rolling, uint64_t fixed) {
+    reset(b, mhz);
+    rolling &= 0x0FFFFFFFu;
+    fixed &= 0xFFFFFFFFFFull;
+    /* Button nibble in bits 32..35; keep out of {0, 0xF}. */
+    uint8_t btn = (uint8_t)((fixed >> 32) & 0xFull);
+    if(btn == 0 || btn == 0xF)
+        fixed = (fixed & ~0xF00000000ull) | (0x2ull << 32);
+
+    uint32_t rr = synth_secplus2_rev28(rolling);
+    uint8_t rb[18];
+    for(int i = 17; i >= 0; i--) {
+        rb[i] = (uint8_t)(rr % 3u);
+        rr /= 3u;
+    }
+    uint8_t roll1[9], roll2[9];
+    memcpy(roll1, rb + 14, 4);
+    memcpy(roll1 + 4, rb + 6, 4);
+    roll1[8] = rb[1];
+    memcpy(roll2, rb + 10, 4);
+    memcpy(roll2 + 4, rb + 2, 4);
+    roll2[8] = rb[0];
+
+    uint8_t fb[40];
+    for(int i = 0; i < 40; i++)
+        fb[i] = (uint8_t)((fixed >> (39 - i)) & 1u);
+
+    uint8_t h1[40], h2[40];
+    synth_secplus2_half(roll1, fb, h1);
+    synth_secplus2_half(roll2, fb + 20, h2);
+
+    /* preamble(16×0+4×1) + frame-id + half; raw chip blank; second packet.
+     * argilo encode_v2_manchester: manchester(p1) + [0]*blank + manchester(p2). */
+    uint8_t bits[80];
+    uint8_t chips[400];
+    int nc = 0;
+    for(int p = 0; p < 2; p++) {
+        int nb = 0;
+        for(int i = 0; i < 16; i++) bits[nb++] = 0;
+        for(int i = 0; i < 4; i++) bits[nb++] = 1;
+        bits[nb++] = 0;
+        bits[nb++] = (uint8_t)p;
+        memcpy(bits + nb, p ? h2 : h1, 40);
+        nb += 40;
+        for(int i = 0; i < nb && nc + 2 <= (int)sizeof(chips); i++) {
+            if(bits[i] == 0) {
+                chips[nc++] = 1;
+                chips[nc++] = 0;
+            } else {
+                chips[nc++] = 0;
+                chips[nc++] = 1;
+            }
+        }
+        if(p == 0) {
+            /* Fast blank: 33 raw LOW chips between manchester packets. */
+            for(int i = 0; i < 33 && nc < (int)sizeof(chips); i++) chips[nc++] = 0;
+        }
+    }
+
+    uint8_t cur = chips[0];
+    uint32_t run = 1;
+    for(int i = 1; i < nc; i++) {
+        if(chips[i] == cur) run++;
+        else {
+            push(b, run * te);
+            cur = chips[i];
+            run = 1;
+        }
+    }
+    if(run) push(b, run * te);
+    b->te_us = te;
 }
 
 /* ── FAAC SLH synth ───────────────────────────────────────────────────── */
@@ -260,13 +430,7 @@ typedef struct {
 static const ProtoSpec CATALOG[N_PROTO] = {
     { "KeeLoq",          "SynMotors",   "RollGuard",  433.92f, 400, 1, FlipperForceKeeloq, 0 },
     { "Security+2.0",    "SynGate",     "SecPlusII",  315.00f, 250, 1, FlipperForceSecplus2, 0 },
-    /* Security+1.0 is known-broken: flipper_decode_secplus1 implements a 40-bit binary
-       model with a 4-bit popcount checksum, but the real protocol is 42 TERNARY symbols
-       (BIT_0/1/2 = 3T/2T/1T low pulses) across two packets, with NO checksum. The
-       reference encoder and decoder are in Flipper-ARF lib/subghz/protocols/secplus_v1.c.
-       A frame built to that spec is refused. The ~3% that pass are chance matches of the
-       checksum gate, so the row is excluded from the headline rather than averaged in. */
-    { "Security+1.0",    "SynGate",     "SecPlusI",   315.00f, 400, 1, FlipperForceSecplus1, 1 },
+    { "Security+1.0",    "SynGate",     "SecPlusI",   315.00f, 500, 1, FlipperForceSecplus1, 0 },
     { "DoorHan",         "SynPortal",   "HanRoll",    433.92f, 800, 1, FlipperForceDoorhan, 0 },
     { "CAME",            "SynBarrier",  "Cam12",      433.92f, 320, 0, FlipperForceCame12, 0 },
     { "Nice-FLO",        "SynBarrier",  "FloFix",     433.92f, 600, 0, FlipperForceNiceFlo, 0 },
@@ -289,13 +453,15 @@ static void synth_set(int proto, uint32_t serial, int press, FlipperPulseBuf* b)
                      (serial ^ (roll * 0x1111)) & 0xFFFFF);
         break;
     case P_SECP2: {
-        uint8_t syms[62];
-        for(int i = 0; i < 62; i++) syms[i] = (uint8_t)((serial >> (i % 20)) + roll) % 3;
-        synth_secplus2(b, s->mhz, s->te, syms);
+        uint32_t rolling = (serial + (uint32_t)roll * 7u + 3u) & 0x0FFFFFFFu;
+        uint64_t fixed = ((uint64_t)(0x2u + (serial % 0xDu)) << 32) |
+                         ((uint64_t)(0xA0000000u | (serial & 0x0FFFFFFFu)));
+        synth_secplus2(b, s->mhz, s->te, rolling, fixed);
         break; }
     case P_SECP1:
         synth_secplus1(b, s->mhz, s->te,
-                       ((uint64_t)serial << 10) | ((0x2AA + roll) & 0x3FF));
+                       ((serial + (uint32_t)roll) * 2u) + 2u,
+                       100u + (serial % 2000u));
         break;
     case P_DOORHAN:
         synth_doorhan(b, s->mhz, s->te, serial & 0xFFFF, (serial + roll) & 0xFFFF);

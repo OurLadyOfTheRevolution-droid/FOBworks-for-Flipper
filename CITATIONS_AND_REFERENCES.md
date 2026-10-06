@@ -1,8 +1,8 @@
 # CITATIONS & REFERENCES
 
-This reference list records the papers, repositories, datasheets, and other
-material consulted while developing FOBworks for Flipper. Project measurements
-are kept separate from external references at the end.
+I keep this list of papers, repositories, datasheets, and other material I
+consulted while building FOBworks for Flipper. Project measurements stay
+separate from external references at the end.
 
 ---
 
@@ -172,6 +172,22 @@ are kept separate from external references at the end.
      ABO1502T, Chrysler, Ford, Continental, Siemens, and HCS361/HCS362 KeeLoq
      framings.
 
+12. **secplus** (@argilo, Clayton Smith) — Security+ 1.0 / 2.0 encode and decode.
+   - `encode()` / `decode()` recover the 40 payload trits; `encode_ook()` emits
+     2000-baud OOK with symbols 0001/0011/0111 and a 0000 inter-packet blank.
+   - Cross-checked against Flipper `lib/subghz/protocols/secplus_v1.c` and
+     rtl_433 `src/devices/secplus_v1.c`. FOBworks uses this format for forced
+     Security+1.0 decode.
+   - Security+2.0: Manchester half-bits with `_ORDER` / `_INVERT` scramble
+     (`encode_v2_manchester` / Flipper `secplus_v2`). FOBworks force-decodes
+     that layout; Auto stays off until live false positives are measured.
+
+13. **ProtoPirate plugin packaging** (@RocketGod-git) — FlipperAppType.PLUGIN
+   FALs loaded on demand (AM/FM registry swap pattern).
+   - Informed this tree's slim EXTERNAL host plus `fw_catalog.fal` /
+     `fw_force.fal` split (`fal_embedded`, `/assets/plugins/`). Official SDK
+     only; not a firmware fork.
+
 ---
 
 ## Datasheets and technical documentation
@@ -260,9 +276,13 @@ are kept separate from external references at the end.
 6. **Flipper Zero firmware ELF loader** (official tree, 1.4.3,
    `lib/flipper_application/elf/elf_file.c`)
    - Each `SHF_ALLOC` section is allocated from a single free heap block, with
-     extra margin added to its size. This loader check informs the current FAP's
-     decision to defer radio setup, share decoder scratch space, and leave the
-     dashboard and full clone catalog out of the linked image.
+     extra margin added to its size. That check is why the host FAP stays slim:
+     vehicle catalog and Scher-Khan sit in embedded PLUGIN FALs mapped on
+     demand instead of living in host `.text` / `.rodata` at launch.
+7. **Flipper Zero FAP plugin loader** (official SDK, `flipper_application_*`,
+   `APP_ASSETS_PATH`, `fal_embedded`)
+   - Documents how an EXTERNAL host maps a PLUGIN `.fal` from assets and how
+     `fal_embedded` packs those FALs into a single distribute FAP.
 
 ---
 
@@ -272,7 +292,7 @@ The measurements below come from this project, not from the papers or
 repositories listed above.
 
 1. **Corpus honesty report** — `source/fobworks_flipper/CORPUS_HONESTY.md`
-   - `tools/sub_check --report` was run on the private 162-file `.sub` set on
+   - I ran `tools/sub_check --report` on the private 162-file `.sub` set on
      24 Sep 2026.
    - Auto decoded 11 (6.8%): Fiat-V2 (4), BMW-CAS3-PPM (2), KeeLoq-HCS300 (2),
      KIA/Hyundai (2), and Suzuki (1). Force-only decoded 144 (88.9%); 7 (4.3%)
@@ -283,11 +303,19 @@ repositories listed above.
 2. **BMW CAS3/CAS4 PPM gate** — structural read in `protocol/flipper_oem_wire.c`
    - The structural gate accepts constant-mark PPM (~250 µs HI, ~500/1500 µs
      LO) only after a ≥10 ms sync pair and a ≥64-bit run. The payload is treated
-     as opaque (AES). This path was calibrated against in-house X5 captures;
-     it does not copy an external decoder.
+     as opaque (AES). I calibrated this path against in-house X5 captures; it
+     does not copy an external decoder.
 
 3. **Verdict card and `.sub` tags** — `protocol/flipper_verdict.c`
    - The verdict records confidence (`Auto` / `Force` / `None`) and one next
      action in `FT_Confidence` and `FT_Action` on a stock-RAW `.sub`.
    - It also suggests a preset (`try OOK` / `try 2FSK`) based on edge ratios in
      the same capture.
+
+4. **Host FAP size baseline** — `SIZE_BASELINE.md`
+   - After the plugin split (v1.4): host `.text` 61260 / 61352, `.rodata`
+     14236 / 17645, `.bss` 5188 / 5924. Catalog and Scher-Khan sit in embedded
+     FALs, not in host RAM until mapped.
+
+— OurLadyOfTheRevolution-droid
+

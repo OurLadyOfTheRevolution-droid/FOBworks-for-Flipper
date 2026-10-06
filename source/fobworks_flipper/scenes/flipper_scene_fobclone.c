@@ -12,16 +12,19 @@
 /* ── Shared make list builder ─────────────────────────────────────────────── */
 static void build_unique_makes(const char** out, int* count, int max) {
     *count = 0;
-    for(int i = 0; i < FLIPPER_FC_VEHICLE_COUNT && *count < max; i++) {
+    int n = flipper_fc_vehicle_count();
+    for(int i = 0; i < n && *count < max; i++) {
+        const FlipperFcVehicle* v = flipper_fc_vehicle_at(i);
+        if(!v || !v->make) continue;
         bool found = false;
         for(int m = 0; m < *count; m++)
-            if(strcmp(out[m], FLIPPER_FC_VEHICLES[i].make) == 0) { found = true; break; }
-        if(!found) out[(*count)++] = FLIPPER_FC_VEHICLES[i].make;
+            if(strcmp(out[m], v->make) == 0) { found = true; break; }
+        if(!found) out[(*count)++] = v->make;
     }
 }
 
-/* Static storage for up to 24 makes. */
-static const char* s_makes[24];
+/* Full catalog has ~30 unique makes; keep a little headroom. */
+static const char* s_makes[32];
 static int         s_make_count = 0;
 
 /* Keep the large pulse buffers lazy. Release old buffers before clearing state. */
@@ -60,7 +63,7 @@ void flipper_scene_fobclone_make_on_enter(void* ctx) {
     }
     fobclone_caps_free(&app->guided->fobclone);
     memset(&app->guided->fobclone, 0, sizeof(app->guided->fobclone));
-    build_unique_makes(s_makes, &s_make_count, 24);
+    build_unique_makes(s_makes, &s_make_count, 32);
     submenu_reset(app->submenu);
     submenu_set_header(app->submenu, "FOBclone: Make");
     for(int i = 0; i < s_make_count; i++)
@@ -95,13 +98,14 @@ void flipper_scene_fobclone_model_on_enter(void* ctx) {
     const char* make = (app->guided->fobclone.make_idx >= 0 && app->guided->fobclone.make_idx < s_make_count)
                        ? s_makes[app->guided->fobclone.make_idx] : "";
     s_fc_model_count = 0;
-    for(int i = 0; i < FLIPPER_FC_VEHICLE_COUNT && s_fc_model_count < 32; i++) {
-        if(strcmp(FLIPPER_FC_VEHICLES[i].make, make) == 0) {
-            s_fc_model_veh[s_fc_model_count] = i;
-            submenu_add_item(app->submenu, FLIPPER_FC_VEHICLES[i].model,
-                             (uint32_t)s_fc_model_count, fobclone_model_cb, app);
-            s_fc_model_count++;
-        }
+    int n = flipper_fc_vehicle_count();
+    for(int i = 0; i < n && s_fc_model_count < 32; i++) {
+        const FlipperFcVehicle* v = flipper_fc_vehicle_at(i);
+        if(!v || !v->make || strcmp(v->make, make) != 0) continue;
+        s_fc_model_veh[s_fc_model_count] = i;
+        submenu_add_item(app->submenu, v->model,
+                         (uint32_t)s_fc_model_count, fobclone_model_cb, app);
+        s_fc_model_count++;
     }
     view_dispatcher_switch_to_view(app->view_dispatcher, FlipperViewMenu);
 }
@@ -119,8 +123,9 @@ static void fobclone_year_change_cb(VariableItem* item) {
     uint8_t idx = variable_item_get_current_value_index(item);
     app->guided->fobclone.year_idx = (int)idx;
     int vidx = app->guided->fobclone.model_idx;
-    if(vidx >= 0 && vidx < FLIPPER_FC_VEHICLE_COUNT && idx < FLIPPER_FC_VEHICLES[vidx].year_count)
-        variable_item_set_current_value_text(item, FLIPPER_FC_VEHICLES[vidx].years[idx]);
+    const FlipperFcVehicle* yv = flipper_fc_vehicle_at(vidx);
+    if(yv && idx < yv->year_count)
+        variable_item_set_current_value_text(item, yv->years[idx]);
 }
 
 /* Forward OK as custom event 0 so the year-selection scene can continue to
@@ -137,11 +142,11 @@ void flipper_scene_fobclone_year_on_enter(void* ctx) {
     variable_item_list_set_enter_callback(app->var_list, fobclone_year_enter_cb, app);
 
     int vidx = app->guided->fobclone.model_idx;
-    if(vidx < 0 || vidx >= FLIPPER_FC_VEHICLE_COUNT) {
+    const FlipperFcVehicle* v = flipper_fc_vehicle_at(vidx);
+    if(!v) {
         scene_manager_previous_scene(app->scene_manager);
         return;
     }
-    const FlipperFcVehicle* v = &FLIPPER_FC_VEHICLES[vidx];
     VariableItem* item = variable_item_list_add(app->var_list, "Year",
                              (uint8_t)v->year_count, fobclone_year_change_cb, app);
     variable_item_set_current_value_index(item, 0);
@@ -182,10 +187,10 @@ void flipper_fobclone_draw_cb(Canvas* canvas, void* model) {
     canvas_draw_str(canvas, 0, 10, "FOBclone");
     canvas_set_font(canvas, FontSecondary);
 
-    int vidx = fc->model_idx;
-    if(vidx >= 0 && vidx < FLIPPER_FC_VEHICLE_COUNT) {
-        canvas_draw_str(canvas, 0, 20, FLIPPER_FC_VEHICLES[vidx].make);
-        canvas_draw_str(canvas, 0, 29, FLIPPER_FC_VEHICLES[vidx].model);
+    const FlipperFcVehicle* dv = flipper_fc_vehicle_at(fc->model_idx);
+    if(dv) {
+        canvas_draw_str(canvas, 0, 20, dv->make);
+        canvas_draw_str(canvas, 0, 29, dv->model);
     }
     canvas_draw_line(canvas, 0, 32, 127, 32);
 
@@ -235,8 +240,9 @@ static void fobclone_arm(FlipperApp* app) {
     float freq = 433.92f;
     FlipperPreset preset = FlipperPresetOOK650;
 
-    if(vidx >= 0 && vidx < FLIPPER_FC_VEHICLE_COUNT) {
-        const char* model = FLIPPER_FC_VEHICLES[vidx].model;
+    const FlipperFcVehicle* av = flipper_fc_vehicle_at(vidx);
+    if(av) {
+        const char* model = av->model;
         /* Check longer frequency strings first to avoid substring collisions
            such as "315" inside "312-315". */
         if     (strstr(model, "915"))                          { freq = 915.00f; }

@@ -11,7 +11,7 @@
 /* ── Make picker ─────────────────────────────────────────────────────────── */
 static void fobback_make_cb(void* ctx, uint32_t idx) {
     FlipperApp* app = (FlipperApp*)ctx;
-    if((int)idx >= FLIPPER_FBK_MAKE_COUNT) return;
+    if((int)idx >= flipper_fbk_make_count()) return;
     app->guided->fobback.make_idx  = (int)idx;
     app->guided->fobback.model_idx = -1;
     app->guided->fobback.profile   = NULL;
@@ -31,10 +31,14 @@ void flipper_scene_fobback_make_on_enter(void* ctx) {
     }
     memset(&app->guided->fobback, 0, sizeof(app->guided->fobback));
     submenu_reset(app->submenu);
+    int n = flipper_fbk_make_count();
     submenu_set_header(app->submenu, "FOBback: Make");
-    for(int i = 0; i < FLIPPER_FBK_MAKE_COUNT; i++)
-        submenu_add_item(app->submenu, FLIPPER_FBK_MAKES[i].make,
+    for(int i = 0; i < n; i++) {
+        const FlipperFbkMake* mk = flipper_fbk_make_at(i);
+        if(!mk || !mk->make) continue;
+        submenu_add_item(app->submenu, mk->make,
                          (uint32_t)i, fobback_make_cb, app);
+    }
     view_dispatcher_switch_to_view(app->view_dispatcher, FlipperViewMenu);
 }
 bool flipper_scene_fobback_make_on_event(void* ctx, SceneManagerEvent e) {
@@ -49,8 +53,9 @@ void flipper_scene_fobback_make_on_exit(void* ctx) {
 static void fobback_model_cb(void* ctx, uint32_t idx) {
     FlipperApp* app = (FlipperApp*)ctx;
     int mi = app->guided->fobback.make_idx;
-    if(mi < 0 || mi >= FLIPPER_FBK_MAKE_COUNT) return;
-    if((int)idx >= FLIPPER_FBK_MAKES[mi].model_count) return;
+    const FlipperFbkMake* mk = flipper_fbk_make_at(mi);
+    if(!mk) return;
+    if((int)idx >= mk->model_count) return;
     app->guided->fobback.model_idx = (int)idx;
     app->guided->fobback.profile   = flipper_fbk_model_profile(mi, (int)idx);
     scene_manager_next_scene(app->scene_manager, FlipperSceneFobbackListen);
@@ -61,10 +66,11 @@ void flipper_scene_fobback_model_on_enter(void* ctx) {
     submenu_reset(app->submenu);
     submenu_set_header(app->submenu, "FOBback: Vehicle");
     int mi = app->guided->fobback.make_idx;
-    if(mi < 0 || mi >= FLIPPER_FBK_MAKE_COUNT) {
+    const FlipperFbkMake* mk = flipper_fbk_make_at(mi);
+    if(!mk) {
         scene_manager_previous_scene(app->scene_manager); return;
     }
-    int mc = FLIPPER_FBK_MAKES[mi].model_count;
+    int mc = mk->model_count;
     for(int i = 0; i < mc; i++) {
         const char* mname = flipper_fbk_model_name(mi, i);
         if(mname) submenu_add_item(app->submenu, mname,
@@ -102,9 +108,9 @@ void flipper_fobback_draw_cb(Canvas* canvas, void* model) {
     if(p) {
         canvas_draw_str(canvas, 0, 20, p->name);
         char mode_str[40];
+        const FlipperFbkMake* dmk = flipper_fbk_make_at(fb->make_idx);
         snprintf(mode_str, sizeof(mode_str), "%s  n=%d  %s",
-                 (fb->make_idx >= 0 && fb->make_idx < FLIPPER_FBK_MAKE_COUNT)
-                     ? FLIPPER_FBK_MAKES[fb->make_idx].make : "",
+                 (dmk && dmk->make) ? dmk->make : "",
                  p->n_captures,
                  p->seq == FbkSeqLoose ? "Loose" : "Strict");
         canvas_draw_str(canvas, 0, 29, mode_str);
