@@ -1,6 +1,7 @@
 #include "flipper_capture.h"
 #include <furi/core/memmgr.h>
 #include <lib/subghz/devices/cc1101_configs.h>
+#include <stdlib.h>
 #include <string.h>
 
 /* Event-flag bits for the ISR → notify-worker hand-off. */
@@ -20,6 +21,15 @@ static bool flipper_capture_add_u32(uint32_t* value, uint32_t add) {
     if(UINT32_MAX - *value < add) return false;
     *value += add;
     return true;
+}
+
+static void flipper_capture_tx_release_seq(FlipperCaptureEngine* e) {
+    if(!e) return;
+    if(e->tx_seq) {
+        free(e->tx_seq);
+        e->tx_seq = NULL;
+    }
+    e->tx_seq_n = 0;
 }
 
 static uint32_t flipper_capture_now_ms(void) {
@@ -50,6 +60,7 @@ static bool flipper_capture_notify_start(FlipperCaptureEngine* e) {
                 e->tx_session.cancel_reason = FlipperTxCancelError;
                 e->tx_work = FlipperTxWorkIdle;
                 e->tx_running = false;
+                flipper_capture_tx_release_seq(e);
             }
         }
     }
@@ -146,6 +157,7 @@ void flipper_capture_free(FlipperCaptureEngine* e) {
     if(!e) return;
     flipper_capture_stop(e);
     flipper_capture_tx_wait_stopped(e);
+    flipper_capture_tx_release_seq(e);
     /* Stop the worker before freeing the device and mutex it can access. */
     if(e->notify_thread) {
         e->notify_run = false;
@@ -171,7 +183,7 @@ void flipper_capture_free(FlipperCaptureEngine* e) {
 void flipper_capture_rx_cb(bool level, uint32_t duration_us, void* ctx) {
     FlipperCaptureEngine* e = (FlipperCaptureEngine*)ctx;
     if(!e->running) return;
-    if(duration_us < 75) return;
+    if(duration_us < FLIPPER_MIN_PULSE_US) return;
 
     int next = (e->edge_head + 1) % FLIPPER_CAP_EDGE_MAX;
     if(next == e->edge_tail) {
@@ -275,7 +287,8 @@ static int32_t flipper_capture_notify_worker(void* ctx) {
             if(e->tx_work == FlipperTxWorkPending &&
                flipper_tx_session_is_active(&e->tx_session)) {
                 const FlipperPulseBuf* p = e->tx_buf;
-                if(e->tx_caps) p = &e->tx_caps[e->tx_index].pulses;
+                if(e->tx_seq && e->tx_index >= 0 && e->tx_index < e->tx_seq_n)
+                    p = &e->tx_seq[e->tx_index];
                 e->tx_wave.durations = p ? p->durations : NULL;
                 e->tx_wave.count = p ? p->len : 0;
                 e->tx_wave.pos = 0;
@@ -306,6 +319,7 @@ static int32_t flipper_capture_notify_worker(void* ctx) {
                 }
             }
             if(finish) {
+                flipper_capture_tx_release_seq(e);
                 done = e->tx_done_cb;
                 done_ctx = e->tx_done_ctx;
                 e->tx_callback_active = done != NULL;
@@ -506,7 +520,7 @@ bool flipper_capture_tx_ex_owner(
     }
     e->tx_owned = *buf;
     e->tx_buf = &e->tx_owned;
-    e->tx_caps = NULL;
+    flipper_capture_tx_release_seq(e);
     e->tx_count = (int)frame_count;
     e->tx_index = 0;
     e->tx_freq_mhz = freq_mhz;
@@ -658,6 +672,10 @@ bool flipper_capture_tx_sequence(
     if(duration64 > UINT32_MAX) return false;
     uint32_t duration = (uint32_t)duration64;
     uint32_t now = flipper_capture_now_ms();
+    FlipperPulseBuf* copy = malloc(sizeof(FlipperPulseBuf) * (size_t)count);
+    if(!copy) return false;
+    for(int i = 0; i < count; i++) copy[i] = caps[i].pulses;
+
     furi_mutex_acquire(e->tx_mutex, FuriWaitForever);
     if(flipper_tx_session_begin(
            &e->tx_session, now, FlipperTxKindSequence,
@@ -665,10 +683,13 @@ bool flipper_capture_tx_sequence(
            (uint32_t)count, on_us, total_us) != FlipperTxBeginOk)
     {
         furi_mutex_release(e->tx_mutex);
+        free(copy);
         return false;
     }
+    flipper_capture_tx_release_seq(e);
     e->tx_buf = NULL;
-    e->tx_caps = caps;
+    e->tx_seq = copy;
+    e->tx_seq_n = count;
     e->tx_count = count;
     e->tx_index = 0;
     e->tx_freq_mhz = freq_mhz;

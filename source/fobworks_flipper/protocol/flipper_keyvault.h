@@ -40,6 +40,7 @@ bool flipper_keyvault_delete(FlipperVaultKey* keys, const char* name);
    Returns bytes written (excl. NUL), 0 on overflow. */
 size_t flipper_keyvault_to_text(const FlipperVaultKey* keys, char* out, size_t n);
 
-/* Parse keys.txt contents.  Blank/comment/malformed lines skipped;
-   count* receives keys found (≤ max).  false only on structural errors. */
+/* Parse keys.txt contents. Replaces the vault (does not merge). Blank,
+   comment, and malformed lines are skipped. count* receives unique keys
+   loaded (≤ max). false only on structural errors. */
 bool flipper_keyvault_from_text(const char* text, FlipperVaultKey* keys, int max, int* count);
