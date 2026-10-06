@@ -125,8 +125,8 @@ frees them when the session goes idle, when worker start fails, and in
 
 Replaced with argilo/Flipper Manchester + `_ORDER`/`_INVERT` scramble. Force-
 only. Segment decode splits on raw LOW blanks so odd-length gaps do not break
-pairing. Device build packs the scramble tables; Scher-Khan stays host-only
-under `FLIPPER_FAP_SLIM` so Sec+2.0 fits the loader.
+pairing. Device build packs the scramble tables. Scher-Khan is back on
+device through `fw_force.fal` (force-only, same as host tests).
 
 ### 7. CC1101 preset table footgun
 
@@ -143,22 +143,27 @@ helper accepts CC1101 VERSION `0x04` / `0x14` (SGP). External presence is probed
 Truncated 256-edge captures cannot support a 256-step counter window.
 `predict_window = 0` with a trunc-risk note.
 
+### 10. Host FAP ran out of loader headroom
+
+Sec+2.0 alone pushed `.text` over the API 87.1 cap. The host is now a slim
+EXTERNAL FAP. Vehicle/year tables live in `fw_catalog.fal`; Scher-Khan lives
+in `fw_force.fal`. Both are `fal_embedded` assets under `/assets/plugins/`,
+mapped on demand and unmapped on the main menu. FOBclone/FOBcatch/FOBback
+read the catalog through accessors, so the full year table is back on device
+without sitting in host `.rodata` during Auto RX.
+
 ## Remaining firmware debt
 
-**Plugin split (next size move).** ProtoPirate keeps OEM registries and fat
-scenes in `FlipperAppType.PLUGIN` FALs loaded on demand. Flipper-ARF does not —
-it is a firmware fork with protocols in flash. This FAP stays on official
-SDK; when `.text` headroom cannot absorb the next decoder, split like
-ProtoPirate (slim host + AM/FM or OEM family plugins, optional
-`fal_embedded`). Trigger already hit once during Sec+2.0; Scher-Khan omission
-is a stopgap, not the long-term plan. First plugin candidate: vehicle catalog
-/ FOBclone–FOBback tables, then OEM family registries.
+**More OEM FALs.** Catalog and force extras are the first two plugins.
+Further families (Hitag2, auth, heavier scenes) follow the same ABI
+(`FOBWORKS_PLUGIN_APPID` / `FOBWORKS_PLUGIN_ABI`). Do not fork into firmware
+for size.
 
-**Dashboard auth.** Still no per-device access code on the JSON link. About
-252 B `.text` free after Sec+2.0 — not enough for a serious auth path. Lands
-after the plugin split frees a few KiB.
+**Dashboard auth.** Still no per-device access code on the JSON link. Lands
+once host `.text` headroom after the plugin split is measured and reserved.
 
-**Hitag2.** Host-only until plugin headroom exists (≥1 KiB `.text` free).
+**Hitag2.** Host-only until a force-plugin slot has room (≥1 KiB `.text` in
+that FAL is easy; keep it out of the host image).
 
 **Sec+1.0 / Sec+2.0 Auto.** No transmitted Sec+1.0 checksum; Sec+2.0 scramble
 is the integrity gate but Auto waits on live capture false-positive data.
@@ -186,11 +191,11 @@ Jam buffers in FOBcatch / the dashboard dispatcher are already built to the
 
 ## Next steps
 
-1. Plugin architecture: slim EXTERNAL host + OEM/catalog PLUGIN FALs (ProtoPirate
-   pattern). Restore Scher-Khan and grow Hitag2/auth only after that lands.
+1. Measure host `.text` headroom after this plugin split; park Hitag2 in
+   `fw_force.fal` only if that FAL stays small and Auto stays clean.
 2. Collect real Security+ 1.0 / 2.0 `.sub` files (own hardware) for
    CORPUS_HONESTY.md before considering Auto.
-3. Port SGP’s command-auth pattern once plugin headroom exists.
+3. Port SGP’s command-auth pattern once host headroom is reserved for it.
 4. Wire external CC1101 SPI VERSION probe into `radio_loader_is_connected`.
 
 KeeLoq decrypt in this tree already follows AN1064 (NLF 0x3A5C742E, 528

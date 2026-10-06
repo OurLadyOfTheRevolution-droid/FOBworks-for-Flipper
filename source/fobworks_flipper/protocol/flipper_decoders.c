@@ -960,94 +960,15 @@ bool flipper_decode_tpms(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
              "sensor id 0x%05X status %u", (unsigned)word, (unsigned)status);
     return true;
 }
-#ifndef FLIPPER_FAP_SLIM
-/* Device FAP omits Scher-Khan (~0.4 KiB .text) until the plugin split lands.
-   Host builds keep the full decoder for test_sim. */
-/* ── Scher-Khan / Magicar PWM car-alarm remote ───────────────────────────── */
-/*
- * Scher-Khan (Magicar) alarm fobs use symmetric PWM at 433.92 MHz. After at
- * least two long HIGH header pulses (~1500 µs = 2T) and a short start bit,
- * each data bit is a HIGH/LOW pair: both short (~750 µs) for 0 or both long
- * (~1100 µs) for 1. A longer HIGH (at least ~1420 µs) ends the frame. There is
- * no transmitted checksum, so this decoder is force-only, not part of Auto.
- * The 51-bit "MAGIC CODE, Dynamic" includes serial, button, and rolling
- * counter fields. Other recognized lengths (35, 57, 63, 64, 81, or 82 bits)
- * are reported by length only.
- */
-static int sk_near(uint32_t v, uint32_t ref) {
-    uint32_t d = (v > ref) ? v - ref : ref - v;
-    return d <= 160;                              /* te_delta */
-}
-
+#ifdef FLIPPER_FAP_SLIM
+#include "flipper_plugin.h"
+/* Device FAP keeps Scher-Khan out of the host image. Force-decode maps
+   fw_force.fal and runs the Magicar PWM parser there. Host tests compile
+   protocol/flipper_scher_khan.c instead of this stub. */
 bool flipper_decode_scher_khan(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
-    if(!buf || !r) return false;
-    const uint32_t S = 750, L = 1100;            /* te_short, te_long */
-    const uint32_t* p = buf->durations;
-    int n = buf->len;
-
-    for(int h = 0; h + 1 < n; h += 2) {
-        /* Header: run of long HIGH (~2T) pulses at even (HIGH) indices. */
-        int hc = 0, j = h;
-        while(j + 1 < n && sk_near(p[j], S * 2)) { hc++; j += 2; }
-        if(hc < 2) continue;
-        /* Start bit: a short HIGH after the header. */
-        if(!(j + 1 < n && sk_near(p[j], S))) continue;
-
-        int k = j + 2;                            /* first data cell */
-        uint64_t data = 0;
-        int count = 1;                            /* start bit counts as bit 1 */
-        bool ok = true, stop = false;
-        while(k < n) {
-            uint32_t hi = p[k];
-            if(hi >= L + 320) { stop = true; break; }   /* long HIGH = stop bit */
-            if(k + 1 >= n) { ok = false; break; }       /* need a LOW to pair */
-            uint32_t lo = p[k + 1];
-            if(sk_near(hi, S) && sk_near(lo, S)) {
-                data = (data << 1);               /* both short → 0 */
-                count++;
-            } else if(sk_near(hi, L) && sk_near(lo, L)) {
-                data = (data << 1) | 1ULL;        /* both long → 1 */
-                count++;
-            } else {
-                ok = false;
-                break;
-            }
-            k += 2;
-            if(count > 64) { ok = false; break; }
-        }
-        if(!ok || !stop || count < 35) continue;
-
-        memset(r, 0, sizeof(*r));
-        r->freq_mhz = buf->freq_mhz;
-        r->te_us = S;
-        r->bits = count;
-        r->hop = (uint32_t)data;
-        strncpy(r->proto, "Scher-Khan", sizeof(r->proto) - 1);
-
-        if(count == 51) {                         /* MAGIC CODE, Dynamic */
-            r->addr = (uint32_t)(((data >> 24) & 0xFFFFFF0) | ((data >> 20) & 0x0F));
-            r->btn = (uint8_t)((data >> 24) & 0x0F);
-            r->cnt = (uint32_t)(data & 0xFFFF);
-            r->rolling = true;
-            r->predict_window = 256;
-            r->predict_lo = (r->cnt + 1) & 0xFFFF;
-            r->predict_hi = (r->cnt + 8) & 0xFFFF;
-            snprintf(r->predict_note, sizeof(r->predict_note),
-                     "Magicar Dynamic  sn=0x%07lX", (unsigned long)r->addr);
-        } else {
-            r->replay_vuln = (count == 35);       /* static code → replayable */
-            snprintf(r->predict_note, sizeof(r->predict_note),
-                     "Magicar %d-bit", count);
-        }
-        return true;
-    }
-    return false;
-}
-
-#else
-bool flipper_decode_scher_khan(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
-    (void)buf; (void)r;
-    return false;
+    const FobworksForceApi* a = flipper_force_api();
+    if(!a || !a->decode) return false;
+    return a->decode(buf, r, FlipperForceScherKhan);
 }
 #endif
 

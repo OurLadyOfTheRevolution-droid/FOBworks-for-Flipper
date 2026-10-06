@@ -1,4 +1,5 @@
 #include "../flipper_fobscan_app.h"
+#include "../protocol/flipper_plugin.h"
 
 typedef enum {
     MainMenuFobscan = 0,
@@ -69,8 +70,9 @@ static void main_menu_cb(void* ctx, uint32_t idx) {
 
 void flipper_scene_main_menu_on_enter(void* ctx) {
     FlipperApp* app = (FlipperApp*)ctx;
-    /* Release guided-flow memory when returning to the menu. */
+    /* Release guided-flow memory and unmap catalog/force FALs when idle. */
     flipper_guided_release(app);
+    flipper_plugin_unload_all();
     submenu_reset(app->submenu);
     submenu_set_header(app->submenu, "FOBworks  v" FLIPPER_VERSION);
     submenu_add_item(app->submenu, "FOBscan   — Live capture",    MainMenuFobscan,   main_menu_cb, app);
