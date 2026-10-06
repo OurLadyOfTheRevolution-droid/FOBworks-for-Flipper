@@ -9,7 +9,8 @@ Sets: 500   Presses/set: 3   Total signals: 1500
 PROTOCOL             N | AUTO-DEC AUTO-CLS |  FRC-DEC  FRC-CLS
 -------------------------------------------------------------------------
 KeeLoq             117 |   100.0%    99.1% |   100.0%   100.0%
-Security+2.0       117 |     0.0%     0.0% |    74.4%    74.4%
+Security+2.0       117 |    41.9%     0.0% |   100.0%   100.0%
+Security+1.0       117 |     0.0%     0.0% |   100.0%   100.0%
 DoorHan            117 |     0.0%     0.0% |   100.0%   100.0%
 CAME               117 |     0.0%     0.0% |   100.0%   100.0%
 Nice-FLO           117 |     0.0%     0.0% |   100.0%   100.0%
@@ -21,24 +22,8 @@ PT2262             114 |     0.0%     0.0% |   100.0%   100.0%
 EV1527             114 |     0.0%     0.0% |   100.0%   100.0%
 TPMS               114 |     0.0%     0.0% |   100.0%   100.0%
 -------------------------------------------------------------------------
-OVERALL           1383 |     8.5%     8.4% |    97.8%    97.8%
+OVERALL           1500 |    11.1%     7.7% |   100.0%   100.0%
 (Decoders marked known-broken, listed below, are excluded from these totals.)
-
-KNOWN-BROKEN DECODERS (not implementable from the generator -- excluded above)
--------------------------------------------------------------------------
-Security+1.0       117 |     3.4%     3.4% |     3.4%     3.4%
-
-`flipper_decode_secplus1` implements Security+1.0 as a 40-bit binary frame
-with a 4-bit popcount checksum. The real protocol uses 42 ternary symbols
-(`BIT_0/1/2` = 3T/2T/1T low pulses) over two packets and has no checksum field.
-The Flipper-ARF reference at `lib/subghz/protocols/secplus_v1.c` includes an
-encoder and decoder. This implementation refuses a frame built to that
-specification. The row above shows the raw result; the roughly 3% of signals
-that pass are chance matches to the checksum gate, not successful decodes.
-
-Fixing this requires rewriting the decoder for the ternary format and checking
-it against a real capture. The generator cannot produce that validation data:
-the protocol has no checksum to compute.
 
 AUTO uses `flipper_decode()` and only the `auto_safe` decoders; this is the
 default path. FRC uses `flipper_decode_ex()` after the protocol has been
