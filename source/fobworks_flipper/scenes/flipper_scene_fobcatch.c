@@ -50,12 +50,6 @@ void flipper_scene_fobcatch_make_on_enter(void* ctx) {
     memset(&app->guided->fobcatch, 0, sizeof(app->guided->fobcatch));
     build_fcc_makes();
     submenu_reset(app->submenu);
-    if(fcc_make_count <= 0) {
-        submenu_set_header(app->submenu, "FOBcatch: catalog missing");
-        submenu_add_item(app->submenu, "Back", 0, NULL, app);
-        view_dispatcher_switch_to_view(app->view_dispatcher, FlipperViewMenu);
-        return;
-    }
     submenu_set_header(app->submenu, "FOBcatch: Make");
     for(int i = 0; i < fcc_make_count; i++)
         submenu_add_item(app->submenu, fcc_makes[i], (uint32_t)i, fobcatch_make_cb, app);

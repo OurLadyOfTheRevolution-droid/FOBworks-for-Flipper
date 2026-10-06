@@ -2,8 +2,6 @@
 
 #include <flipper_application/flipper_application.h>
 
-bool flipper_decode_scher_khan(const FlipperPulseBuf* buf, FlipperDecodeResult* r);
-
 static bool force_decode(
     const FlipperPulseBuf* buf, FlipperDecodeResult* r, FlipperForceProto force) {
     if(force == FlipperForceScherKhan) return flipper_decode_scher_khan(buf, r);
