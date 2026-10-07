@@ -18,6 +18,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/stat.h>
 
 #define SUB_GAP_US  16000  /* keep ~12 ms Santa Fe / VAG syncs inside a burst;
@@ -317,6 +318,12 @@ int main(int argc, char** argv) {
 
     int total = g_decoded_auto + g_decoded_force;
     printf("\n=== summary ===\n");
+    if(g_files == 0) {
+        printf("files: 0\n");
+        printf("(no .sub captures found — nothing to classify)\n");
+        free(g_raw);
+        return g_report ? 0 : 1;
+    }
     printf("files: %d\n", g_files);
     printf("  Auto-chain decoded : %d (%.1f%%)\n",
            g_decoded_auto, g_files ? 100.0 * g_decoded_auto / g_files : 0.0);
