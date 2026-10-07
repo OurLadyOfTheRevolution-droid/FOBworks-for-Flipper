@@ -313,9 +313,10 @@ repositories listed above.
      the same capture.
 
 4. **Host FAP size baseline** — `SIZE_BASELINE.md`
-   - After the plugin split (v1.4): host `.text` 60648 / 61352, `.rodata`
-     14236 / 17645, `.bss` 5188 / 5924. Catalog and Scher-Khan sit in embedded
-     FALs, not in host RAM until mapped.
+   - Current host (v1.4, after lab scenes + OEM FAL move): `.text` 60648 /
+     61352, `.rodata` 15349 / 17645, `.bss` 5189 / 5924. Catalog and force
+     extras (Sec+/Scher-Khan/Hitag2/Mazda/Honda/Toyota) sit in embedded FALs,
+     not in host RAM until mapped.
 
 — OurLadyOfTheRevolution-droid
 

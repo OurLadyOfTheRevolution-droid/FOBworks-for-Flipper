@@ -17,13 +17,14 @@ FOBworks for Flipper is a Sub-GHz FAP on official firmware 1.4.2 / 1.4.3
 (API 87.1, target 7), version 1.4. Live receive, KeeLoq manufacturer-key check,
 a library of `.sub` files, and a JSON dashboard link (off until Settings) are
 the product. Menu names put the tool first (FOBscan, FOBclone, FOBcatch,
-FOBback, FOBpwn).
+FOBback, FOBpwn, FOBreport, FOBfreq, FOBtrack, FOBroll).
 
 The host FAP is slim EXTERNAL. Vehicle tables live in `fw_catalog.fal`.
-Scher-Khan lives in `fw_force.fal`. Both are `fal_embedded` under
-`/assets/plugins/`, mapped on demand and unmapped on the main menu. Host
-loader sizes: `.text` 60648 / 61352, `.rodata` 14236 / 17645, `.bss` 5188 /
-5924. Anything that grows the host image still has to earn that space.
+Sec+ 1.0/2.0, Scher-Khan, Hitag2, Mazda, Honda (incl. KR5), and Toyota live
+in `fw_force.fal`. Both plugins are `fal_embedded` under `/assets/plugins/`,
+mapped on demand and unmapped on the main menu. Host loader sizes after the
+lab-scene wiring: `.text` 60648 / 61352, `.rodata` 15349 / 17645, `.bss`
+5189 / 5924. Anything that grows the host image still has to earn that space.
 
 Host tests live in `source/fobworks_flipper/tools`. `make test` is the check
 I run after these edits.
@@ -113,8 +114,11 @@ break pairing. Device build packs the scramble tables.
 
 ### 8. External radio “connected” lied
 
-`radio_loader_is_connected()` no longer treats OTG power as proof. Version
-helper accepts CC1101 VERSION `0x04` / `0x14` (SGP). External presence is probed through the cc1101_ext interconnect.
+`radio_loader_is_connected()` no longer treats OTG power as proof. After OTG
+is up it asks `subghz_devices_is_connect` on `cc1101_ext` (SPI VERSION under
+the hood). Version helper accepts CC1101 VERSION `0x04` / `0x14` (SGP).
+Advanced Settings can pick either radio; a failed external probe falls back
+to the built-in one.
 
 ### 9. Land Rover predict window overstated
 
@@ -125,7 +129,7 @@ Truncated 256-edge captures cannot support a 256-step counter window.
 
 Security+2.0 alone pushed `.text` over the API 87.1 cap. I split the app:
 slim EXTERNAL host, `fw_catalog.fal` for the full year table, `fw_force.fal`
-for Scher-Khan. Both plugins are embedded in the FAP, mapped on demand, and
+for force extras. Both plugins are embedded in the FAP, mapped on demand, and
 dropped on the main menu. FOBclone / FOBcatch / FOBback use catalog accessors.
 
 ### 11. FOBback Make list was blank
@@ -138,11 +142,13 @@ on the listen scene now; Make maps the catalog first.
 
 ### 12. Force extras and link auth
 
-Security+ 1.0 / 2.0 parsers moved into `fw_force.fal` with Scher-Khan (host
-stubs only). Hitag2 cipher helpers live in the same FAL (ABI 2); Auto stays
-clean. Dashboard commands honor an access code (`auth` /
-`code=`), External CC1101 uses
-`subghz_devices_is_connect` on `cc1101_ext` after OTG —
+Security+ 1.0 / 2.0, Scher-Khan, Hitag2, Mazda, Honda (incl. KR5), and Toyota
+parsers live in `fw_force.fal` (host stubs only). Auto stays clean for
+force-only families; Mazda and Honda KR5 remain Auto-safe via the stubs.
+Dashboard Link Auth installs a fresh random 6-digit code when turned On —
+never a guessable default. Commands honor `auth` / `code=` / `new_code=`.
+The WiFi bridge requires `AUTH:<BRIDGE_KEY>` before forwarding. External
+CC1101 uses `subghz_devices_is_connect` on `cc1101_ext` after OTG.
 
 Live Security+ `.sub` captures from owned hardware go in
 `source/deliverables/secplus-live-captures/`; `make secplus-live` reports
@@ -153,40 +159,41 @@ them for CORPUS_HONESTY.md. None are checked in yet.
 `cd source/fobworks_flipper/tools && make test`
 
 - Link, library contract, TX session, rolling-pwn analyzer, saved-check,
-  keyvault, Hitag2, link-auth: pass.
+  keyvault, Hitag2, link-auth, new modules: pass.
 - Vehicle decoder: Honda force-only still holds; Security+1.0 ternary and
   Security+2.0 Manchester+scramble vectors recover fields and stay out of
   Auto (Security+2.0 may still be claimed by KeeLoq on Auto — registry policy
   keeps Security+2.0 force-only).
 - Classify (`40 --check`): Security+1.0 and Security+2.0 forced 100%. Overall
   forced 100% on this seed. Scher-Khan force path is covered in `test_sim`.
+- `ufbt` APPCHK: Target 7, API 87.1. Host `.text` 60648 / 61352 (704 free)
+  after parking Mazda/Honda/Toyota in `fw_force.fal` and wiring FOBfreq /
+  FOBtrack / FOBroll.
 
 ## Remaining debt
 
 **More OEM FALs.** Catalog and force extras are the first two plugins.
-Further families follow the same ABI (`FOBWORKS_PLUGIN_APPID` /
+PSA Mode 0x23 is still host-side (`oem_wire`); peel it into `fw_force.fal`
+when headroom or flash trade-offs say so. Same ABI (`FOBWORKS_PLUGIN_APPID` /
 `FOBWORKS_PLUGIN_ABI`). I am not forking into firmware for size.
 
-**Dashboard auth.** Enabling Link Auth now installs a random 6-digit code
-shown on the settings screen (never a guessable default). The WiFi bridge
-also requires `AUTH:<BRIDGE_KEY>` before forwarding. Rotate the on-device
-code over the link with `{"cmd":"auth","code":"...","new_code":"...."}`
-before leaving a machine on.
+**Dashboard auth.** Gate is on. Enabling Link Auth mints a random 6-digit
+code (shown in Advanced Settings). The WiFi bridge also requires
+`AUTH:<BRIDGE_KEY>` before forwarding. Rotate over the link with
+`{"cmd":"auth","code":"<current>","new_code":"...."}` when needed.
 
 **Hitag2.** Cipher helpers sit in `fw_force.fal` (not Auto). No Sub-GHz
 pulse decoder for LF Hitag2 in this FAP.
 
 **Security+ Auto.** Waits on live capture false-positive data in
-`secplus-live-captures/`.
+`secplus-live-captures/`. `make secplus-live` is ready; the folder is empty.
 
 **Land Rover preamble vs 256 edges.** Unchanged physics; advisory is honest.
 
 **Manufacturer-key masking.** Unchanged: masking is not encryption.
 
-**Pure analysis modules.** `flipper_grollback`, `flipper_fobfreq`, and
-`flipper_fobtrack` compile under `make test` and ship as FOBroll / FOBfreq /
-FOBtrack receive-only scenes. Mazda / Honda / Toyota live in `fw_force.fal`
-so the host stays under the loader `.text` cap.
+**FOBfreq fingerprint.** TE-proxy ppm vs 400 µs until SubGhz exposes CC1101
+FREQEST through the device API.
 
 ## TX / RF notes (existing contract)
 
@@ -226,22 +233,16 @@ New capabilities:
 
 - `flipper_kl_clone_next` — eavesdrop-only next-code synthesis under a known
   manufacturer key (host-tested).
-- FOBreport scene — read-only A–D health grade for a sampled remote.
-- FOBfreq / FOBtrack / FOBroll scenes (TE-proxy fingerprint, TPMS↔RKE
-  co-occurrence, generalized RollBack analyzer). All read-only.
+- FOBreport / FOBfreq / FOBtrack / FOBroll — read-only health grade, TE-proxy
+  crystal fingerprint, TPMS↔RKE co-occurrence, generalized RollBack analyzer.
 - Mazda / Honda / Toyota parsers parked in `fw_force.fal` (host stubs).
-
-`cd source/fobworks_flipper/tools && make test` covers the new modules.
-`ufbt` builds Target 7 / API 87.1 with APPCHK green (host `.text`
-60648 / 61352).
 
 ## Next steps
 
 1. Drop owned-hardware Security+ 1.0 / 2.0 `.sub` files into
    `secplus-live-captures/` and paste `make secplus-live` into
    CORPUS_HONESTY.md before any Auto debate.
-2. Wire real CC1101 FREQEST into FOBfreq when SubGhz exposes it; TE-proxy
-   is the interim fingerprint.
+2. Wire real CC1101 FREQEST into FOBfreq when SubGhz exposes it.
 3. Port further OEM families as FALs when they earn the flash.
 
 KeeLoq decrypt in this tree already follows AN1064 (NLF 0x3A5C742E, 528
