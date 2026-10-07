@@ -192,8 +192,9 @@ pulse decoder for LF Hitag2 in this FAP.
 
 **Manufacturer-key masking.** Unchanged: masking is not encryption.
 
-**FOBfreq fingerprint.** TE-proxy ppm vs 400 µs until SubGhz exposes CC1101
-FREQEST through the device API.
+**FOBfreq timing.** Coarse pulse-timing comparison at the TE estimator's
+32 µs resolution. A real CC1101 FREQEST fingerprint lands once the carrier
+offset is exposed through the SubGhz device API.
 
 ## TX / RF notes (existing contract)
 
@@ -233,8 +234,8 @@ New capabilities:
 
 - `flipper_kl_clone_next` — eavesdrop-only next-code synthesis under a known
   manufacturer key (host-tested).
-- FOBreport / FOBfreq / FOBtrack / FOBroll — read-only health grade, TE-proxy
-  crystal fingerprint, TPMS↔RKE co-occurrence, generalized RollBack analyzer.
+- FOBreport / FOBfreq / FOBtrack / FOBroll — read-only health grade, coarse
+  pulse timing, TPMS↔RKE co-occurrence, generalized RollBack analyzer.
 - Mazda / Honda / Toyota parsers parked in `fw_force.fal` (host stubs).
 
 ## Next steps
@@ -242,7 +243,8 @@ New capabilities:
 1. Drop owned-hardware Security+ 1.0 / 2.0 `.sub` files into
    `secplus-live-captures/` and paste `make secplus-live` into
    CORPUS_HONESTY.md before any Auto debate.
-2. Wire real CC1101 FREQEST into FOBfreq when SubGhz exposes it.
+2. Replace FOBfreq timing with a real CC1101 FREQEST fingerprint when SubGhz
+   exposes it.
 3. Port further OEM families as FALs when they earn the flash.
 
 KeeLoq decrypt in this tree already follows AN1064 (NLF 0x3A5C742E, 528

@@ -43,9 +43,12 @@ static void copy_trim(char* dst, size_t n, const char* src) {
 }
 
 static void put(char* dst, size_t n, const char* s) {
+    if(!dst || n == 0) return;
     if(!s) s = "";
-    strncpy(dst, s, n - 1);
-    dst[n - 1] = '\0';
+    size_t len = strlen(s);
+    if(len >= n) len = n - 1;
+    memcpy(dst, s, len);
+    dst[len] = '\0';
 }
 
 void flipper_saved_judge(

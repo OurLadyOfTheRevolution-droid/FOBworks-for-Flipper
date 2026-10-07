@@ -24,7 +24,8 @@ void grollback_analyze(const GrollbackFrame* frames, int n,
 
     const uint32_t serial = frames[0].serial;
     const uint8_t command = frames[0].command;
-    strncpy(out->proto, frames[0].proto, sizeof(out->proto) - 1);
+    memcpy(out->proto, frames[0].proto, sizeof(out->proto));
+    out->proto[sizeof(out->proto) - 1] = '\0';
 
     for(int i = 0; i < n; i++) {
         if(!isfinite(frames[i].freq_mhz) ||

@@ -8,7 +8,12 @@ void fobtrack_reset(FobtrackLog* log) {
 }
 
 void fobtrack_record(FobtrackLog* log, FobtrackKind kind, uint32_t id, uint32_t ts_ms) {
-    if(!log || log->count >= FOBTRACK_MAX_EVENTS) return;
+    if(!log) return;
+    if(log->count >= FOBTRACK_MAX_EVENTS) {
+        memmove(log->events, log->events + 1,
+                sizeof(log->events[0]) * (FOBTRACK_MAX_EVENTS - 1));
+        log->count = FOBTRACK_MAX_EVENTS - 1;
+    }
     log->events[log->count].kind = kind;
     log->events[log->count].id = id;
     log->events[log->count].ts_ms = ts_ms;

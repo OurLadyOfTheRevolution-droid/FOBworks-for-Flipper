@@ -5,10 +5,7 @@
 
 #define RX_TOOL_FLOOR_DBM (-100.0f)
 #define RX_TOOL_CEIL_DBM  (-30.0f)
-/* TE-proxy ppm until SubGhz exposes CC1101 FREQEST. Nominal 400 µs is the
-   common KeeLoq/OEM mid-band chip; compare only within the same proto. */
-#define RX_FOBFREQ_TE_NOM_US 400.0f
-#define RX_FOBFREQ_TOL_PPM   25.0f
+/* Timing comparison only, at the TE estimator's 32-us bin resolution. */
 #define RX_GROLLBACK_MASK    0xFFFFu
 #define RX_GROLLBACK_MIN_SEQ 3
 #define RX_GROLLBACK_MAX_DELTA 4u
@@ -43,6 +40,9 @@ static void rx_tune(FlipperApp* app, float freq_mhz) {
     app->capture->preset = app->adv.preset;
     app->capture->squelch_dbm = app->adv.squelch_dbm;
     app->capture->force_proto = app->adv.force_proto;
+    if(app->rx_tool.kind == FlipperRxToolTrack)
+        app->capture->force_proto = app->rx_tool.lab.track.tpms_mode ?
+                                       FlipperForceTpms : FlipperForceAuto;
     flipper_capture_start(app->capture);
 }
 
@@ -72,11 +72,6 @@ static void rx_update_metrics(FlipperRxToolState* state, const FlipperCaptureRes
     state->min_us = min;
     state->max_us = max;
     state->mean_us = (uint32_t)(total / (uint32_t)pulses->len);
-}
-
-static float rx_te_proxy_ppm(uint32_t te_us) {
-    if(te_us == 0) return 0.0f;
-    return 1e6f * (((float)te_us - RX_FOBFREQ_TE_NOM_US) / RX_FOBFREQ_TE_NOM_US);
 }
 
 static bool rx_consume_capture(FlipperApp* app) {
@@ -113,16 +108,14 @@ static bool rx_consume_capture(FlipperApp* app) {
             strncpy(fq->proto, capture->decode.proto, sizeof(fq->proto) - 1);
             fq->proto[sizeof(fq->proto) - 1] = '\0';
         }
-        float ppm = rx_te_proxy_ppm(capture->pulses.te_us ?
-                                    capture->pulses.te_us : state->te_us);
-        FobOffsetProfile* p = fq->active ? &fq->b : &fq->a;
-        fobffreq_add(p, ppm);
-        fobffreq_finalize(p);
-        if(fq->a.count > 0 && fq->b.count > 0) {
+        FobTimingProfile* p = fq->active ? &fq->b : &fq->a;
+        fobfreq_add(p, (float)capture->pulses.te_us);
+        fobfreq_finalize(p);
+        if(fq->a.count >= FOBFREQ_SAMPLES_MIN && fq->b.count >= FOBFREQ_SAMPLES_MIN) {
             fq->compared = true;
-            fq->delta_ppm = fobffreq_mean_delta(&fq->a, &fq->b);
-            fq->same_tx = fobffreq_same_transmitter(
-                &fq->a, &fq->b, RX_FOBFREQ_TOL_PPM);
+            fq->delta_us = fobfreq_mean_delta(&fq->a, &fq->b);
+            fq->similar_timing = fobfreq_similar_timing(
+                &fq->a, &fq->b, FOBFREQ_TIMING_TOL_US);
         }
         return true;
     }
@@ -132,8 +125,11 @@ static bool rx_consume_capture(FlipperApp* app) {
         FlipperRxTrackState* tr = &state->lab.track;
         uint32_t now = furi_get_tick();
         uint32_t ts = now - tr->start_ms;
-        /* TPMS force-label or proto name; everything else is treated as RKE. */
+        /* Manual receive modes; the structural TPMS parser stays force-only.
+           Co-occurrence is not proof that two identifiers share a vehicle. */
         bool is_tpms = (strncmp(capture->decode.proto, "TPMS", 4) == 0);
+        if(tr->tpms_mode ? !is_tpms : (is_tpms || !capture->decode.rolling))
+            return true;
         fobtrack_record(
             &tr->log,
             is_tpms ? FobtrackTpms : FobtrackRke,
@@ -195,8 +191,8 @@ static void rx_watch_enter(FlipperApp* app, FlipperRxToolKind kind) {
     if(kind == FlipperRxToolReport) {
         fobreport_reset(&state->lab.report);
     } else if(kind == FlipperRxToolFreq) {
-        fobffreq_reset(&state->lab.freq.a);
-        fobffreq_reset(&state->lab.freq.b);
+        fobfreq_reset(&state->lab.freq.a);
+        fobfreq_reset(&state->lab.freq.b);
         state->lab.freq.active = 0;
     } else if(kind == FlipperRxToolTrack) {
         fobtrack_reset(&state->lab.track.log);
@@ -316,7 +312,7 @@ void flipper_rx_tool_draw_cb(Canvas* canvas, void* model) {
         case FobReportGradeU: grade = "?"; break;
         }
         canvas_set_font(canvas, FontPrimary);
-        snprintf(line, sizeof(line), "Grade %s", grade);
+        snprintf(line, sizeof(line), "Observation %s", grade);
         canvas_draw_str(canvas, 0, 36, line);
         canvas_set_font(canvas, FontSecondary);
 
@@ -336,30 +332,30 @@ void flipper_rx_tool_draw_cb(Canvas* canvas, void* model) {
         return;
     }
 
-    /* ── FOBfreq: TE-proxy crystal fingerprint ───────────────────────────── */
+    /* ── FOBfreq: coarse pulse-timing comparison, not RF fingerprinting ───── */
     if(state->kind == FlipperRxToolFreq) {
         const FlipperRxFreqState* fq = &state->lab.freq;
-        canvas_draw_str(canvas, 0, 10, "FOBfreq RX");
+        canvas_draw_str(canvas, 0, 10, "FOBfreq timing");
         canvas_set_font(canvas, FontSecondary);
         snprintf(line, sizeof(line), "%.2f MHz  profile %c",
                  (double)app->capture->freq_mhz, fq->active ? 'B' : 'A');
         canvas_draw_str(canvas, 0, 21, line);
         canvas_draw_line(canvas, 0, 24, 127, 24);
-        snprintf(line, sizeof(line), "A n=%d mean %.1f ppm",
-                 fq->a.count, (double)fq->a.mean_ppm);
+        snprintf(line, sizeof(line), "A n=%d mean %.1f us",
+                 fq->a.count, (double)fq->a.mean_us);
         canvas_draw_str(canvas, 0, 34, line);
-        snprintf(line, sizeof(line), "B n=%d mean %.1f ppm",
-                 fq->b.count, (double)fq->b.mean_ppm);
+        snprintf(line, sizeof(line), "B n=%d mean %.1f us",
+                 fq->b.count, (double)fq->b.mean_us);
         canvas_draw_str(canvas, 0, 44, line);
         if(fq->compared) {
-            snprintf(line, sizeof(line), "%s  d=%.1f ppm",
-                     fq->same_tx ? "SAME crystal" : "DIFF crystal",
-                     (double)fq->delta_ppm);
+            snprintf(line, sizeof(line), "%s d=%.0f us",
+                     fq->similar_timing ? "Similar timing" : "Different timing",
+                     (double)fq->delta_us);
         } else {
-            snprintf(line, sizeof(line), "L=A/B  TE-proxy vs 400us");
+            snprintf(line, sizeof(line), "L=A/B  need 4 each");
         }
         canvas_draw_str(canvas, 0, 54, line);
-        canvas_draw_str(canvas, 0, 63, "[Back] exit  read-only");
+        canvas_draw_str(canvas, 0, 63, "32us bins; not identity");
         return;
     }
 
@@ -368,14 +364,14 @@ void flipper_rx_tool_draw_cb(Canvas* canvas, void* model) {
         const FlipperRxTrackState* tr = &state->lab.track;
         canvas_draw_str(canvas, 0, 10, "FOBtrack RX");
         canvas_set_font(canvas, FontSecondary);
-        snprintf(line, sizeof(line), "events %d  links %d",
-                 tr->log.count, tr->link_count);
+        snprintf(line, sizeof(line), "%s window %d/64",
+                 tr->tpms_mode ? "TPMS*" : "RKE", tr->log.count);
         canvas_draw_str(canvas, 0, 21, line);
         canvas_draw_line(canvas, 0, 24, 127, 24);
         if(tr->link_count <= 0) {
-            canvas_draw_str(canvas, 0, 36, "Capture TPMS + RKE nearby.");
-            canvas_draw_str(canvas, 0, 46, "Force Proto=TPMS for tires.");
-            canvas_draw_str(canvas, 0, 56, "Read-only: never transmits.");
+            canvas_draw_str(canvas, 0, 36, "No co-occurrences yet.");
+            canvas_draw_str(canvas, 0, 46, "Left: RKE/TPMS*, same freq");
+            canvas_draw_str(canvas, 0, 56, "*Structural; not vehicle ID");
         } else {
             for(int i = 0; i < tr->link_count && i < 3; i++) {
                 snprintf(line, sizeof(line), "T%08lX R%08lX x%d",
@@ -385,6 +381,7 @@ void flipper_rx_tool_draw_cb(Canvas* canvas, void* model) {
                 canvas_draw_str(canvas, 0, 36 + i * 10, line);
             }
         }
+        canvas_draw_str(canvas, 0, 63, "L:mode  OK:reset  Back:exit");
         return;
     }
 
@@ -509,6 +506,21 @@ void flipper_rx_tool_draw_cb(Canvas* canvas, void* model) {
 bool flipper_rx_tool_input_cb(InputEvent* event, void* ctx) {
     FlipperApp* app = (FlipperApp*)ctx;
     FlipperRxToolState* state = &app->rx_tool;
+
+    if(state->kind == FlipperRxToolTrack && event->type == InputTypeShort) {
+        if(event->key == InputKeyLeft) {
+            state->lab.track.tpms_mode = !state->lab.track.tpms_mode;
+            rx_tune(app, app->capture->freq_mhz);
+        } else if(event->key == InputKeyOk) {
+            fobtrack_reset(&state->lab.track.log);
+            state->lab.track.link_count = 0;
+            state->lab.track.start_ms = furi_get_tick();
+        } else {
+            return false;
+        }
+        rx_redraw(app);
+        return true;
+    }
 
     if(state->kind == FlipperRxToolFreq &&
        event->type == InputTypeShort && event->key == InputKeyLeft) {

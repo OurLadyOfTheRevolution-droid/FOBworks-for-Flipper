@@ -9,7 +9,7 @@
 #include <stdlib.h>
 
 /* ── TE estimator — k=2 coherence pass ──────────────────────────────────── */
-uint32_t flipper_estimate_te(const uint32_t* buf, int n) {
+static uint32_t estimate_te_locked(const uint32_t* buf, int n) {
     if(!buf || n < 8) return 0;
 
     /* 16-bit counts: a capture cannot fill one bucket past 65535. */
@@ -37,6 +37,21 @@ uint32_t flipper_estimate_te(const uint32_t* buf, int n) {
 
     /* Reject implausible values */
     if(te < 100 || te > 4000) return 0;
+    return te;
+}
+
+#ifdef FLIPPER_FAP_SLIM
+#include "flipper_plugin.h"
+#endif
+
+uint32_t flipper_estimate_te(const uint32_t* buf, int n) {
+#ifdef FLIPPER_FAP_SLIM
+    flipper_plugin_lock();
+#endif
+    uint32_t te = estimate_te_locked(buf, n);
+#ifdef FLIPPER_FAP_SLIM
+    flipper_plugin_unlock();
+#endif
     return te;
 }
 
@@ -113,8 +128,10 @@ bool flipper_decode_keeloq(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
         r->rolling = true;
         r->freq_mhz = buf->freq_mhz;
         strncpy(r->proto, label, sizeof(r->proto) - 1);
-        strncpy(r->mfr_name, f.mfr_name, sizeof(r->mfr_name) - 1);
-        strncpy(r->device_key_hex, f.device_key_hex, sizeof(r->device_key_hex) - 1);
+        memcpy(r->mfr_name, f.mfr_name, sizeof(r->mfr_name));
+        r->mfr_name[sizeof(r->mfr_name) - 1] = '\0';
+        memcpy(r->device_key_hex, f.device_key_hex, sizeof(r->device_key_hex));
+        r->device_key_hex[sizeof(r->device_key_hex) - 1] = '\0';
         r->predict_window = f.predict_window;
         r->predict_lo     = f.predict_lo;
         r->predict_hi     = f.predict_hi;
@@ -747,7 +764,7 @@ static bool s_decode_forced;
 
 bool flipper_decode_forced(void) { return s_decode_forced; }
 
-bool flipper_decode_ex(const FlipperPulseBuf* buf, FlipperDecodeResult* result,
+static bool decode_locked(const FlipperPulseBuf* buf, FlipperDecodeResult* result,
                        FlipperForceProto force) {
     if(!buf || !result) return false;
     memset(result, 0, sizeof(*result));
@@ -772,6 +789,18 @@ bool flipper_decode_ex(const FlipperPulseBuf* buf, FlipperDecodeResult* result,
         result->freq_mhz = buf->freq_mhz;
     }
     return false;
+}
+
+bool flipper_decode_ex(const FlipperPulseBuf* buf, FlipperDecodeResult* result,
+                      FlipperForceProto force) {
+#ifdef FLIPPER_FAP_SLIM
+    flipper_plugin_lock();
+#endif
+    bool ok = decode_locked(buf, result, force);
+#ifdef FLIPPER_FAP_SLIM
+    flipper_plugin_unlock();
+#endif
+    return ok;
 }
 
 bool flipper_decode(const FlipperPulseBuf* buf, FlipperDecodeResult* result) {

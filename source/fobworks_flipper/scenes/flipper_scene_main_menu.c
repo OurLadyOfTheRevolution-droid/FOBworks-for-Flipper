@@ -86,10 +86,11 @@ static void main_menu_cb(void* ctx, uint32_t idx) {
 
 void flipper_scene_main_menu_on_enter(void* ctx) {
     FlipperApp* app = (FlipperApp*)ctx;
+    /* Clear borrowed catalog labels before the mapping is released. */
+    submenu_reset(app->submenu);
     /* Release guided-flow memory and unmap catalog/force FALs when idle. */
     flipper_guided_release(app);
     flipper_plugin_unload_all();
-    submenu_reset(app->submenu);
     submenu_set_header(app->submenu, "FOBworks  v" FLIPPER_VERSION);
     submenu_add_item(app->submenu, "FOBscan   — Live capture",    MainMenuFobscan,   main_menu_cb, app);
     submenu_add_item(app->submenu, "FOBclone  — Guided clone",    MainMenuFobclone,  main_menu_cb, app);
@@ -103,7 +104,7 @@ void flipper_scene_main_menu_on_enter(void* ctx) {
     submenu_add_item(app->submenu, "FOBhunt  — RSSI range sweep", MainMenuFobhunt, main_menu_cb, app);
     submenu_add_item(app->submenu, "FOBcrack  — KeeLoq search", MainMenuFobcrack, main_menu_cb, app);
     submenu_add_item(app->submenu, "FOBreport — Health grade",  MainMenuFobreport, main_menu_cb, app);
-    submenu_add_item(app->submenu, "FOBfreq  — Crystal fingerprint", MainMenuFobfreq, main_menu_cb, app);
+    submenu_add_item(app->submenu, "FOBfreq  — Timing compare", MainMenuFobfreq, main_menu_cb, app);
     submenu_add_item(app->submenu, "FOBtrack — TPMS↔RKE link", MainMenuFobtrack, main_menu_cb, app);
     submenu_add_item(app->submenu, "FOBroll  — RollBack analyzer", MainMenuGrollback, main_menu_cb, app);
     submenu_add_item(app->submenu, "Library",                     MainMenuLibrary,   main_menu_cb, app);

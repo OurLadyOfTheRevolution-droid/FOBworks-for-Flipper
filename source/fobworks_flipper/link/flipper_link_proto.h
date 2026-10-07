@@ -1,7 +1,9 @@
 #pragma once
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <stdbool.h>
+/* A dashboard code is exactly six digits; empty/partial input is invalid. */
+bool flipper_proto_valid_access_code(const char* code);
 #include "../protocol/flipper_decoders.h"
 typedef struct FlipperLibEntry FlipperLibEntry;
 typedef struct FlipperCaptureResult FlipperCaptureResult;

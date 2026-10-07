@@ -80,26 +80,23 @@ static void on_lib_full(VariableItem* item) {
 static void on_link(VariableItem* item) {
     FlipperApp* app = variable_item_get_context(item);
     app->adv.dashboard_link = variable_item_get_current_value_index(item) != 0;
+    if(app->adv.dashboard_link) flipper_app_ensure_access_code(app);
     variable_item_set_current_value_text(item, app->adv.dashboard_link ? "On" : "Off");
 }
 
 static void on_link_auth(VariableItem* item) {
     FlipperApp* app = variable_item_get_context(item);
     uint8_t i = variable_item_get_current_value_index(item);
-    if(i == 0) {
-        app->adv.access_code[0] = '\0';
-        variable_item_set_current_value_text(item, "Off");
-    } else {
+    if(i != 0) {
         /* Fail closed: never fall back to a guessable default. Generate a
            fresh random 6-digit code with no rolling of a weak lab value, so
            enabling auth immediately installs something the operator must
            read from this screen. Rotate it over the link later if desired. */
-        uint32_t r = furi_hal_random_get();
-        uint32_t code = (r % 900000u) + 100000u;
-        snprintf(app->adv.access_code, sizeof(app->adv.access_code),
-                 "%06lu", (unsigned long)code);
+        flipper_app_new_access_code(app);
         variable_item_set_current_value_text(item, app->adv.access_code);
     }
+    flipper_app_ensure_access_code(app);
+    variable_item_set_current_value_text(item, app->adv.access_code);
 }
 
 static void on_ext_radio(VariableItem* item) {
@@ -167,8 +164,9 @@ void flipper_scene_adv_settings_on_enter(void* ctx) {
     variable_item_set_current_value_text(it, app->adv.dashboard_link ? "On" : "Off");
 
     it = variable_item_list_add(vl, "Link Auth", 2, on_link_auth, app);
-    variable_item_set_current_value_index(it, app->adv.access_code[0] ? 1 : 0);
-    variable_item_set_current_value_text(it, app->adv.access_code[0] ? "On" : "Off");
+    flipper_app_ensure_access_code(app);
+    variable_item_set_current_value_index(it, 0);
+    variable_item_set_current_value_text(it, app->adv.access_code);
 
     it = variable_item_list_add(vl, "CC1101", 2, on_ext_radio, app);
     variable_item_set_current_value_index(it, app->adv.prefer_external ? 1 : 0);

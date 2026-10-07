@@ -1,4 +1,12 @@
 #include "flipper_link_proto.h"
+
+bool flipper_proto_valid_access_code(const char* code) {
+    if(!code) return false;
+    for(size_t i = 0; i < 6; i++) {
+        if(code[i] < '0' || code[i] > '9') return false;
+    }
+    return code[6] == '\0';
+}
 #if defined(FLIPPER_LINK_HOST_TEST)
 #define FLIPPER_LINK_LIBRARY
 enum FlipperPreset {

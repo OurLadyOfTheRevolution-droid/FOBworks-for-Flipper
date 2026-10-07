@@ -80,14 +80,45 @@ presence is confirmed with `subghz_devices_is_connect` on `cc1101_ext`
 after OTG, not OTG power alone.
 
 Loader sizes for this host image (limits 61352 / 17645 / 5924):
-  .text 60648, .rodata 15349, .bss 5189.
+  .text 61236, .rodata 15368, .bss 5190.
 
 SHA-256 of the copy in this repository:
-ab318daf2458ca4c1eec2017614264b30432e9dbf7d6661dfae9c5f768237134
+6a8f23b59a1e0bd7e11aa56129bf18468f962ce69c1222fc1f65462da28dec5c
 
 The binary attached to a GitHub release is built by the "Build FAP" workflow
 from this source. The build is not byte-reproducible, so digests drift between
-runs. Compare Target 7 / API 87.1, or run the workflow yourself.
+runs. Target/API alone is NOT proof of equivalent contents. The workflow
+also uploads SHA256SUMS and BUILD_MANIFEST.json with the exact built FAP.
+After any local build, run:
+  python3 tools/sync_release.py --sync
+  python3 tools/sync_release.py --check
+This synchronizes FAP/ and dist/, updates this hash and the size baseline,
+and rejects stale scene labels or over-budget sections.
+
+LOCAL MAINTENANCE UPDATE
+------------------------
+Dashboard Link always requires a random six-digit LinkAuth code; the code
+is visible on Advanced Settings. Remote auth changes require exactly six
+digits and cannot clear the gate. WiFi bridge defaults are empty and fail
+closed; configure unique credentials locally before flashing. Outbound
+UART data now goes only to authenticated sockets.
+
+Plugin loading/unloading and decoder execution share a recursive lifetime
+guard; decoder and TE-estimator scratch use the same serialization.
+
+FOBfreq compares coarse TE timing in microseconds, within the same decoded
+protocol. Four samples per profile are required. Its 32-us bins do not
+measure RF carrier offset, crystal ppm, transmitter identity, or clones.
+
+FOBtrack uses Left to alternate RKE / force-only TPMS receive modes at the
+same selected frequency, preserving the last 64 observations. RKE mode
+accepts rolling decoded frames only. Full logs evict the oldest record.
+OK resets the session. TPMS remains structural/unverified and is NOT
+promoted into Auto. Correlation is temporal co-occurrence, not vehicle ID.
+
+FOBreport labels its grade as an observation, leaves counter width unknown,
+and does not equate locally predicted ranges with receiver resync windows.
+See LOCAL_CHANGES.md for verification and on-device checks still needed.
 
 Without the hard work of these developers, this project would not be possible.
 The repositories, protocols, datasheets, and measurements I relied on are in

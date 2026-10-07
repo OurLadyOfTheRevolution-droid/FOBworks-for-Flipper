@@ -30,7 +30,7 @@ Scher-Khan plugins are already packed inside that one FAP.
 - **FOBreport** is a read-only health check. Press your fob a few times and it
   grades the remote (A = encrypted rolling, D = fixed/replayable) without ever
   transmitting.
-- **FOBfreq** compares two TE-proxy crystal fingerprints (profiles A/B; Left
+- **FOBfreq** compares two pulse-timing profiles (profiles A/B; Left
   switches). Same protocol only; read-only.
 - **FOBtrack** scores TPMS↔RKE co-occurrence from ambient captures. Set Force
   Proto to TPMS when sampling tire sensors. Read-only.

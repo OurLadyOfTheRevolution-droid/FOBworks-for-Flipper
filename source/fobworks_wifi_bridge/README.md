@@ -1,68 +1,49 @@
-# FOBworks — Flipper WiFi Devboard Bridge
+# Optional ESP32-S2 WiFi Devboard bridge
 
-This optional bridge uses the official **Flipper WiFi Devboard** (ESP32-S2), or
-another ESP32 development board, to relay WebSocket traffic to the Flipper FAP
-over UART. With the bridge and a compatible dashboard configured, the link can
-be used without a USB tether.
+GPIO UART links the official WiFi Devboard to the Flipper. AP clients use
+WebSocket port 81; the HTTP endpoint serves a status page only. This sketch
+does not implement TLS. Use it only on a trusted local network.
 
-```
- Dashboard (WiFi mode) ──ws://192.168.4.1:81──► ESP32 bridge ──UART 115200──► Flipper FAP
-                        ◄──── JSON lines ───────             ◄──── JSON lines ────
-```
+## Configure before flashing
 
-The bridge only handles transport: it forwards complete newline-delimited JSON
-lines in both directions and does not parse them. The wire schema is defined
-by the Flipper FAP in `fobworks_flipper/link/flipper_link_proto.*`. USB
-(Web Serial) and the WiFi bridge use the same protocol, so the dashboard does
-not need separate command formats for the two connections.
+Create `bridge_config.h` beside the sketch, locally. It is gitignored.
+Define `FOBWORKS_AP_PASSWORD` (8–63 characters) and `FOBWORKS_BRIDGE_KEY`
+(16–64 characters) to **unique random credentials**. Do not commit that file.
+No deployment credentials or usable defaults are included.
+Without valid configuration, the sketch starts neither AP nor servers.
+The AP SSID is `FOBworks`.
 
-## Flashing
+Wiring: Flipper GPIO UART TX → Devboard RX, RX → TX, common ground.
+Use the UART pins and baud rate defined near the top of the sketch; verify
+these match the Flipper build before wiring. Never connect incompatible
+voltages or power sources.
 
-1. Install the **arduinoWebSockets** library (Links2004) via the Arduino Library
-   Manager. `WiFi.h` and `WebServer.h` ship with the ESP32 core.
-2. Select your board (Flipper WiFi Devboard = *ESP32-S2 Dev Module*).
-3. Set `FLIPPER_UART_RX` / `FLIPPER_UART_TX` for your wiring (see below).
-4. Upload `fobworks_wifi_bridge.ino`.
+## Two authentication layers
 
-## Wiring (bring-up seam)
+1. Associate with the AP using its configured password.
+2. Send the text frame `AUTH:<your bridge key>` over WebSocket.
+   Only authenticated sockets may forward commands **or receive UART data**.
+   A reconnect requires authentication again.
+3. Enable **Dashboard Link** on the Flipper. **LinkAuth** shows its randomly
+   generated six-digit code; select the other value to generate a new one.
+   Include that code in Flipper command JSON as `"code":"......"`.
+   The bridge key does not bypass this independent Flipper gate.
 
-The UART pins at the Flipper GPIO header vary by devboard revision. Connect the
-ESP UART to the Flipper GPIO header as shown:
+The remote `auth` command may replace the Flipper code with exactly six digits,
+but cannot clear it. HTTP does not expose Flipper serial responses.
+Do not paste credentials into screenshots, issue reports, or source control.
 
-| Flipper GPIO | Signal        | ESP pin (default) |
-|--------------|---------------|-------------------|
-| pin 13 (TX)  | Flipper → ESP | `FLIPPER_UART_RX` = 18 |
-| pin 14 (RX)  | ESP → Flipper | `FLIPPER_UART_TX` = 17 |
-| pin 8/18     | GND           | GND               |
+## Verification
 
-On the official S2 devboard, the header UART may instead connect to ESP UART0;
-adjust the two pin definitions to match your wiring. The FAP's
-`FlipperLinkUart` uses USART on pins **13/14 at 115200 8N1**.
+`make -C source/fobworks_flipper/tools test` exercises the production sketch
+with host substitutes for WiFi/UART, including:
 
-## Using it
+- unconfigured startup fails closed;
+- unauthenticated clients cannot send commands;
+- only authenticated clients receive UART responses;
+- failed authentication and reconnection do not grant access;
+- invalid client indexes are ignored.
 
-1. Run the FAP and enable **Dashboard link** in Advanced Settings. The UART
-   remains disabled until you turn this option on.
-2. Join WiFi network **`FOBworks-Flipper`** using the password you set in the
-   sketch (`AP_PASS`). Set a unique password before use, keep the link private,
-   and power the bridge off when idle.
-3. Open the FOBworks dashboard over plain HTTP, choose **WiFi**, and connect to
-   `ws://192.168.4.1:81`. Do not add a `/ws` path. Send
-   `AUTH:<BRIDGE_KEY>` as the first WebSocket message; set both `AP_PASS` and
-   `BRIDGE_KEY` in the sketch before flashing. Joining the AP alone is no longer
-   enough to drive the radio.
-4. Visit `http://192.168.4.1/` to view the bridge page and client count. This
-   is not the FOBworks dashboard.
-
-> **HTTPS note:** Browsers block `ws://` connections from an `https://` page as
-> mixed content. When using the WiFi bridge, serve or open the dashboard over
-> `http://`, or run it from `localhost`.
-
-## Scope
-
-The bridge supports one CC1101 radio at a time. This hardware does not support
-simultaneous multi-radio jamming and capture, multi-channel sweeps, the
-Toyota-band SX1278, or CAN/BLE/UWB. Commands for those features return
-`unsupported`.
-
-— OurLadyOfTheRevolution-droid
+These are routing/authentication regressions, not hardware integration tests.
+Confirm actual ESP32-S2 compilation, UART wiring, and reconnect behavior on
+your boards before deployment.

@@ -17,24 +17,37 @@
 #include <WiFi.h>
 #include <WebServer.h>
 #include <WebSocketsServer.h>
+#include "bridge_policy.h"
+
+/* Configure locally; never commit deployment credentials. */
+#if __has_include("bridge_config.h")
+#include "bridge_config.h"
+#endif
+#ifndef FOBWORKS_AP_PASSWORD
+#define FOBWORKS_AP_PASSWORD ""
+#endif
+#ifndef FOBWORKS_BRIDGE_KEY
+#define FOBWORKS_BRIDGE_KEY ""
+#endif
 
 /* Anyone connected to this AP can send radio commands. The dashboard does not
  * authenticate WebSocket clients, so the AP password is the only access
  * control. Replace the default before flashing. */
 static const char* AP_SSID = "FOBworks-Flipper";
-static const char* AP_PASS = "CHANGE-ME-unique-strong-pass";
+static const char* AP_PASS = FOBWORKS_AP_PASSWORD;
 
 /* Bridge-level shared secret. A WebSocket client must send
  *   AUTH:<key>\n
  * before any other frame is forwarded to the Flipper. This is a second,
  * independent gate on top of the AP password, so joining the AP is not enough
  * to drive the radio. Replace before flashing. */
-static const char* BRIDGE_KEY = "CHANGE-ME-bridge-key";
+static const char* BRIDGE_KEY = FOBWORKS_BRIDGE_KEY;
 
 #define FLIPPER_UART    Serial1
 #define FLIPPER_BAUD    115200
 #define FLIPPER_UART_RX 18   /* ESP RX <- Flipper TX, pin 13 */
 #define FLIPPER_UART_TX 17   /* ESP TX -> Flipper RX, pin 14 */
+#undef LINE_MAX /* macOS host toolchains predefine it via syslimits.h */
 #define LINE_MAX        512  /* FAP transmit buffer size */
 
 WebServer http(80);
@@ -42,9 +55,11 @@ WebSocketsServer ws(81);
 
 static char lineBuf[LINE_MAX];
 static size_t lineLen = 0;
+static bool discardLine = false;
 
 /* Per-client auth state: client i may forward only after authenticating. */
 static bool clientAuthed[WEBSOCKETS_SERVER_CLIENT_MAX] = {false};
+static bool configured = false;
 
 static const char* LANDING =
     "<!doctype html><meta charset=utf-8>"
@@ -69,15 +84,27 @@ static void pumpFlipperToWs() {
     while(FLIPPER_UART.available()) {
         char c = (char)FLIPPER_UART.read();
         if(c == '\n' || c == '\r') {
+            if(discardLine) {
+                discardLine = false;
+                lineLen = 0;
+                continue;
+            }
             if(lineLen > 0) {
                 lineBuf[lineLen] = '\0';
-                ws.broadcastTXT(lineBuf, lineLen);
+                for(size_t i = 0; i < WEBSOCKETS_SERVER_CLIENT_MAX; i++) {
+                    if(bridge_client_authorized(
+                           clientAuthed, WEBSOCKETS_SERVER_CLIENT_MAX, i))
+                        ws.sendTXT((uint8_t)i, lineBuf, lineLen);
+                }
                 lineLen = 0;
             }
+        } else if(discardLine) {
+            continue;
         } else if(lineLen < LINE_MAX - 1) {
             lineBuf[lineLen++] = c;
         } else {
             lineLen = 0;
+            discardLine = true;
         }
     }
 }
@@ -119,6 +146,11 @@ static void onWsEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t len) 
 }
 
 void setup() {
+    if(!bridge_config_valid(FOBWORKS_AP_PASSWORD, BRIDGE_KEY)) {
+        /* Missing/placeholder credentials must not expose an AP or server. */
+        return;
+    }
+    configured = true;
     FLIPPER_UART.begin(FLIPPER_BAUD, SERIAL_8N1, FLIPPER_UART_RX, FLIPPER_UART_TX);
 
     WiFi.mode(WIFI_AP);
@@ -137,6 +169,7 @@ void setup() {
 }
 
 void loop() {
+    if(!configured) return;
     http.handleClient();
     ws.loop();
     pumpFlipperToWs();

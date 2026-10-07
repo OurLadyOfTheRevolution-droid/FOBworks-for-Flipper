@@ -79,28 +79,23 @@ void fobreport_finalize(FobReportReport* rep) {
         return;
     }
 
-    /* counter width from the observed span. */
-    uint32_t span = rep->max_counter - rep->min_counter + 1u;
-    int bits = 0;
-    uint32_t v = span;
-    while(v) { bits++; v >>= 1; }
-    if(bits < 1) bits = 1;
-    rep->counter_bits = bits;
+    /* A short observed span cannot establish the protocol counter width. */
+    rep->counter_bits = 0;
 
     if(rep->window > FOBREPORT_WIDE_WINDOW) {
         rep->grade = FobReportGradeC;
         snprintf(rep->summary, sizeof(rep->summary),
-                 "%s rolling but ~%lu-step resync window — rollback-prone",
+                 "%s rolling; predicted range %lu (receiver untested)",
                  rep->proto, (unsigned long)rep->window);
     } else if(!rep->enciphered) {
         rep->grade = FobReportGradeB;
         snprintf(rep->summary, sizeof(rep->summary),
-                 "%s rolling, plaintext hop — resists naive replay, not prediction",
+                 "%s rolling fields observed; receiver untested",
                  rep->proto);
     } else {
         rep->grade = FobReportGradeA;
         snprintf(rep->summary, sizeof(rep->summary),
-                 "%s encrypted rolling, %d-bit counter — replay-resistant",
-                 rep->proto, rep->counter_bits);
+                 "%s encrypted rolling observed; receiver untested",
+                 rep->proto);
     }
 }

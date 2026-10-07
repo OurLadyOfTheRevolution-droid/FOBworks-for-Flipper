@@ -1,0 +1,18 @@
+{
+  "source_revision": "uncommitted local source snapshot",
+  "target": 7,
+  "api": "87.1",
+  "sdk": "official 1.4.3",
+  "sdk_sha256": "2e89e70c6b5770440cbf02f2ca01a2f8804e05ddb77f66afdd23ed2584740c7f",
+  "sha256": {
+    "fobworks_flipper.fap": "6a8f23b59a1e0bd7e11aa56129bf18468f962ce69c1222fc1f65462da28dec5c",
+    "fw_catalog.fal": "6dc6347d8092d8074996204391467ad72aad1163a134d24568be948714f9ed15",
+    "fw_force.fal": "68dc42f63acc895473533bce02e18e7466feef5f9ac31d64ba9137e3033869d1"
+  },
+  "host_sections": {
+    ".text": 61236,
+    ".rodata": 15368,
+    ".bss": 5190
+  },
+  "qualification": "SDK build and host regressions; physical-device testing pending"
+}

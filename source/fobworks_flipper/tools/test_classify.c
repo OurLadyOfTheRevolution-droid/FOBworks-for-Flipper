@@ -400,10 +400,10 @@ static uint32_t run_pipeline(FlipperPulseBuf* b, char* auto_out, char* force_out
     b->te_us = te;
 
     if(!flipper_decode(b, &r)) { strcpy(auto_out, "(no-decode)"); }
-    else { strncpy(auto_out, r.proto, 31); auto_out[31] = 0; }
+    else { memcpy(auto_out, r.proto, sizeof(r.proto)); auto_out[31] = 0; }
 
     if(!flipper_decode_ex(b, &r, force)) { strcpy(force_out, "(no-decode)"); }
-    else { strncpy(force_out, r.proto, 31); force_out[31] = 0; }
+    else { memcpy(force_out, r.proto, sizeof(r.proto)); force_out[31] = 0; }
     return te;
 }
 

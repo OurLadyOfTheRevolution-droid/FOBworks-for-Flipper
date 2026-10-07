@@ -29,6 +29,12 @@ int main(void) {
 
     expect(flipper_proto_parse_cmd("{\"cmd\":\"hello\"}", &cmd), "hello parses");
     expect(!cmd.has_code, "hello has no code");
+    expect(flipper_proto_valid_access_code("123456"), "six digits accepted");
+    expect(!flipper_proto_valid_access_code(""), "cannot clear authentication");
+    expect(!flipper_proto_valid_access_code("123"), "partial code rejected");
+    expect(!flipper_proto_valid_access_code("12345X"), "non-digit rejected");
+    expect(!flipper_proto_valid_access_code("1234567"), "overlong code rejected");
+    expect(!flipper_proto_valid_access_code(NULL), "null code rejected");
 
     printf("%d failures\n", fails);
     return fails ? 1 : 0;

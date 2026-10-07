@@ -106,7 +106,28 @@ void flipper_adv_settings_save(FlipperApp* app) {
 }
 
 /* ── Optional dashboard links ─────────────────────────────────────────────── */
+static void new_access_code_locked(FlipperApp* app) {
+    uint32_t value = 100000u + furi_hal_random_get() % 900000u;
+    snprintf(app->adv.access_code, sizeof(app->adv.access_code), "%lu",
+             (unsigned long)value);
+    flipper_adv_settings_save(app);
+}
+
+void flipper_app_new_access_code(FlipperApp* app) {
+    furi_mutex_acquire(app->radio_mutex, FuriWaitForever);
+    new_access_code_locked(app);
+    furi_mutex_release(app->radio_mutex);
+}
+
+void flipper_app_ensure_access_code(FlipperApp* app) {
+    furi_mutex_acquire(app->radio_mutex, FuriWaitForever);
+    if(!flipper_proto_valid_access_code(app->adv.access_code))
+        new_access_code_locked(app);
+    furi_mutex_release(app->radio_mutex);
+}
+
 void flipper_links_ensure(FlipperApp* app) {
+    flipper_app_ensure_access_code(app);
     if(app->usb_link && app->uart_link) return;
 
     /* Both links are one feature. Tear down either worker if its partner
@@ -219,6 +240,7 @@ void flipper_guided_release(FlipperApp* app) {
 
 /* ── Alloc ───────────────────────────────────────────────────────────────── */
 static FlipperApp* flipper_app_alloc(void) {
+    flipper_plugin_init();
     FlipperApp* app = malloc(sizeof(FlipperApp));
     furi_assert(app);
     memset(app, 0, sizeof(*app));
@@ -395,7 +417,7 @@ static void flipper_app_free(FlipperApp* app) {
 
     flipper_capture_free(app->capture);
     flipper_guided_release(app);
-    flipper_plugin_unload_all();
+    flipper_plugin_deinit();
 
     view_dispatcher_remove_view(app->view_dispatcher, FlipperViewMenu);
     view_dispatcher_remove_view(app->view_dispatcher, FlipperViewVarList);

@@ -86,11 +86,19 @@ jobs:
           done
           echo "Corpus matches the generator."
 
+      - name: Synchronize and verify the distribution
+        run: |
+          python3 tools/sync_release.py --sync
+          python3 tools/sync_release.py --check
+
       - name: Upload the built FAP
         uses: actions/upload-artifact@v4
         with:
           name: fobworks_flipper-fap
-          path: ${{ env.APP_DIR }}/dist/*.fap
+          path: |
+            ${{ env.APP_DIR }}/dist/*.fap
+            SHA256SUMS
+            BUILD_MANIFEST.json
           if-no-files-found: error
 
       - name: Attach the FAP to the v1.4 release
@@ -98,8 +106,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release upload v1.4 "$APP_DIR"/dist/*.fap --clobber --repo "$GITHUB_REPOSITORY" || \
-            gh release create v1.4 "$APP_DIR"/dist/*.fap \
+          gh release upload v1.4 "$APP_DIR"/dist/*.fap SHA256SUMS BUILD_MANIFEST.json --clobber --repo "$GITHUB_REPOSITORY" || \
+            gh release create v1.4 "$APP_DIR"/dist/*.fap SHA256SUMS BUILD_MANIFEST.json \
               --title "v1.4" \
-              --notes "Official firmware 1.4.2 / 1.4.3 (API 87.1). Slim host FAP with embedded catalog and Scher-Khan plugins." \
+              --notes "Official firmware 1.4.2 / 1.4.3 (API 87.1). Current lab scenes, mandatory dashboard code and embedded plugins. Source: $GITHUB_SHA. Hardware qualification pending." \
               --repo "$GITHUB_REPOSITORY"

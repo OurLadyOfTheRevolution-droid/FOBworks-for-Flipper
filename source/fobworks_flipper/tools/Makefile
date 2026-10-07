@@ -1,10 +1,12 @@
 CC ?= cc
 CFLAGS ?= -std=c99 -Wall -Wextra -Werror
+CXXFLAGS ?= -std=c++17 -Wall -Wextra -Werror
 
 .PHONY: all test clean corpus secplus-live
 
 all: test_link test_library_contract test_tx_session test_vehicle_decoder test_rollingpwn \
-     test_saved_check test_classify test_keyvault test_hitag2 test_link_auth test_new_modules
+     test_saved_check test_classify test_keyvault test_hitag2 test_link_auth test_new_modules \
+     test_bridge test_bridge_unconfigured test_plugin_lifetime
 
 test_link: test_link.c ../link/flipper_link_proto.c
 	$(CC) $(CFLAGS) -I.. -o $@ $^
@@ -77,6 +79,17 @@ sub_check: sub_check.c ../protocol/flipper_decoders.c \
 		$(OEM_DECODERS)
 	$(CC) $(CFLAGS) -I.. -o $@ $^
 
+test_bridge: test_bridge.cpp bridge_stubs/fake_bridge.h \
+../../fobworks_wifi_bridge/fobworks_wifi_bridge.ino ../../fobworks_wifi_bridge/bridge_policy.h
+	$(CXX) $(CXXFLAGS) -Ibridge_stubs -o $@ test_bridge.cpp
+
+test_bridge_unconfigured: test_bridge.cpp bridge_stubs/fake_bridge.h \
+../../fobworks_wifi_bridge/fobworks_wifi_bridge.ino ../../fobworks_wifi_bridge/bridge_policy.h
+	$(CXX) $(CXXFLAGS) -DTEST_UNCONFIGURED -Ibridge_stubs -o $@ test_bridge.cpp
+
+test_plugin_lifetime: test_plugin_lifetime.c ../protocol/flipper_plugin.c
+	$(CC) $(CFLAGS) -std=c11 -D_POSIX_C_SOURCE=200809L -Iplugin_stubs -I.. -pthread -o $@ $^
+
 test: all
 	./test_link
 	./test_library_contract
@@ -88,6 +101,9 @@ test: all
 	./test_hitag2
 	./test_link_auth
 	./test_new_modules
+	./test_bridge
+	./test_bridge_unconfigured
+	./test_plugin_lifetime
 	./test_classify 40 --check
 
 # Regenerate the committed corpus. Separate from `test` because it writes 1500 files into
@@ -102,4 +118,5 @@ secplus-live: sub_check
 clean:
 	rm -f test_link test_library_contract test_tx_session test_vehicle_decoder \
 	      test_rollingpwn test_saved_check test_classify test_keyvault \
-	      test_hitag2 test_link_auth test_new_modules sub_check
+      test_hitag2 test_link_auth test_new_modules test_bridge test_bridge_unconfigured \
+      test_plugin_lifetime sub_check

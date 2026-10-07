@@ -7,6 +7,7 @@
 #include "../protocol/flipper_fobtrack.h"
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 
 static int checks;
 static int failures;
@@ -31,8 +32,7 @@ static FlipperDecodeResult rke(uint32_t addr, uint32_t cnt, uint32_t hop,
     r.freq_mhz = 433.92f;
     r.predict_window = keyed ? 16 : 0;
     strncpy(r.proto, "KeeLoq", sizeof(r.proto) - 1);
-    if(keyed) strncpy(r.device_key_hex, "0123456789ABCDEF",
-                      sizeof(r.device_key_hex) - 1);
+    if(keyed) memcpy(r.device_key_hex, "0123456789ABCDEF", sizeof(r.device_key_hex));
     return r;
 }
 
@@ -47,6 +47,7 @@ static void test_fobreport(void) {
     FlipperDecodeResult other = rke(0x99999999, 0, 0x1111, false, false);
     expect(!fobreport_add(&rep, &other), "different serial ignored");
     fobreport_finalize(&rep);
+    expect(rep.counter_bits == 0, "observed span does not prove counter width");
     expect(rep.kind == FobReportFixed, "fixed code classified fixed");
     expect(rep.grade == FobReportGradeD, "fixed code gets grade D");
     expect(strstr(rep.summary, "replay") != NULL, "fixed summary mentions replay");
@@ -95,37 +96,33 @@ static void test_grollback(void) {
 }
 
 static void test_fobfreq(void) {
-    FobOffsetProfile a, b;
-    fobffreq_reset(&a);
-    fobffreq_reset(&b);
-    fobffreq_add(&a, 3.0f);
-    fobffreq_add(&a, 5.0f);
-    fobffreq_add(&a, 4.0f);
-    fobffreq_finalize(&a); /* mean 4.0 */
-
-    fobffreq_add(&b, 4.0f);
-    fobffreq_add(&b, 6.0f);
-    fobffreq_add(&b, 5.0f);
-    fobffreq_finalize(&b); /* mean 5.0 */
-
-    expect(fobffreq_same_transmitter(&a, &b, 2.0f),
-           "nearby offsets read as same crystal");
-    expect(fobffreq_mean_delta(&a, &b) == 1.0f, "mean delta is 1 ppm");
-
-    /* A clone on a different crystal sits far away. */
-    FobOffsetProfile c;
-    fobffreq_reset(&c);
-    fobffreq_add(&c, 40.0f);
-    fobffreq_add(&c, 42.0f);
-    fobffreq_finalize(&c); /* mean 41.0 */
-    expect(!fobffreq_same_transmitter(&a, &c, 2.0f),
-           "distant offset reads as different crystal");
-
-    /* Empty profile cannot match. */
-    FobOffsetProfile e;
-    fobffreq_reset(&e);
-    expect(!fobffreq_same_transmitter(&a, &e, 2.0f),
-           "empty profile never matches");
+    FobTimingProfile a, b, c;
+    fobfreq_reset(&a);
+    fobfreq_reset(&b);
+    fobfreq_reset(&c);
+    for(int i = 0; i < 3; i++) {
+        fobfreq_add(&a, 400);
+        fobfreq_add(&b, 432);
+    }
+    fobfreq_finalize(&a);
+    fobfreq_finalize(&b);
+    expect(!fobfreq_similar_timing(&a, &b, 32), "insufficient samples stay inconclusive");
+    fobfreq_add(&a, 400);
+    fobfreq_add(&b, 432);
+    fobfreq_finalize(&a);
+    fobfreq_finalize(&b);
+    expect(fobfreq_similar_timing(&a, &b, 32), "one TE histogram bin is similar timing");
+    expect(fobfreq_mean_delta(&a, &b) == 32, "difference is in microseconds");
+    for(int i = 0; i < 4; i++) fobfreq_add(&c, 480);
+    fobfreq_finalize(&c);
+    expect(!fobfreq_similar_timing(&a, &c, 32), "distant timings differ, without identity claim");
+    int before = a.count;
+    fobfreq_add(&a, 0);
+    fobfreq_add(&a, NAN);
+    fobfreq_add(&a, INFINITY);
+    expect(a.count == before, "invalid timing samples rejected");
+    for(int i = 0; i < 40; i++) fobfreq_add(&a, 400);
+    expect(a.count == FOBFREQ_SAMPLES_MAX, "profile storage bounded");
 }
 
 static void test_fobtrack(void) {
@@ -145,6 +142,17 @@ static void test_fobtrack(void) {
     expect(links[0].tpms_id == 0xAAAA && links[0].rke_serial == 0x1111,
            "top link is the repeated TPMS/RKE pair");
     expect(links[0].score == 2, "top link score counts both co-occurrences");
+
+    fobtrack_reset(&log);
+    for(int i = 0; i < FOBTRACK_MAX_EVENTS + 5; i++)
+        fobtrack_record(&log, FobtrackRke, (uint32_t)i, (uint32_t)i * 10000);
+    expect(log.count == FOBTRACK_MAX_EVENTS, "rolling observation window bounded");
+    expect(log.events[0].id == 5, "oldest observations evicted");
+    fobtrack_record(&log, FobtrackTpms, 0xAABB, 690000);
+    fobtrack_record(&log, FobtrackRke, 0xCCDD, 690100);
+    n = fobtrack_correlate(&log, links, 4);
+    expect(n == 1 && links[0].rke_serial == 0xCCDD,
+           "new observations still correlate after the first 64");
 }
 
 int main(void) {

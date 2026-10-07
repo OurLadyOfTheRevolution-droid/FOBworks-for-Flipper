@@ -200,18 +200,13 @@ void flipper_app_handle_command(void* app_ctx, const FlipperCmd* cmd, FlipperLin
             ack(origin, cmd, false, "need new_code");
             break;
         }
-        /* Digits only, max 6. Empty new_code clears the gate. */
-        size_t i = 0;
-        while(i + 1 < sizeof(app->adv.access_code) &&
-              cmd->new_code[i] >= '0' && cmd->new_code[i] <= '9') {
-            app->adv.access_code[i] = cmd->new_code[i];
-            i++;
-        }
-        if(cmd->new_code[0] && i == 0) {
-            ack(origin, cmd, false, "digits-only");
+        /* Validate the complete input before changing the existing secret.
+           A remote client cannot clear the mandatory dashboard gate. */
+        if(!flipper_proto_valid_access_code(cmd->new_code)) {
+            ack(origin, cmd, false, "need six digits");
             break;
         }
-        app->adv.access_code[i] = '\0';
+        memcpy(app->adv.access_code, cmd->new_code, 7);
         flipper_adv_settings_save(app);
         ack(origin, cmd, true, NULL);
         break;

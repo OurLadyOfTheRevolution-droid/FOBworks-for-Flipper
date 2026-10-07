@@ -73,7 +73,7 @@ typedef enum {
     FlipperSceneFoblabs,         /* live capture/decode timing metrics             */
     FlipperSceneFobhunt,         /* bounded RSSI sweep over supported frequencies  */
     FlipperSceneFobreport,       /* read-only rolling/fixed health grade           */
-    FlipperSceneFobfreq,         /* oscillator-offset / TE-proxy fingerprint       */
+    FlipperSceneFobfreq,         /* coarse pulse timing, not RF identity           */
     FlipperSceneFobtrack,        /* TPMS↔RKE co-occurrence correlator              */
     FlipperSceneGrollback,       /* generalized RollBack candidate analyzer        */
     FlipperSceneFobcrack,        /* one KeeLoq frame, listed key or serial         */
@@ -182,15 +182,14 @@ typedef enum {
     FlipperRxToolGrollback,
 } FlipperRxToolKind;
 
-/* FOBfreq: two profiles (reference vs suspect). TE-proxy ppm until FREQEST
-   is exposed through the SubGhz device API. */
+/* FOBfreq: two timing profiles (reference vs suspect); coarse, not identity. */
 typedef struct {
-    FobOffsetProfile a;
-    FobOffsetProfile b;
+    FobTimingProfile a;
+    FobTimingProfile b;
     int active; /* 0 = A (reference), 1 = B (suspect) */
     bool compared;
-    bool same_tx;
-    float delta_ppm;
+    bool similar_timing;
+    float delta_us;
     char proto[24];
 } FlipperRxFreqState;
 
@@ -200,6 +199,7 @@ typedef struct {
     FobtrackLog log;
     FobtrackLink links[FLIPPER_RX_TRACK_LINKS];
     int link_count;
+    bool tpms_mode;
     uint32_t start_ms;
 } FlipperRxTrackState;
 
@@ -436,6 +436,8 @@ void flipper_adv_settings_load(FlipperApp* app);
 void flipper_adv_settings_save(FlipperApp* app);
 
 /* Start or stop the USB and UART dashboard links. Safe to call repeatedly. */
+void flipper_app_ensure_access_code(FlipperApp* app);
+void flipper_app_new_access_code(FlipperApp* app);
 void flipper_links_ensure(FlipperApp* app);
 void flipper_links_release(FlipperApp* app);
 

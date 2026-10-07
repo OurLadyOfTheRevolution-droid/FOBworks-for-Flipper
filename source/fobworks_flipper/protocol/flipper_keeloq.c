@@ -588,7 +588,8 @@ bool flipper_predict_keeloq_next(const FlipperDecodeResult* r, uint32_t offset,
 
     if(out_decode) {
         memset(out_decode, 0, sizeof(*out_decode));
-        strncpy(out_decode->proto, r->proto, sizeof(out_decode->proto) - 1);
+        memcpy(out_decode->proto, r->proto, sizeof(out_decode->proto));
+        out_decode->proto[sizeof(out_decode->proto) - 1] = '\0';
         out_decode->addr = r->addr;
         out_decode->cnt = next_cnt;
         out_decode->btn = r->btn;
@@ -599,9 +600,11 @@ bool flipper_predict_keeloq_next(const FlipperDecodeResult* r, uint32_t offset,
         out_decode->freq_mhz = r->freq_mhz;
         out_decode->bits = 66;
         out_decode->rolling = true;
-        strncpy(out_decode->mfr_name, r->mfr_name, sizeof(out_decode->mfr_name) - 1);
-        strncpy(out_decode->device_key_hex, r->device_key_hex,
-                sizeof(out_decode->device_key_hex) - 1);
+        memcpy(out_decode->mfr_name, r->mfr_name, sizeof(out_decode->mfr_name));
+        out_decode->mfr_name[sizeof(out_decode->mfr_name) - 1] = '\0';
+        memcpy(out_decode->device_key_hex, r->device_key_hex,
+               sizeof(out_decode->device_key_hex));
+        out_decode->device_key_hex[sizeof(out_decode->device_key_hex) - 1] = '\0';
         out_decode->predict_window = KL_PREDICT_WINDOW;
         out_decode->predict_lo = (next_cnt + 1) & 0xFFFF;
         out_decode->predict_hi = (next_cnt + 8) & 0xFFFF;

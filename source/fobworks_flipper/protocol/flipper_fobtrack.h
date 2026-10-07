@@ -44,10 +44,11 @@ typedef struct {
     int      score;      /* number of within-window co-occurrences */
 } FobtrackLink;
 
-/* Reset the log. */
+    /* Reset the log. */
 void fobtrack_reset(FobtrackLog* log);
 
-/* Record a sighting. Timestamps must be monotonic non-decreasing. */
+/* Record a sighting, evicting the oldest when the rolling window is full.
+   Timestamps must be monotonic non-decreasing within a session. */
 void fobtrack_record(FobtrackLog* log, FobtrackKind kind, uint32_t id, uint32_t ts_ms);
 
 /*

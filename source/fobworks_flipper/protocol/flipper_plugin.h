@@ -1,4 +1,10 @@
 #pragma once
+/* Initialize before workers, deinitialize after all workers are joined.
+   Hold the recursive lifetime lock while executing a borrowed plugin API. */
+void flipper_plugin_init(void);
+void flipper_plugin_deinit(void);
+void flipper_plugin_lock(void);
+void flipper_plugin_unlock(void);
 
 #include <stdbool.h>
 #include "../plugins/fobworks_plugin_api.h"

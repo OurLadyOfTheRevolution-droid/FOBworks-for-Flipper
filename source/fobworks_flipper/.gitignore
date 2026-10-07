@@ -12,6 +12,9 @@
 /tools/test_link_auth
 /tools/test_new_modules
 /tools/sub_check
+/tools/test_bridge
+/tools/test_bridge_unconfigured
+/tools/test_plugin_lifetime
 /dist/fobworks_flipper_unleashed.fap
 /out/
 a.out

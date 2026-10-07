@@ -1,50 +1,38 @@
 #include "flipper_fobfreq.h"
 #include <math.h>
+#include <string.h>
 
-void fobffreq_reset(FobOffsetProfile* p) {
-    if(!p) return;
-    p->total_ppm = 0.0f;
-    p->count = 0;
-    p->min_ppm = 0.0f;
-    p->max_ppm = 0.0f;
-    p->mean_ppm = 0.0f;
+void fobfreq_reset(FobTimingProfile* p) {
+    if(p) memset(p, 0, sizeof(*p));
 }
 
-void fobffreq_add(FobOffsetProfile* p, float offset_ppm) {
-    if(!p || p->count >= FOBFREQ_SAMPLES_MAX) return;
+void fobfreq_add(FobTimingProfile* p, float te_us) {
+    if(!p || p->count >= FOBFREQ_SAMPLES_MAX || !(te_us > 0) || !isfinite(te_us))
+        return;
     if(p->count == 0) {
-        p->min_ppm = offset_ppm;
-        p->max_ppm = offset_ppm;
+        p->min_us = p->max_us = te_us;
     } else {
-        if(offset_ppm < p->min_ppm) p->min_ppm = offset_ppm;
-        if(offset_ppm > p->max_ppm) p->max_ppm = offset_ppm;
+        if(te_us < p->min_us) p->min_us = te_us;
+        if(te_us > p->max_us) p->max_us = te_us;
     }
-    p->total_ppm += offset_ppm;
+    p->total_us += te_us;
     p->count++;
 }
 
-bool fobffreq_finalize(FobOffsetProfile* p) {
+bool fobfreq_finalize(FobTimingProfile* p) {
     if(!p || p->count == 0) return false;
-    p->mean_ppm = p->total_ppm / (float)p->count;
+    p->mean_us = p->total_us / (float)p->count;
     return true;
 }
 
-float fobffreq_mean_delta(const FobOffsetProfile* a, const FobOffsetProfile* b) {
-    if(!a || !b) return 0.0f;
-    return fabsf(a->mean_ppm - b->mean_ppm);
+float fobfreq_mean_delta(const FobTimingProfile* a, const FobTimingProfile* b) {
+    return a && b ? fabsf(a->mean_us - b->mean_us) : 0;
 }
 
-bool fobffreq_same_transmitter(const FobOffsetProfile* a,
-                               const FobOffsetProfile* b,
-                               float tolerance_ppm) {
-    if(!a || !b || a->count == 0 || b->count == 0) return false;
-    if(tolerance_ppm < 0.0f) tolerance_ppm = 0.0f;
-
-    /* Same crystal: means within the band AND the two spreads overlap. Two
-       different crystals can be separated in the mean even when their raw
-       ranges overlap, so the mean gap is the primary discriminator. */
-    float gap = fobffreq_mean_delta(a, b);
-    bool means_close = gap <= tolerance_ppm;
-    bool ranges_overlap = !(a->max_ppm < b->min_ppm || b->max_ppm < a->min_ppm);
-    return means_close && ranges_overlap;
+bool fobfreq_similar_timing(const FobTimingProfile* a, const FobTimingProfile* b,
+                           float tolerance_us) {
+    if(!a || !b || a->count < FOBFREQ_SAMPLES_MIN ||
+       b->count < FOBFREQ_SAMPLES_MIN || !(tolerance_us >= 0))
+        return false;
+    return fobfreq_mean_delta(a, b) <= tolerance_us;
 }
