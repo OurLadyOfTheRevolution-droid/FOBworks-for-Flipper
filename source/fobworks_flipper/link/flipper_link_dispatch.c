@@ -157,7 +157,6 @@ static void remote_scan_stop(FlipperApp* app) {
 
 void flipper_app_handle_command(void* app_ctx, const FlipperCmd* cmd, FlipperLink* origin) {
     FlipperApp* app = (FlipperApp*)app_ctx;
-    char buf[4096];
     size_t len;
     uint32_t uptime_s =
         (furi_get_tick() - app->boot_tick) / furi_ms_to_ticks(1000);
@@ -182,9 +181,29 @@ void flipper_app_handle_command(void* app_ctx, const FlipperCmd* cmd, FlipperLin
         }
     }
 
+    /* A 4096-byte automatic reply buffer made this function's ARM stack frame
+       larger than the entire 4096-byte link worker stack, even for hello/status.
+       Borrow heap space only while holding radio_mutex; both transports share
+       this path, so at most one reply allocation is live. Large library replies
+       keep their original capacity, without reserving it for every command. */
+    const size_t buf_size =
+        (cmd->kind == FlipperCmdLibraryList || cmd->kind == FlipperCmdLibraryGet)
+            ? 4096 : 1024;
+    if(memmgr_get_free_heap() < buf_size + 256) {
+        ack(origin, cmd, false, "no-memory");
+        furi_mutex_release(app->radio_mutex);
+        return;
+    }
+    char* buf = malloc(buf_size);
+    if(!buf) {
+        ack(origin, cmd, false, "no-memory");
+        furi_mutex_release(app->radio_mutex);
+        return;
+    }
+
     switch(cmd->kind) {
     case FlipperCmdHello:
-        len = flipper_proto_emit_capabilities(buf, sizeof(buf), true, cmd->has_id, cmd->id);
+        len = flipper_proto_emit_capabilities(buf, buf_size, true, cmd->has_id, cmd->id);
         reply(origin, buf, len);
         break;
 
@@ -219,7 +238,7 @@ void flipper_app_handle_command(void* app_ctx, const FlipperCmd* cmd, FlipperLin
         uint32_t now_ms = furi_get_tick() * (1000u / furi_kernel_get_tick_frequency());
         uint8_t batt_pct = furi_hal_power_get_pct();
         len = flipper_proto_emit_status_ex(
-            buf, sizeof(buf),
+            buf, buf_size,
             app->capture->freq_mhz > 0 ? app->capture->freq_mhz : 433.92f,
             app->remote_scanning, batt_pct, uptime_s, true, 0,
             app->remote_squelch_dbm,
@@ -233,7 +252,7 @@ void flipper_app_handle_command(void* app_ctx, const FlipperCmd* cmd, FlipperLin
         break;
 
     case FlipperCmdKeys:
-        len = flipper_proto_emit_keys_empty(buf, sizeof(buf));
+        len = flipper_proto_emit_keys_empty(buf, buf_size);
         reply(origin, buf, len);
         break;
 
@@ -276,7 +295,7 @@ void flipper_app_handle_command(void* app_ctx, const FlipperCmd* cmd, FlipperLin
         if(flipper_capture_flush(app->capture)) {
             app->remote_last       = app->capture->result;
             app->remote_last_valid = true;
-            len = flipper_proto_emit_signal(buf, sizeof(buf),
+            len = flipper_proto_emit_signal(buf, buf_size,
                      &app->remote_last.decode, flipper_capture_rssi(app->capture));
             reply(origin, buf, len);
             ack(origin, cmd, true, NULL);
@@ -303,7 +322,7 @@ void flipper_app_handle_command(void* app_ctx, const FlipperCmd* cmd, FlipperLin
                        flipper_link_session_id(origin), 1, 0);
              if(ok) {
                  len = flipper_proto_emit_replay_playing(
-                     buf, sizeof(buf), 1, 1, app->remote_last.decode.cnt);
+                      buf, buf_size, 1, 1, app->remote_last.decode.cnt);
                  flipper_app_broadcast(app, buf, len);
              }
              ack(origin, cmd, ok, ok ? NULL : tx_error(app->capture));
@@ -348,7 +367,7 @@ void flipper_app_handle_command(void* app_ctx, const FlipperCmd* cmd, FlipperLin
                  FlipperTxKindJam, cmd->has_id ? cmd->id : 0,
                  flipper_link_session_id(origin), 1, 0);
              len = flipper_proto_emit_jam_start(
-                 buf, sizeof(buf), jam_ok, jam_ok, jf,
+                  buf, buf_size, jam_ok, jam_ok, jf,
                  jam_ok ? NULL : tx_error(app->capture));
              reply(origin, buf, len);
         }
@@ -393,7 +412,7 @@ void flipper_app_handle_command(void* app_ctx, const FlipperCmd* cmd, FlipperLin
                 app->storage, &app->remote_last, app->adv.preset,
                 app->remote_last.decode_ok, app->adv.lib_evict_oldest, saved);
             len = flipper_proto_emit_library_event(
-                buf, sizeof(buf), "save", saved_ok, saved);
+                buf, buf_size, "save", saved_ok, saved);
             reply(origin, buf, len);
             ack(origin, cmd, saved_ok, saved_ok ? NULL :
                 flipper_lib_error_name(flipper_lib_last_error()));
@@ -411,7 +430,7 @@ void flipper_app_handle_command(void* app_ctx, const FlipperCmd* cmd, FlipperLin
         int count = flipper_lib_list_page(
             app->storage, decoded, entries, limit, offset);
         len = flipper_proto_emit_library_list(
-            buf, sizeof(buf), decoded, offset, total, entries, count);
+            buf, buf_size, decoded, offset, total, entries, count);
         reply(origin, buf, len);
         break;
     }
@@ -430,7 +449,7 @@ void flipper_app_handle_command(void* app_ctx, const FlipperCmd* cmd, FlipperLin
             break;
         }
         len = flipper_proto_emit_library_detail(
-            buf, sizeof(buf), decoded, cmd->entry, &cap, preset);
+            buf, buf_size, decoded, cmd->entry, &cap, preset);
         reply(origin, buf, len);
         break;
     }
@@ -455,7 +474,7 @@ void flipper_app_handle_command(void* app_ctx, const FlipperCmd* cmd, FlipperLin
              flipper_link_session_id(origin), 1, 0);
          if(replay_ok) {
              len = flipper_proto_emit_replay_playing(
-                 buf, sizeof(buf), 1, 1, cap.decode.cnt);
+                  buf, buf_size, 1, 1, cap.decode.cnt);
              flipper_app_broadcast(app, buf, len);
          }
          ack(origin, cmd, replay_ok, replay_ok ? NULL : tx_error(app->capture));
@@ -470,7 +489,7 @@ void flipper_app_handle_command(void* app_ctx, const FlipperCmd* cmd, FlipperLin
         }
         bool deleted = flipper_lib_delete(app->storage, decoded, cmd->entry);
         len = flipper_proto_emit_library_event(
-            buf, sizeof(buf), "delete", deleted, cmd->entry);
+            buf, buf_size, "delete", deleted, cmd->entry);
         reply(origin, buf, len);
         ack(origin, cmd, deleted, deleted ? NULL :
             flipper_lib_error_name(flipper_lib_last_error()));
@@ -486,7 +505,7 @@ void flipper_app_handle_command(void* app_ctx, const FlipperCmd* cmd, FlipperLin
         bool exported = flipper_lib_export_subghz(
             app->storage, decoded, cmd->entry);
         len = flipper_proto_emit_library_event(
-            buf, sizeof(buf), "export", exported, cmd->entry);
+            buf, buf_size, "export", exported, cmd->entry);
         reply(origin, buf, len);
         ack(origin, cmd, exported, exported ? NULL :
             flipper_lib_error_name(flipper_lib_last_error()));
@@ -517,5 +536,6 @@ void flipper_app_handle_command(void* app_ctx, const FlipperCmd* cmd, FlipperLin
         break;
     }
 
+    free(buf);
     furi_mutex_release(app->radio_mutex);
 }

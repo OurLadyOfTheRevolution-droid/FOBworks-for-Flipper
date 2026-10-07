@@ -5,15 +5,15 @@ Section fit is not a physical-device heap/stack qualification.
 
 | Host section | Bytes | Recorded budget | Headroom |
 |---|---:|---:|---:|
-| `.text` | 61236 | 61352 | 116 |
-| `.rodata` | 15368 | 17645 | 2277 |
-| `.bss` | 5190 | 5924 | 734 |
+| `.text` | 61192 | 61352 | 160 |
+| `.rodata` | 15383 | 17645 | 2262 |
+| `.bss` | 5192 | 5924 | 732 |
 
 | Embedded plugin | .text | .rodata |
 |---|---:|---:|
 | `fw_catalog.fal` | 312 | 8544 |
-| `fw_force.fal` | 7784 | 903 |
+| `fw_force.fal` | 7784 | 904 |
 
 Embedded assets: 29204 bytes.
 
-Host SHA-256: `6a8f23b59a1e0bd7e11aa56129bf18468f962ce69c1222fc1f65462da28dec5c`.
+Host SHA-256: `43acc32ecd7af39ed6227a442968ea7971b17376e6d2c972f87b70409450c0ba`.

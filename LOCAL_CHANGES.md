@@ -4,6 +4,39 @@ Lab notes for the tree after `7846e1c`. Bridge fail-closed, link auth, plugin
 lifetime, FOBfreq/FOBtrack/FOBreport honesty, release sync, and host fixtures.
 I did not extend transmit, jamming, key recovery, or rolling-code prediction.
 
+## MPU-fault follow-up
+
+Physical device is on official firmware 1.4.3. The matching FAP is Target 7 /
+API 87.1 with a 4096-byte app stack. No crash-thread name or PC/LR was
+available from the report.
+
+A definite overflow was in that binary: the dashboard command handler reserved
+5472 bytes on entry while both link workers only have 4096-byte stacks. The
+4096-byte automatic response buffer is now a temporary heap buffer, allocated
+after authentication under the existing command mutex and freed before
+releasing it. Ordinary replies use 1024 bytes; library list/detail replies
+keep their original 4096-byte capacity. Low free heap or a failed allocation
+returns `no-memory`. The free-heap check does not measure fragmentation or
+guarantee allocation under every runtime condition.
+
+The rebuilt handler's compiler-reported frame is 1376 bytes. No worker or app
+stack was enlarged, and no extra persistent buffer was added. Standalone
+FOBscan UI and radio-start behavior are unchanged; the link overflow cannot be
+blamed for that crash unless a dashboard link was active.
+
+`tools/check_stack_usage.py` measures selected production functions with the
+SDK compiler via the generated compile database. Run it after `ufbt`;
+`STACK_USAGE.md` records the measured frames and matching FAP hash. These
+checks are not whole-call-chain proof and do not replace hardware testing. Do
+not call the FOBscan crash resolved until the replacement has been exercised
+on device.
+
+Install by replacing the FAP with `FAP/fobworks_flipper.fap`, reboot, and first
+enter/leave FOBscan with dashboard links off. Then try receive-only with a
+dashboard link enabled. If it faults again, keep a photo of the full crash
+screen (thread name and any PC/LR/SP) before dismissing it.
+
+
 ## What changed
 
 - Bridge: empty defaults fail closed; local config ignored until set;
@@ -26,6 +59,9 @@ I did not extend transmit, jamming, key recovery, or rolling-code prediction.
 - Distribution: SDK FAP synced into `FAP/` and `dist/`; fresh SHA256SUMS,
   BUILD_MANIFEST, and size baseline. Manual Build FAP workflow uploads
   checksums/manifest with the asset.
+- Stack: dashboard command reply buffer moved to heap so the link-worker
+  frame fits under 4096 bytes; `tools/check_stack_usage.py` + `STACK_USAGE.md`
+  record selected SDK compiler frames against the shipped FAP hash.
 - Host fixtures for the production bridge sketch, plugin lifetime, code
   validation, timing inputs, and rolling-log overflow. Bounded string-copy
   cleanups keep prior output shape and pass strict optimizing GCC hosts.

@@ -80,10 +80,10 @@ presence is confirmed with `subghz_devices_is_connect` on `cc1101_ext`
 after OTG, not OTG power alone.
 
 Loader sizes for this host image (limits 61352 / 17645 / 5924):
-  .text 61236, .rodata 15368, .bss 5190.
+  .text 61192, .rodata 15383, .bss 5192.
 
 SHA-256 of the copy in this repository:
-6a8f23b59a1e0bd7e11aa56129bf18468f962ce69c1222fc1f65462da28dec5c
+43acc32ecd7af39ed6227a442968ea7971b17376e6d2c972f87b70409450c0ba
 
 The binary attached to a GitHub release is built by the "Build FAP" workflow
 from this source. The build is not byte-reproducible, so digests drift between
