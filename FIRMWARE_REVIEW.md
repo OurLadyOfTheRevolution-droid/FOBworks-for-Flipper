@@ -139,16 +139,18 @@ on the listen scene now; Make maps the catalog first.
 
 ### 12. Force extras and link auth
 
-Security+ 1.0 / 2.0 parsers moved into `fw_force.fal` with Scher-Khan (host
-stubs only). Hitag2 cipher helpers live in the same FAL (ABI 2); Auto stays
-clean. Dashboard commands honor an optional access code (`auth` /
-`code=`), matching the SGP per-device gate pattern. External CC1101 uses
-`subghz_devices_is_connect` on `cc1101_ext` after OTG — Advanced Settings
-has Internal / External.
+Security+ 1.0 / 2.0 parsers live in `fw_force.fal` with Scher-Khan, Toyota
+RKE, and Nissan RKE (host stubs only). Hitag2 cipher helpers share that FAL
+(ABI 2); Auto stays clean. Honda KR5 stays on the host (Auto-safe); provisional
+Honda RKE and PSA stay on the host for now (PSA is tangled in `oem_wire`).
+Dashboard Link Auth installs a fresh random 4-digit code when turned On —
+never the old lab `0000`. Commands honor `auth` / `code=` / `new_code=`.
+External CC1101 uses `subghz_devices_is_connect` on `cc1101_ext` after OTG.
 
 Live Security+ `.sub` captures from owned hardware go in
 `source/deliverables/secplus-live-captures/`; `make secplus-live` reports
-them for CORPUS_HONESTY.md. None are checked in yet.
+them for CORPUS_HONESTY.md (empty folder is a soft success). None are
+checked in yet.
 
 ## Measurements
 
@@ -166,18 +168,19 @@ them for CORPUS_HONESTY.md. None are checked in yet.
 ## Remaining debt
 
 **More OEM FALs.** Catalog and force extras are the first two plugins.
-Further families follow the same ABI (`FOBWORKS_PLUGIN_APPID` /
-`FOBWORKS_PLUGIN_ABI`). I am not forking into firmware for size.
+Provisional Honda RKE and PSA Mode 0x23 are still host-side; peel them into
+`fw_force.fal` when headroom or flash trade-offs say so. Same ABI
+(`FOBWORKS_PLUGIN_APPID` / `FOBWORKS_PLUGIN_ABI`).
 
-**Dashboard auth.** Access code gate is in; rotate the lab default `0000`
-over the link with `{"cmd":"auth","code":"0000","new_code":"...."}` before
-leaving a machine on.
+**Dashboard auth.** Gate is on. Enabling Link Auth mints a random 4-digit
+code (shown in Advanced Settings). Rotate over the link with
+`{"cmd":"auth","code":"<current>","new_code":"...."}` when needed.
 
 **Hitag2.** Cipher helpers sit in `fw_force.fal` (not Auto). No Sub-GHz
 pulse decoder for LF Hitag2 in this FAP.
 
 **Security+ Auto.** Waits on live capture false-positive data in
-`secplus-live-captures/`.
+`secplus-live-captures/`. `make secplus-live` is ready; the folder is empty.
 
 **Land Rover preamble vs 256 edges.** Unchanged physics; advisory is honest.
 
@@ -205,8 +208,8 @@ Jam buffers in FOBcatch / the dashboard dispatcher are already built to the
 1. Drop owned-hardware Security+ 1.0 / 2.0 `.sub` files into
    `secplus-live-captures/` and paste `make secplus-live` into
    CORPUS_HONESTY.md before any Auto debate.
-2. Rotate the lab link auth default off `0000` on any machine that leaves
-   the bench.
+2. Peel provisional Honda RKE / PSA into `fw_force.fal` if host `.text`
+   tightens again.
 3. Port further OEM families as FALs when they earn the flash.
 
 KeeLoq decrypt in this tree already follows AN1064 (NLF 0x3A5C742E, 528
