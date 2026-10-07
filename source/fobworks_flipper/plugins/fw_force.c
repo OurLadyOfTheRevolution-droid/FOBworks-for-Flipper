@@ -1,7 +1,5 @@
 #include "fobworks_plugin_api.h"
 #include "../protocol/flipper_hitag2.h"
-#include "../protocol/flipper_toyota.h"
-#include "../protocol/flipper_vehrke.h"
 
 #include <flipper_application/flipper_application.h>
 
@@ -10,8 +8,10 @@ static bool force_decode(
     if(force == FlipperForceScherKhan) return flipper_decode_scher_khan(buf, r);
     if(force == FlipperForceSecplus1) return flipper_decode_secplus1(buf, r);
     if(force == FlipperForceSecplus2) return flipper_decode_secplus2(buf, r);
+    if(force == FlipperForceMazda) return flipper_decode_mazda(buf, r);
+    if(force == FlipperForceHonda) return flipper_decode_honda(buf, r);
+    if(force == FlipperForceHondaKr5) return flipper_decode_honda_kr5(buf, r);
     if(force == FlipperForceToyota) return flipper_decode_toyota(buf, r);
-    if(force == FlipperForceNissan) return flipper_decode_nissan(buf, r);
     return false;
 }
 

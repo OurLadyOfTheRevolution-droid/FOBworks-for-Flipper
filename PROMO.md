@@ -20,6 +20,7 @@ FOBwatch   receive and save
 FOBlabs    edge timing
 FOBhunt    RSSI sweep
 FOBcrack   one KeeLoq frame, listed key or serial
+FOBreport  read-only rolling/fixed health grade
 Library    saved .sub files
 Settings   frequency, modulation, squelch, force-protocol, dashboard link
 FOBpwn     three Honda presses
@@ -34,7 +35,8 @@ the embedded force plugin.
 The dashboard link is off by default. USB and GPIO pins 13 and 14 use protocol
 1.2. The optional Wi-Fi bridge is in `source/fobworks_wifi_bridge/`; it creates
 the `FOBworks-Flipper` access point and accepts WebSocket connections at
-`ws://192.168.4.1:81`.
+`ws://192.168.4.1:81` after an `AUTH:<bridge-key>` handshake (see the sketch
+header for the two secrets to change before flashing).
 
 Licensed under GPL-3.0.
 

@@ -66,19 +66,18 @@ only for the same Auto policy reason until I measure live false positives.
 Honda KR5 Manchester marks sit near 60 µs. The capture floor is 40 µs so
 those edges reach the decoder.
 
-The dashboard link still has no access code. Anyone on the Wi-Fi bridge AP can
-still send radio commands to this FAP. Host `.text` headroom is too thin to
-park a serious auth path in the main image.
+The dashboard link requires a random 6-digit access code on the Flipper and
+`AUTH:<BRIDGE_KEY>` on the Wi-Fi bridge before commands forward.
 
 Architecture
 ------------
 The host FAP is slim EXTERNAL. Vehicle/year tables live in `fw_catalog.fal`.
-Scher-Khan / Magicar lives in `fw_force.fal`. Both are `fal_embedded` under
-`/assets/plugins/`, mapped when FOBclone / FOBcatch / FOBback / Force need
-them, and unmapped on the main menu. Hitag2 is not in the host FAP.
+Sec+ / Scher-Khan / Hitag2 / Mazda / Honda / Toyota live in `fw_force.fal`.
+Both are `fal_embedded` under `/assets/plugins/`, mapped when FOBclone /
+FOBcatch / FOBback / Force need them, and unmapped on the main menu.
 
 Loader sizes for this host image (limits 61352 / 17645 / 5924):
-  .text 60648, .rodata 14236, .bss 5188.
+  .text 60648, .rodata 15349, .bss 5189.
 
 SHA-256 of the copy in this repository:
 ab318daf2458ca4c1eec2017614264b30432e9dbf7d6661dfae9c5f768237134

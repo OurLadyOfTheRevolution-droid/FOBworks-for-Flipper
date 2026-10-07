@@ -24,6 +24,13 @@
 static const char* AP_SSID = "FOBworks-Flipper";
 static const char* AP_PASS = "CHANGE-ME-unique-strong-pass";
 
+/* Bridge-level shared secret. A WebSocket client must send
+ *   AUTH:<key>\n
+ * before any other frame is forwarded to the Flipper. This is a second,
+ * independent gate on top of the AP password, so joining the AP is not enough
+ * to drive the radio. Replace before flashing. */
+static const char* BRIDGE_KEY = "CHANGE-ME-bridge-key";
+
 #define FLIPPER_UART    Serial1
 #define FLIPPER_BAUD    115200
 #define FLIPPER_UART_RX 18   /* ESP RX <- Flipper TX, pin 13 */
@@ -36,6 +43,9 @@ WebSocketsServer ws(81);
 static char lineBuf[LINE_MAX];
 static size_t lineLen = 0;
 
+/* Per-client auth state: client i may forward only after authenticating. */
+static bool clientAuthed[WEBSOCKETS_SERVER_CLIENT_MAX] = {false};
+
 static const char* LANDING =
     "<!doctype html><meta charset=utf-8>"
     "<meta name=viewport content='width=device-width,initial-scale=1'>"
@@ -46,6 +56,8 @@ static const char* LANDING =
     "<p>Join <b>FOBworks-Flipper</b>, open the FOBworks dashboard over plain "
     "HTTP, choose <b>WiFi</b>, then connect to "
     "<code>ws://192.168.4.1:81</code>.</p>"
+    "<p>Send <code>AUTH:&lt;bridge-key&gt;</code> as your first WebSocket "
+    "message to enable command forwarding.</p>"
     "<p>On the Flipper, enable <b>Dashboard link</b> in Advanced Settings "
     "before you connect.</p>"
     "<p id=st>WebSocket clients: 0</p>"
@@ -72,7 +84,35 @@ static void pumpFlipperToWs() {
 
 static void onWsEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t len) {
     (void)num;
+    if(type == WStype_DISCONNECTED) {
+        if(num < WEBSOCKETS_SERVER_CLIENT_MAX) clientAuthed[num] = false;
+        return;
+    }
+    if(type == WStype_CONNECTED) {
+        if(num < WEBSOCKETS_SERVER_CLIENT_MAX) clientAuthed[num] = false;
+        return;
+    }
     if(type != WStype_TEXT || len == 0 || len >= LINE_MAX) return;
+
+    /* Handshake gate: an unauthenticated client may only send AUTH:<key>. */
+    if(num < WEBSOCKETS_SERVER_CLIENT_MAX && !clientAuthed[num]) {
+        static const char AUTH_PFX[] = "AUTH:";
+        if(len == strlen(AUTH_PFX) + strlen(BRIDGE_KEY) &&
+           memcmp(payload, AUTH_PFX, strlen(AUTH_PFX)) == 0 &&
+           memcmp(payload + strlen(AUTH_PFX), BRIDGE_KEY, strlen(BRIDGE_KEY)) == 0) {
+            clientAuthed[num] = true;
+            ws.sendTXT(num, "{\"event\":\"bridge_auth\",\"ok\":true}\n");
+        } else {
+            ws.sendTXT(num, "{\"event\":\"bridge_auth\",\"ok\":false}\n");
+        }
+        return;
+    }
+
+    if(num >= WEBSOCKETS_SERVER_CLIENT_MAX || !clientAuthed[num]) {
+        ws.sendTXT(num, "{\"event\":\"bridge_auth\",\"ok\":false}\n");
+        return;
+    }
+
     FLIPPER_UART.write(payload, len);
     if(payload[len - 1] != '\n' && payload[len - 1] != '\r')
         FLIPPER_UART.write('\n');

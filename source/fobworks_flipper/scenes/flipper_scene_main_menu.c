@@ -13,6 +13,10 @@ typedef enum {
     MainMenuFoblabs,
     MainMenuFobhunt,
     MainMenuFobcrack,
+    MainMenuFobreport,
+    MainMenuFobfreq,
+    MainMenuFobtrack,
+    MainMenuGrollback,
     MainMenuLibrary,
     MainMenuAdvSettings,
     MainMenuFobpwn,
@@ -54,6 +58,18 @@ static void main_menu_cb(void* ctx, uint32_t idx) {
     case MainMenuFobcrack:
         scene_manager_next_scene(app->scene_manager, FlipperSceneFobcrack);
         break;
+    case MainMenuFobreport:
+        scene_manager_next_scene(app->scene_manager, FlipperSceneFobreport);
+        break;
+    case MainMenuFobfreq:
+        scene_manager_next_scene(app->scene_manager, FlipperSceneFobfreq);
+        break;
+    case MainMenuFobtrack:
+        scene_manager_next_scene(app->scene_manager, FlipperSceneFobtrack);
+        break;
+    case MainMenuGrollback:
+        scene_manager_next_scene(app->scene_manager, FlipperSceneGrollback);
+        break;
     case MainMenuLibrary:
         scene_manager_next_scene(app->scene_manager, FlipperSceneLibrary);
         break;
@@ -86,6 +102,10 @@ void flipper_scene_main_menu_on_enter(void* ctx) {
     submenu_add_item(app->submenu, "FOBlabs  — Timing metrics",  MainMenuFoblabs,  main_menu_cb, app);
     submenu_add_item(app->submenu, "FOBhunt  — RSSI range sweep", MainMenuFobhunt, main_menu_cb, app);
     submenu_add_item(app->submenu, "FOBcrack  — KeeLoq search", MainMenuFobcrack, main_menu_cb, app);
+    submenu_add_item(app->submenu, "FOBreport — Health grade",  MainMenuFobreport, main_menu_cb, app);
+    submenu_add_item(app->submenu, "FOBfreq  — Crystal fingerprint", MainMenuFobfreq, main_menu_cb, app);
+    submenu_add_item(app->submenu, "FOBtrack — TPMS↔RKE link", MainMenuFobtrack, main_menu_cb, app);
+    submenu_add_item(app->submenu, "FOBroll  — RollBack analyzer", MainMenuGrollback, main_menu_cb, app);
     submenu_add_item(app->submenu, "Library",                     MainMenuLibrary,   main_menu_cb, app);
     submenu_add_item(app->submenu, "Advanced Settings",           MainMenuAdvSettings, main_menu_cb, app);
     submenu_add_item(app->submenu, "FOBpwn — Honda RollBack", MainMenuFobpwn, main_menu_cb, app);

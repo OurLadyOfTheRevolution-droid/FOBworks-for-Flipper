@@ -2,6 +2,7 @@
 #include "flipper_link.h"
 #include "flipper_link_proto.h"
 #include <furi/core/memmgr.h>
+#include <furi_hal_power.h>
 #include <string.h>
 #include <stdio.h>
 
@@ -221,10 +222,11 @@ void flipper_app_handle_command(void* app_ctx, const FlipperCmd* cmd, FlipperLin
         bool have_tx = flipper_capture_tx_status_copy(
             app->capture, &tx_snapshot);
         uint32_t now_ms = furi_get_tick() * (1000u / furi_kernel_get_tick_frequency());
+        uint8_t batt_pct = furi_hal_power_get_pct();
         len = flipper_proto_emit_status_ex(
             buf, sizeof(buf),
             app->capture->freq_mhz > 0 ? app->capture->freq_mhz : 433.92f,
-            app->remote_scanning, 100, uptime_s, true, 0,
+            app->remote_scanning, batt_pct, uptime_s, true, 0,
             app->remote_squelch_dbm,
             have_tx ? flipper_tx_state_name(tx_snapshot.state) : "idle",
             have_tx ? tx_snapshot.operation_id : 0,
@@ -294,6 +296,10 @@ void flipper_app_handle_command(void* app_ctx, const FlipperCmd* cmd, FlipperLin
              /* TX owns the radio exclusively; scanning is deliberately left
                 stopped during replay/jam and must be restarted explicitly. */
              if(app->remote_scanning) remote_scan_stop(app);
+             /* The remote path always arms at OOK650 (see remote_scan_start),
+                so replaying under OOK650 matches what was actually captured.
+                A future preset selection for remote capture should record the
+                chosen preset here rather than hardcoding it. */
              bool ok = flipper_capture_tx_ex_owner(app->capture, &app->remote_last.pulses,
                      app->remote_last.decode.freq_mhz > 0
                          ? app->remote_last.decode.freq_mhz : app->capture->freq_mhz,

@@ -121,14 +121,17 @@ bool flipper_decode_keeloq(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
         if(f.mfr_name[0] && f.device_key_hex[0]) {
             snprintf(r->predict_note, sizeof(r->predict_note),
                      "OK=next hop  Key:%s", f.mfr_name);
-        } else if(r->rolling) {
-            /* Without a recovered key, this window is advisory; it cannot
-               synthesize a valid next code. */
-            r->predict_window = 256;
-            r->predict_lo = (f.cnt + 1) & 0xFFFF;
-            r->predict_hi = (f.cnt + 16) & 0xFFFF;
+        } else {
+            /* No recovered key. kl_parse() fills f->cnt from the LOW 16 BITS OF
+               THE CIPHERTEXT, which carry no counter meaning — the NLFSR output
+               is not the plaintext counter. Advertising a numeric "next" window
+               here is numerical noise, so disable prediction entirely rather
+               than emit a range that would mislead. */
+            r->predict_window = 0;
+            r->predict_lo = 0;
+            r->predict_hi = 0;
             snprintf(r->predict_note, sizeof(r->predict_note),
-                     "window only — need key");
+                     "no key — counter derived from ciphertext, no prediction");
             r->device_key_hex[0] = '\0';
             r->mfr_name[0] = '\0';
         }
@@ -154,6 +157,28 @@ bool flipper_decode_secplus2(const FlipperPulseBuf* buf, FlipperDecodeResult* r)
     const FobworksForceApi* a = flipper_force_api();
     if(!a || !a->decode) return false;
     return a->decode(buf, r, FlipperForceSecplus2);
+}
+/* Mazda / Honda / Toyota parsers live in fw_force.fal. Thin stubs keep the
+   host under the loader .text cap; Auto and Force both map the FAL on demand. */
+bool flipper_decode_mazda(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
+    const FobworksForceApi* a = flipper_force_api();
+    if(!a || !a->decode) return false;
+    return a->decode(buf, r, FlipperForceMazda);
+}
+bool flipper_decode_honda(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
+    const FobworksForceApi* a = flipper_force_api();
+    if(!a || !a->decode) return false;
+    return a->decode(buf, r, FlipperForceHonda);
+}
+bool flipper_decode_honda_kr5(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
+    const FobworksForceApi* a = flipper_force_api();
+    if(!a || !a->decode) return false;
+    return a->decode(buf, r, FlipperForceHondaKr5);
+}
+bool flipper_decode_toyota(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
+    const FobworksForceApi* a = flipper_force_api();
+    if(!a || !a->decode) return false;
+    return a->decode(buf, r, FlipperForceToyota);
 }
 #endif
 
@@ -609,23 +634,13 @@ bool flipper_decode_tpms(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
 }
 #ifdef FLIPPER_FAP_SLIM
 #include "flipper_plugin.h"
-/* Device FAP keeps Scher-Khan, Toyota, and Nissan out of the host image.
-   Force-decode maps fw_force.fal and runs the parsers there. Host tests
-   compile the real protocol sources instead of these stubs. */
+/* Device FAP keeps Scher-Khan out of the host image. Force-decode maps
+   fw_force.fal and runs the Magicar PWM parser there. Host tests compile
+   protocol/flipper_scher_khan.c instead of this stub. */
 bool flipper_decode_scher_khan(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
     const FobworksForceApi* a = flipper_force_api();
     if(!a || !a->decode) return false;
     return a->decode(buf, r, FlipperForceScherKhan);
-}
-bool flipper_decode_toyota(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
-    const FobworksForceApi* a = flipper_force_api();
-    if(!a || !a->decode) return false;
-    return a->decode(buf, r, FlipperForceToyota);
-}
-bool flipper_decode_nissan(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
-    const FobworksForceApi* a = flipper_force_api();
-    if(!a || !a->decode) return false;
-    return a->decode(buf, r, FlipperForceNissan);
 }
 #endif
 

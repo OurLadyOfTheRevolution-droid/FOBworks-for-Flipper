@@ -44,11 +44,13 @@ adjust the two pin definitions to match your wiring. The FAP's
 1. Run the FAP and enable **Dashboard link** in Advanced Settings. The UART
    remains disabled until you turn this option on.
 2. Join WiFi network **`FOBworks-Flipper`** using the password you set in the
-   sketch (`AP_PASS`). **Security:** the AP password is the only access control.
-   Anyone on the AP can send the FAP's link commands. Set a unique password
-   before use, keep the link private, and power the bridge off when idle.
+   sketch (`AP_PASS`). Set a unique password before use, keep the link private,
+   and power the bridge off when idle.
 3. Open the FOBworks dashboard over plain HTTP, choose **WiFi**, and connect to
-   `ws://192.168.4.1:81`. Do not add a `/ws` path.
+   `ws://192.168.4.1:81`. Do not add a `/ws` path. Send
+   `AUTH:<BRIDGE_KEY>` as the first WebSocket message; set both `AP_PASS` and
+   `BRIDGE_KEY` in the sketch before flashing. Joining the AP alone is no longer
+   enough to drive the radio.
 4. Visit `http://192.168.4.1/` to view the bridge page and client count. This
    is not the FOBworks dashboard.
 

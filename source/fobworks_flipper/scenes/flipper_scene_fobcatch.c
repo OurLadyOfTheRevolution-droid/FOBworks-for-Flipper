@@ -268,11 +268,6 @@ void flipper_scene_fobcatch_active_on_enter(void* ctx) {
     view_dispatcher_switch_to_view(app->view_dispatcher, FlipperViewFobcatch);
 }
 
-static bool fobcatch_is_ford(const FlipperFobcatchState* fc) {
-    if(fc->make_idx < 0 || fc->make_idx >= fcc_make_count) return false;
-    return strstr(fcc_makes[fc->make_idx], "Ford") != NULL;
-}
-
 static bool fobcatch_take(FlipperApp* app) {
     FlipperFobcatchState* fc = &app->guided->fobcatch;
     if(fc->jamming || fc->cap.decode_ok) return false;
@@ -280,15 +275,10 @@ static bool fobcatch_take(FlipperApp* app) {
     /* Ignore the noise burst produced when the radio opens. */
     if(furi_get_tick() < s_catch_ready) return false;
     FlipperCaptureResult* cr = &app->capture->result;
-    if(!cr->decode_ok && fobcatch_is_ford(fc)) {
-        const FlipperPulseBuf* p = &cr->pulses;
-        uint32_t te = p->te_us;
-        if(te >= 180 && te <= 600 && p->len >= 120) {
-            cr->decode.freq_mhz = p->freq_mhz;
-            cr->decode.te_us = te;
-            cr->decode_ok = true;
-        }
-    }
+    /* A Ford frame that no decoder actually accepted must NOT be jam-and-
+       replayed: the old TE + length guess marked decode_ok=true from timing
+       alone, then replayed a frame nothing verified. Treat an undecoded
+       capture as undecoded — the caller keeps listening instead. */
     if(!cr->decode_ok) return false;
     fc->cap = *cr;
     fc->jam_freq_mhz = cr->decode.freq_mhz > 0.0f ? cr->decode.freq_mhz : app->capture->freq_mhz;

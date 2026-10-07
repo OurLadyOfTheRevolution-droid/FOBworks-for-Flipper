@@ -48,7 +48,10 @@ static const uint8_t aut64_offsets[12] = {
     0x08, 0x09, 0x0A, 0x0B
 };
 
-/* Apply the simplified 12-round AUT64 transform used by this implementation. */
+/* Apply the simplified 12-round AUT64 transform used by this implementation.
+   Kept only as a placeholder until the full 256-offset SPN is restored; the
+   current decrypt path does not call it (its result check is vacuous). */
+__attribute__((unused))
 static uint64_t aut64_encrypt_block(uint64_t plaintext, const uint8_t* key) {
     uint8_t left = (uint8_t)(plaintext >> 32);
     uint8_t right = (uint8_t)(plaintext >> 40);
@@ -187,24 +190,21 @@ bool vag_decrypt(const uint8_t* encrypted, int enc_bytes, VagFrame* frame,
         *out_plain_len = 8;
         return true;
     } else {
-        /* Types 1, 3, and 4 use AUT64; test the three keys in this table. */
-        for(int k = 0; k < VAG_KEYS_COUNT; k++) {
-            uint64_t ct = 0;
-            for(int i = 0; i < 8 && i < enc_bytes; i++)
-                ct |= ((uint64_t)encrypted[i] << (56 - i * 8));
-
-            uint64_t pt = aut64_encrypt_block(ct, vag_keys_packed[k]);
-            memcpy(out_plain, &pt, 8);
-            *out_plain_len = 8;
-
-            /* Every four-bit value is <= 0x0F, so this condition cannot reject
-               a candidate or distinguish a correct key from an incorrect one. */
-            uint8_t dec_btn = out_plain[0] & 0x0F;
-            if(dec_btn <= 0x0F) {
-                frame->key_index = k;
-                return true;
-            }
-        }
+        /* Types 1, 3, and 4 use AUT64. The reduced 12-round transform below
+           cannot verify a candidate key: the only check it can perform is
+           `button <= 0x0F`, which is true for every 4-bit value and therefore
+           cannot distinguish a correct key from an incorrect one. Reporting
+           a chosen key_index here was a vacuous claim. Keep decrypt honest:
+           structural parsing (preamble/serial/counter/type-byte) still drives
+           Auto classification, but do not claim a key until the full
+           256-offset AUT64 SPN and a distinguishing response check land. */
+        (void)encrypted;
+        (void)enc_bytes;
+        (void)out_plain;
+        (void)aut64_encrypt_block;
+        (void)vag_keys_packed;
+        *out_plain_len = 0;
+        frame->key_index = -1;
         return false;
     }
 }

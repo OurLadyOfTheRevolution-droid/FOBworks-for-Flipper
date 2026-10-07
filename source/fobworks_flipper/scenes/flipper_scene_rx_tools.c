@@ -5,6 +5,14 @@
 
 #define RX_TOOL_FLOOR_DBM (-100.0f)
 #define RX_TOOL_CEIL_DBM  (-30.0f)
+/* TE-proxy ppm until SubGhz exposes CC1101 FREQEST. Nominal 400 µs is the
+   common KeeLoq/OEM mid-band chip; compare only within the same proto. */
+#define RX_FOBFREQ_TE_NOM_US 400.0f
+#define RX_FOBFREQ_TOL_PPM   25.0f
+#define RX_GROLLBACK_MASK    0xFFFFu
+#define RX_GROLLBACK_MIN_SEQ 3
+#define RX_GROLLBACK_MAX_DELTA 4u
+#define RX_GROLLBACK_FREQ_TOL 0.25f
 
 static int rx_freq_count(void) {
     int count = FOBSCAN_FREQ_COUNT;
@@ -66,6 +74,11 @@ static void rx_update_metrics(FlipperRxToolState* state, const FlipperCaptureRes
     state->mean_us = (uint32_t)(total / (uint32_t)pulses->len);
 }
 
+static float rx_te_proxy_ppm(uint32_t te_us) {
+    if(te_us == 0) return 0.0f;
+    return 1e6f * (((float)te_us - RX_FOBFREQ_TE_NOM_US) / RX_FOBFREQ_TE_NOM_US);
+}
+
 static bool rx_consume_capture(FlipperApp* app) {
     FlipperRxToolState* state = &app->rx_tool;
     if(!flipper_capture_flush(app->capture)) return false;
@@ -73,6 +86,83 @@ static bool rx_consume_capture(FlipperApp* app) {
     FlipperCaptureResult* capture = &app->capture->result;
     state->rssi_dbm = flipper_capture_rssi(app->capture);
     rx_update_metrics(state, capture);
+
+    /* FOBreport: feed every decode into the read-only health grade. A press
+       that belongs to a different remote is ignored and the run keeps waiting
+       for FLIPPER_FOBREPORT_MAX_PRESSES of the same fob. */
+    if(state->kind == FlipperRxToolReport) {
+        if(capture->decode_ok) {
+            if(fobreport_add(&state->lab.report, &capture->decode) == false) {
+                /* A different serial interrupted the run; restart grading. */
+                fobreport_reset(&state->lab.report);
+                fobreport_add(&state->lab.report, &capture->decode);
+            }
+            if(state->lab.report.presses >= 4)
+                fobreport_finalize(&state->lab.report);
+        }
+        return true;
+    }
+
+    if(state->kind == FlipperRxToolFreq) {
+        if(!capture->decode_ok) return true;
+        FlipperRxFreqState* fq = &state->lab.freq;
+        if(fq->proto[0] &&
+           strncmp(fq->proto, capture->decode.proto, sizeof(fq->proto) - 1) != 0)
+            return true; /* require one protocol for A vs B */
+        if(!fq->proto[0]) {
+            strncpy(fq->proto, capture->decode.proto, sizeof(fq->proto) - 1);
+            fq->proto[sizeof(fq->proto) - 1] = '\0';
+        }
+        float ppm = rx_te_proxy_ppm(capture->pulses.te_us ?
+                                    capture->pulses.te_us : state->te_us);
+        FobOffsetProfile* p = fq->active ? &fq->b : &fq->a;
+        fobffreq_add(p, ppm);
+        fobffreq_finalize(p);
+        if(fq->a.count > 0 && fq->b.count > 0) {
+            fq->compared = true;
+            fq->delta_ppm = fobffreq_mean_delta(&fq->a, &fq->b);
+            fq->same_tx = fobffreq_same_transmitter(
+                &fq->a, &fq->b, RX_FOBFREQ_TOL_PPM);
+        }
+        return true;
+    }
+
+    if(state->kind == FlipperRxToolTrack) {
+        if(!capture->decode_ok) return true;
+        FlipperRxTrackState* tr = &state->lab.track;
+        uint32_t now = furi_get_tick();
+        uint32_t ts = now - tr->start_ms;
+        /* TPMS force-label or proto name; everything else is treated as RKE. */
+        bool is_tpms = (strncmp(capture->decode.proto, "TPMS", 4) == 0);
+        fobtrack_record(
+            &tr->log,
+            is_tpms ? FobtrackTpms : FobtrackRke,
+            capture->decode.addr,
+            ts);
+        tr->link_count = fobtrack_correlate(
+            &tr->log, tr->links, FLIPPER_RX_TRACK_LINKS);
+        return true;
+    }
+
+    if(state->kind == FlipperRxToolGrollback) {
+        if(!capture->decode_ok || !capture->decode.rolling) return true;
+        FlipperRxGrollbackState* gr = &state->lab.grollback;
+        if(gr->count > 0 &&
+           gr->frames[0].addr != capture->decode.addr) {
+            /* New serial — restart the run. */
+            gr->count = 0;
+            memset(&gr->plan, 0, sizeof(gr->plan));
+        }
+        if(gr->count < GROLLBACK_MAX_CAPS) {
+            gr->frames[gr->count++] = capture->decode;
+            grollback_analyze_results(
+                gr->frames, gr->count, RX_GROLLBACK_MASK,
+                RX_GROLLBACK_MIN_SEQ, RX_GROLLBACK_MAX_DELTA,
+                RX_GROLLBACK_FREQ_TOL, &gr->plan);
+        }
+        return true;
+    }
+
     if(state->kind != FlipperRxToolWatch) return true;
 
     /* Use FOBscan's RSSI threshold and library save settings. */
@@ -102,6 +192,18 @@ static void rx_watch_enter(FlipperApp* app, FlipperRxToolKind kind) {
     state->kind = kind;
     state->rssi_dbm = RX_TOOL_FLOOR_DBM;
     state->peak_idx = -1;
+    if(kind == FlipperRxToolReport) {
+        fobreport_reset(&state->lab.report);
+    } else if(kind == FlipperRxToolFreq) {
+        fobffreq_reset(&state->lab.freq.a);
+        fobffreq_reset(&state->lab.freq.b);
+        state->lab.freq.active = 0;
+    } else if(kind == FlipperRxToolTrack) {
+        fobtrack_reset(&state->lab.track.log);
+        state->lab.track.start_ms = furi_get_tick();
+    } else if(kind == FlipperRxToolGrollback) {
+        memset(&state->lab.grollback, 0, sizeof(state->lab.grollback));
+    }
     app->capture->on_edge = rx_edge_cb;
     app->capture->on_edge_ctx = app;
 
@@ -186,6 +288,137 @@ void flipper_rx_tool_draw_cb(Canvas* canvas, void* model) {
 
     canvas_clear(canvas);
     canvas_set_font(canvas, FontPrimary);
+
+    /* ── FOBreport: rolling/fixed health grade ───────────────────────────── */
+    if(state->kind == FlipperRxToolReport) {
+        canvas_draw_str(canvas, 0, 10, "FOBreport RX");
+        canvas_set_font(canvas, FontSecondary);
+        snprintf(line, sizeof(line), "%.2f MHz  RSSI %.0f dBm",
+                 (double)app->capture->freq_mhz, (double)state->rssi_dbm);
+        canvas_draw_str(canvas, 0, 21, line);
+        canvas_draw_line(canvas, 0, 24, 127, 24);
+
+        const FobReportReport* rep = &state->lab.report;
+        if(!rep->has_press) {
+            canvas_set_font(canvas, FontSecondary);
+            canvas_draw_str(canvas, 0, 34, "Press your fob a few times.");
+            canvas_draw_str(canvas, 0, 44, "Read-only: never transmits.");
+            canvas_draw_str(canvas, 0, 54, "[Back] = exit");
+            return;
+        }
+
+        const char* grade = "?";
+        switch(rep->grade) {
+        case FobReportGradeA: grade = "A"; break;
+        case FobReportGradeB: grade = "B"; break;
+        case FobReportGradeC: grade = "C"; break;
+        case FobReportGradeD: grade = "D"; break;
+        case FobReportGradeU: grade = "?"; break;
+        }
+        canvas_set_font(canvas, FontPrimary);
+        snprintf(line, sizeof(line), "Grade %s", grade);
+        canvas_draw_str(canvas, 0, 36, line);
+        canvas_set_font(canvas, FontSecondary);
+
+        if(rep->presses < 4) {
+            snprintf(line, sizeof(line), "Sampling %d press(es)...",
+                     rep->presses);
+        } else {
+            strncpy(line, rep->summary, sizeof(line) - 1);
+            line[sizeof(line) - 1] = '\0';
+            if(strlen(line) > 30) line[30] = '\0';
+        }
+        canvas_draw_str(canvas, 0, 46, line);
+
+        snprintf(line, sizeof(line), "sn %08lX", (unsigned long)rep->serial);
+        canvas_draw_str(canvas, 0, 56, line);
+        canvas_draw_str(canvas, 0, 63, "[Back] = exit");
+        return;
+    }
+
+    /* ── FOBfreq: TE-proxy crystal fingerprint ───────────────────────────── */
+    if(state->kind == FlipperRxToolFreq) {
+        const FlipperRxFreqState* fq = &state->lab.freq;
+        canvas_draw_str(canvas, 0, 10, "FOBfreq RX");
+        canvas_set_font(canvas, FontSecondary);
+        snprintf(line, sizeof(line), "%.2f MHz  profile %c",
+                 (double)app->capture->freq_mhz, fq->active ? 'B' : 'A');
+        canvas_draw_str(canvas, 0, 21, line);
+        canvas_draw_line(canvas, 0, 24, 127, 24);
+        snprintf(line, sizeof(line), "A n=%d mean %.1f ppm",
+                 fq->a.count, (double)fq->a.mean_ppm);
+        canvas_draw_str(canvas, 0, 34, line);
+        snprintf(line, sizeof(line), "B n=%d mean %.1f ppm",
+                 fq->b.count, (double)fq->b.mean_ppm);
+        canvas_draw_str(canvas, 0, 44, line);
+        if(fq->compared) {
+            snprintf(line, sizeof(line), "%s  d=%.1f ppm",
+                     fq->same_tx ? "SAME crystal" : "DIFF crystal",
+                     (double)fq->delta_ppm);
+        } else {
+            snprintf(line, sizeof(line), "L=A/B  TE-proxy vs 400us");
+        }
+        canvas_draw_str(canvas, 0, 54, line);
+        canvas_draw_str(canvas, 0, 63, "[Back] exit  read-only");
+        return;
+    }
+
+    /* ── FOBtrack: TPMS↔RKE co-occurrence ────────────────────────────────── */
+    if(state->kind == FlipperRxToolTrack) {
+        const FlipperRxTrackState* tr = &state->lab.track;
+        canvas_draw_str(canvas, 0, 10, "FOBtrack RX");
+        canvas_set_font(canvas, FontSecondary);
+        snprintf(line, sizeof(line), "events %d  links %d",
+                 tr->log.count, tr->link_count);
+        canvas_draw_str(canvas, 0, 21, line);
+        canvas_draw_line(canvas, 0, 24, 127, 24);
+        if(tr->link_count <= 0) {
+            canvas_draw_str(canvas, 0, 36, "Capture TPMS + RKE nearby.");
+            canvas_draw_str(canvas, 0, 46, "Force Proto=TPMS for tires.");
+            canvas_draw_str(canvas, 0, 56, "Read-only: never transmits.");
+        } else {
+            for(int i = 0; i < tr->link_count && i < 3; i++) {
+                snprintf(line, sizeof(line), "T%08lX R%08lX x%d",
+                         (unsigned long)tr->links[i].tpms_id,
+                         (unsigned long)tr->links[i].rke_serial,
+                         tr->links[i].score);
+                canvas_draw_str(canvas, 0, 36 + i * 10, line);
+            }
+        }
+        return;
+    }
+
+    /* ── FOBroll: generalized rollback candidate analyzer ────────────────── */
+    if(state->kind == FlipperRxToolGrollback) {
+        const FlipperRxGrollbackState* gr = &state->lab.grollback;
+        canvas_draw_str(canvas, 0, 10, "FOBroll RX");
+        canvas_set_font(canvas, FontSecondary);
+        snprintf(line, sizeof(line), "%.2f MHz  caps %d/%d",
+                 (double)app->capture->freq_mhz, gr->count, GROLLBACK_MAX_CAPS);
+        canvas_draw_str(canvas, 0, 21, line);
+        canvas_draw_line(canvas, 0, 24, 127, 24);
+        if(gr->count <= 0) {
+            canvas_draw_str(canvas, 0, 36, "Press rolling fob 3+ times.");
+            canvas_draw_str(canvas, 0, 46, "Analyzes counters only.");
+            canvas_draw_str(canvas, 0, 56, "Read-only: never transmits.");
+        } else {
+            snprintf(line, sizeof(line), "%s",
+                     gr->plan.candidate ? "CANDIDATE" : "collecting");
+            canvas_draw_str(canvas, 0, 36, line);
+            strncpy(line, gr->plan.note, sizeof(line) - 1);
+            line[sizeof(line) - 1] = '\0';
+            if(strlen(line) > 30) line[30] = '\0';
+            canvas_draw_str(canvas, 0, 46, line);
+            if(gr->count > 0) {
+                snprintf(line, sizeof(line), "sn %08lX  span %lu",
+                         (unsigned long)gr->frames[0].addr,
+                         (unsigned long)gr->plan.span);
+                canvas_draw_str(canvas, 0, 56, line);
+            }
+        }
+        canvas_draw_str(canvas, 0, 63, "[Back] = exit");
+        return;
+    }
 
     if(state->kind == FlipperRxToolHunt) {
         canvas_draw_str(canvas, 0, 10, "FOBhunt RSSI");
@@ -276,6 +509,14 @@ void flipper_rx_tool_draw_cb(Canvas* canvas, void* model) {
 bool flipper_rx_tool_input_cb(InputEvent* event, void* ctx) {
     FlipperApp* app = (FlipperApp*)ctx;
     FlipperRxToolState* state = &app->rx_tool;
+
+    if(state->kind == FlipperRxToolFreq &&
+       event->type == InputTypeShort && event->key == InputKeyLeft) {
+        state->lab.freq.active = state->lab.freq.active ? 0 : 1;
+        rx_redraw(app);
+        return true;
+    }
+
     if(state->kind != FlipperRxToolHunt ||
        (event->type != InputTypeShort && event->type != InputTypeRepeat))
         return false;
@@ -360,6 +601,46 @@ bool flipper_scene_foblabs_on_event(void* ctx, SceneManagerEvent event) {
     return rx_scene_event((FlipperApp*)ctx, event);
 }
 void flipper_scene_foblabs_on_exit(void* ctx) {
+    rx_scene_exit((FlipperApp*)ctx);
+}
+
+void flipper_scene_fobreport_on_enter(void* ctx) {
+    rx_watch_enter((FlipperApp*)ctx, FlipperRxToolReport);
+}
+bool flipper_scene_fobreport_on_event(void* ctx, SceneManagerEvent event) {
+    return rx_scene_event((FlipperApp*)ctx, event);
+}
+void flipper_scene_fobreport_on_exit(void* ctx) {
+    rx_scene_exit((FlipperApp*)ctx);
+}
+
+void flipper_scene_fobfreq_on_enter(void* ctx) {
+    rx_watch_enter((FlipperApp*)ctx, FlipperRxToolFreq);
+}
+bool flipper_scene_fobfreq_on_event(void* ctx, SceneManagerEvent event) {
+    return rx_scene_event((FlipperApp*)ctx, event);
+}
+void flipper_scene_fobfreq_on_exit(void* ctx) {
+    rx_scene_exit((FlipperApp*)ctx);
+}
+
+void flipper_scene_fobtrack_on_enter(void* ctx) {
+    rx_watch_enter((FlipperApp*)ctx, FlipperRxToolTrack);
+}
+bool flipper_scene_fobtrack_on_event(void* ctx, SceneManagerEvent event) {
+    return rx_scene_event((FlipperApp*)ctx, event);
+}
+void flipper_scene_fobtrack_on_exit(void* ctx) {
+    rx_scene_exit((FlipperApp*)ctx);
+}
+
+void flipper_scene_grollback_on_enter(void* ctx) {
+    rx_watch_enter((FlipperApp*)ctx, FlipperRxToolGrollback);
+}
+bool flipper_scene_grollback_on_event(void* ctx, SceneManagerEvent event) {
+    return rx_scene_event((FlipperApp*)ctx, event);
+}
+void flipper_scene_grollback_on_exit(void* ctx) {
     rx_scene_exit((FlipperApp*)ctx);
 }
 

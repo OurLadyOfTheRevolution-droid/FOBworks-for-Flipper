@@ -65,18 +65,16 @@ app and include `FT_Confidence` and `FT_Action` fields for the result.
 ## Live Security+ captures
 
 No owned-hardware Security+ 1.0 / 2.0 `.sub` files are checked in yet. The
-drop folder is `source/deliverables/secplus-live-captures/` (README only).
-`make secplus-live` from `source/fobworks_flipper/tools` creates the folder
-if needed and exits cleanly when no `.sub` files are present:
+drop folder is `source/deliverables/secplus-live-captures/`. After I record
+real bursts:
 
 ```
 cd source/fobworks_flipper/tools && make secplus-live
-# last empty run: "secplus-live: no .sub files in ... yet."
 ```
 
-After I record real bursts I will paste the Auto / Force / None histogram
-here. Synthetic SynGate corpus rows stay force-only evidence only; they
-are not a live false-positive study.
+I will paste the Auto / Force / None histogram here. Synthetic SynGate
+corpus rows stay force-only evidence only; they are not a live false-
+positive study.
 
 — OurLadyOfTheRevolution-droid
 

@@ -2,6 +2,7 @@
 #include "protocol/flipper_plugin.h"
 #include "protocol/flipper_radio_loader.h"
 #include <furi.h>
+#include <furi_hal_power.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -133,6 +134,25 @@ static void flipper_tick_cb(void* ctx) {
     FlipperApp* app = (FlipperApp*)ctx;
     view_dispatcher_send_custom_event(app->view_dispatcher, FlipperEventStatusTick);
 
+    /* During a headless remote scan, flush captured edges and stream every
+       decoded signal to the dashboard. The remote path runs with on_edge
+       NULL, so without this the link advertised scan:true while emitting no
+       signal events; the dashboard could only poll `capture` blind. */
+    if(app->remote_scanning && !app->gui_radio_active) {
+        furi_mutex_acquire(app->radio_mutex, FuriWaitForever);
+        bool has_scan = app->remote_scanning && !app->gui_radio_active;
+        furi_mutex_release(app->radio_mutex);
+        if(has_scan && flipper_capture_flush(app->capture)) {
+            app->remote_last       = app->capture->result;
+            app->remote_last_valid = true;
+            char sbuf[384];
+            size_t slen = flipper_proto_emit_signal(
+                sbuf, sizeof(sbuf), &app->remote_last.decode,
+                flipper_capture_rssi(app->capture));
+            flipper_app_broadcast(app, sbuf, slen);
+        }
+    }
+
     /* Send a heartbeat about once per second to dashboard clients on either
        link. */
     uint32_t now = furi_get_tick();
@@ -140,11 +160,12 @@ static void flipper_tick_cb(void* ctx) {
         app->hb_last_tick = now;
         char buf[160];
         uint32_t uptime_s = (now - app->boot_tick) / furi_ms_to_ticks(1000);
+        uint8_t batt_pct = furi_hal_power_get_pct();
         size_t len = flipper_proto_emit_heartbeat(
             buf, sizeof(buf),
             app->capture->freq_mhz > 0 ? app->capture->freq_mhz : 433.92f,
             app->remote_scanning || app->gui_radio_active,
-            100, uptime_s, true, 0);
+            batt_pct, uptime_s, true, 0);
         flipper_app_broadcast(app, buf, len);
     }
 }

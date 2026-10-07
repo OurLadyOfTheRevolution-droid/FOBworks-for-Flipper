@@ -4,7 +4,7 @@ CFLAGS ?= -std=c99 -Wall -Wextra -Werror
 .PHONY: all test clean corpus secplus-live
 
 all: test_link test_library_contract test_tx_session test_vehicle_decoder test_rollingpwn \
-     test_saved_check test_classify test_keyvault test_hitag2 test_link_auth
+     test_saved_check test_classify test_keyvault test_hitag2 test_link_auth test_new_modules
 
 test_link: test_link.c ../link/flipper_link_proto.c
 	$(CC) $(CFLAGS) -I.. -o $@ $^
@@ -57,6 +57,19 @@ test_hitag2: test_hitag2.c ../protocol/flipper_hitag2.c
 test_link_auth: test_link_auth.c ../link/flipper_link_proto.c
 	$(CC) $(CFLAGS) -I.. -o $@ $^
 
+# Pure analytical modules added for FOBreport / rollback / fingerprint / track.
+ANALYSIS_MODULES = ../protocol/flipper_fobreport.c \
+		../protocol/flipper_grollback.c \
+		../protocol/flipper_fobfreq.c \
+		../protocol/flipper_fobtrack.c
+
+test_new_modules: test_new_modules.c $(ANALYSIS_MODULES) \
+		../protocol/flipper_decoders.c ../protocol/flipper_keeloq.c \
+		../protocol/flipper_scratch.c ../protocol/flipper_mazda.c \
+		../protocol/flipper_toyota.c ../protocol/flipper_honda.c \
+		../protocol/flipper_fiat.c $(OEM_DECODERS)
+	$(CC) $(CFLAGS) -I.. -o $@ $^
+
 sub_check: sub_check.c ../protocol/flipper_decoders.c \
 		../protocol/flipper_keeloq.c ../protocol/flipper_scratch.c \
 		../protocol/flipper_mazda.c ../protocol/flipper_toyota.c \
@@ -74,6 +87,7 @@ test: all
 	./test_keyvault
 	./test_hitag2
 	./test_link_auth
+	./test_new_modules
 	./test_classify 40 --check
 
 # Regenerate the committed corpus. Separate from `test` because it writes 1500 files into
@@ -82,20 +96,10 @@ corpus: test_classify
 	./test_classify $(or $(SETS),500)
 
 # Live Security+ honesty report against owned-hardware .sub captures.
-# Empty drop folder is a non-fatal outcome: print how to fill it, do not fail CI.
 secplus-live: sub_check
-	@dir="$(or $(LIVE),../../deliverables/secplus-live-captures)"; \
-	mkdir -p "$$dir"; \
-	n=$$(find "$$dir" -type f -name '*.sub' 2>/dev/null | wc -l | tr -d ' '); \
-	if [ "$$n" = "0" ]; then \
-	  echo "secplus-live: no .sub files in $$dir yet."; \
-	  echo "Drop owned-hardware Security+ 1.0 / 2.0 captures there, then re-run."; \
-	  echo "Synthetic SynGate_* corpus rows do not count for Auto promotion."; \
-	  exit 0; \
-	fi; \
-	./sub_check --report "$$dir"
+	./sub_check --report $(or $(LIVE),../../deliverables/secplus-live-captures)
 
 clean:
 	rm -f test_link test_library_contract test_tx_session test_vehicle_decoder \
 	      test_rollingpwn test_saved_check test_classify test_keyvault \
-	      test_hitag2 test_link_auth sub_check
+	      test_hitag2 test_link_auth test_new_modules sub_check

@@ -27,6 +27,15 @@ Scher-Khan plugins are already packed inside that one FAP.
   second, then stops on one KeeLoq frame. It displays FOUND for a listed
   manufacturer-key match; otherwise it shows the serial. Use Up and Down to
   change frequency, then press OK on the result to listen again.
+- **FOBreport** is a read-only health check. Press your fob a few times and it
+  grades the remote (A = encrypted rolling, D = fixed/replayable) without ever
+  transmitting.
+- **FOBfreq** compares two TE-proxy crystal fingerprints (profiles A/B; Left
+  switches). Same protocol only; read-only.
+- **FOBtrack** scores TPMS↔RKE co-occurrence from ambient captures. Set Force
+  Proto to TPMS when sampling tire sensors. Read-only.
+- **FOBroll** analyzes consecutive rolling-code counters for a generalized
+  RollBack candidate (Csikor et al.). Read-only; it never transmits.
 - **Library** contains saved `.sub` files.
 - **Settings** controls frequency, modulation, squelch, force-protocol, and
   the dashboard link. The link is off by default.
@@ -36,7 +45,8 @@ Scher-Khan plugins are already packed inside that one FAP.
 FOBclone, FOBcatch, and FOBback map `fw_catalog.fal` for the full
 make/model/year table in `protocol/flipper_vehicles.c`. The host FAP does not
 keep that table in its own `.rodata`. Returning to the main menu unmaps the
-catalog. Force → Scher-Khan maps `fw_force.fal`.
+catalog. Force → Scher-Khan / Sec+ / Mazda / Honda / Toyota maps
+`fw_force.fal`.
 
 ## Decode
 

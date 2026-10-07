@@ -117,6 +117,18 @@ void flipper_scene_foblabs_on_exit(void* ctx);
 void flipper_scene_fobhunt_on_enter(void* ctx);
 bool flipper_scene_fobhunt_on_event(void* ctx, SceneManagerEvent e);
 void flipper_scene_fobhunt_on_exit(void* ctx);
+void flipper_scene_fobreport_on_enter(void* ctx);
+bool flipper_scene_fobreport_on_event(void* ctx, SceneManagerEvent e);
+void flipper_scene_fobreport_on_exit(void* ctx);
+void flipper_scene_fobfreq_on_enter(void* ctx);
+bool flipper_scene_fobfreq_on_event(void* ctx, SceneManagerEvent e);
+void flipper_scene_fobfreq_on_exit(void* ctx);
+void flipper_scene_fobtrack_on_enter(void* ctx);
+bool flipper_scene_fobtrack_on_event(void* ctx, SceneManagerEvent e);
+void flipper_scene_fobtrack_on_exit(void* ctx);
+void flipper_scene_grollback_on_enter(void* ctx);
+bool flipper_scene_grollback_on_event(void* ctx, SceneManagerEvent e);
+void flipper_scene_grollback_on_exit(void* ctx);
 
 void flipper_scene_fobcrack_on_enter(void* ctx);
 bool flipper_scene_fobcrack_on_event(void* ctx, SceneManagerEvent e);
@@ -154,6 +166,10 @@ static const AppSceneOnEnterCallback flipper_on_enter_handlers[FlipperSceneCount
     [FlipperSceneFobwatch]        = flipper_scene_fobwatch_on_enter,
     [FlipperSceneFoblabs]         = flipper_scene_foblabs_on_enter,
     [FlipperSceneFobhunt]         = flipper_scene_fobhunt_on_enter,
+    [FlipperSceneFobreport]       = flipper_scene_fobreport_on_enter,
+    [FlipperSceneFobfreq]         = flipper_scene_fobfreq_on_enter,
+    [FlipperSceneFobtrack]        = flipper_scene_fobtrack_on_enter,
+    [FlipperSceneGrollback]       = flipper_scene_grollback_on_enter,
     [FlipperSceneFobcrack]        = flipper_scene_fobcrack_on_enter,
 };
 
@@ -187,6 +203,10 @@ static const AppSceneOnEventCallback flipper_on_event_handlers[FlipperSceneCount
     [FlipperSceneFobwatch]        = flipper_scene_fobwatch_on_event,
     [FlipperSceneFoblabs]         = flipper_scene_foblabs_on_event,
     [FlipperSceneFobhunt]         = flipper_scene_fobhunt_on_event,
+    [FlipperSceneFobreport]       = flipper_scene_fobreport_on_event,
+    [FlipperSceneFobfreq]         = flipper_scene_fobfreq_on_event,
+    [FlipperSceneFobtrack]        = flipper_scene_fobtrack_on_event,
+    [FlipperSceneGrollback]       = flipper_scene_grollback_on_event,
     [FlipperSceneFobcrack]        = flipper_scene_fobcrack_on_event,
 };
 
@@ -220,6 +240,10 @@ static const AppSceneOnExitCallback flipper_on_exit_handlers[FlipperSceneCount] 
     [FlipperSceneFobwatch]        = flipper_scene_fobwatch_on_exit,
     [FlipperSceneFoblabs]         = flipper_scene_foblabs_on_exit,
     [FlipperSceneFobhunt]         = flipper_scene_fobhunt_on_exit,
+    [FlipperSceneFobreport]       = flipper_scene_fobreport_on_exit,
+    [FlipperSceneFobfreq]         = flipper_scene_fobfreq_on_exit,
+    [FlipperSceneFobtrack]        = flipper_scene_fobtrack_on_exit,
+    [FlipperSceneGrollback]       = flipper_scene_grollback_on_exit,
     [FlipperSceneFobcrack]        = flipper_scene_fobcrack_on_exit,
 };
 

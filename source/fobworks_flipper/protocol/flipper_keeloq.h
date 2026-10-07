@@ -43,6 +43,13 @@ typedef struct {
 #define N_MFR_KEYS        73
 #define MAX_DERIVED_KEYS  (N_MFR_KEYS * 14)
 
+/* Default receiver-side resynchronization window, in counter steps. The
+   receiver accepts roughly expected_counter +/- KL_PREDICT_WINDOW before it
+   falls back to a resynchronization sequence, so this is the range the
+   prediction notes advertise after a device key is recovered. Keep one
+   constant instead of the scattered 256/1024 values that drifted apart. */
+#define KL_PREDICT_WINDOW 256
+
 /* Public key table */
 extern const MfrKey FLIPPER_MFR_KEYS[N_MFR_KEYS];
 
@@ -109,6 +116,28 @@ bool kl_recover_key(KLFrame* f);
    Returns true on success. */
 bool flipper_kl_next_pulses(const KLFrame* f, uint32_t ctr, uint64_t key,
                             uint32_t te, float freq_mhz, FlipperPulseBuf* out);
+
+/* ── Eavesdrop-only clone synthesis (no physical access) ──────────────────── */
+/* Derive the 64-bit DEVICE key from a 64-bit MANUFACTURER key and the 28-bit
+   serial, using the AN1064/AN1031 "secure learning" normal diversification:
+       seed = serial | (serial << 28)
+       dev  = Encrypt(lo32(seed), mf) | Encrypt(hi32(seed), mf) << 32
+   This is the same transform kl_try_one() applies when it tests SN
+   diversification, exposed here so a caller can clone a fob from a captured
+   frame and a known manufacturer key without ever touching the fob. */
+bool kl_derive_device_key(uint64_t manufacturer_key, uint32_t serial,
+                          uint64_t* device_key);
+
+/* Full clone path: derive the device key from a manufacturer key and the
+   captured frame's serial, decrypt the captured hopping code to recover the
+   plaintext counter, then synthesize the NEXT valid frame (counter+1) into
+   `out`. Te and frequency come from the capture. Mirrors the 2008 eavesdrop
+   attack (two messages suffice once the manufacturer key is known): a clone
+   needs no physical access, only a capture and the key. Returns true when
+   serial/button/checksum gates all pass and the next frame was emitted. */
+bool flipper_kl_clone_next(const KLFrame* captured, uint64_t manufacturer_key,
+                           uint32_t te, float freq_mhz, FlipperPulseBuf* out,
+                           FlipperDecodeResult* out_decode);
 
 /* True when a KeeLoq decode carries a recovered device key (hex) and can
    synthesize a valid next hop — not merely a counter window. */

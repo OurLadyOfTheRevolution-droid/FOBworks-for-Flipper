@@ -17,6 +17,10 @@
 #include "protocol/flipper_capture.h"
 #include "protocol/flipper_library.h"
 #include "protocol/flipper_rollingpwn.h"
+#include "protocol/flipper_fobreport.h"
+#include "protocol/flipper_fobfreq.h"
+#include "protocol/flipper_fobtrack.h"
+#include "protocol/flipper_grollback.h"
 #include "link/flipper_link.h"
 
 /* Shared FOBscan frequencies, used for on-device tuning and Advanced Settings. */
@@ -68,6 +72,10 @@ typedef enum {
     FlipperSceneFobwatch,        /* continuous receive/decode with optional save   */
     FlipperSceneFoblabs,         /* live capture/decode timing metrics             */
     FlipperSceneFobhunt,         /* bounded RSSI sweep over supported frequencies  */
+    FlipperSceneFobreport,       /* read-only rolling/fixed health grade           */
+    FlipperSceneFobfreq,         /* oscillator-offset / TE-proxy fingerprint       */
+    FlipperSceneFobtrack,        /* TPMS↔RKE co-occurrence correlator              */
+    FlipperSceneGrollback,       /* generalized RollBack candidate analyzer        */
     FlipperSceneFobcrack,        /* one KeeLoq frame, listed key or serial         */
     FlipperSceneCount,
 } FlipperScene;
@@ -168,10 +176,43 @@ typedef enum {
     FlipperRxToolWatch = 0,
     FlipperRxToolLabs,
     FlipperRxToolHunt,
+    FlipperRxToolReport,
+    FlipperRxToolFreq,
+    FlipperRxToolTrack,
+    FlipperRxToolGrollback,
 } FlipperRxToolKind;
 
+/* FOBfreq: two profiles (reference vs suspect). TE-proxy ppm until FREQEST
+   is exposed through the SubGhz device API. */
+typedef struct {
+    FobOffsetProfile a;
+    FobOffsetProfile b;
+    int active; /* 0 = A (reference), 1 = B (suspect) */
+    bool compared;
+    bool same_tx;
+    float delta_ppm;
+    char proto[24];
+} FlipperRxFreqState;
+
+/* FOBtrack: bounded event log + top co-occurrence links. */
+#define FLIPPER_RX_TRACK_LINKS 3
+typedef struct {
+    FobtrackLog log;
+    FobtrackLink links[FLIPPER_RX_TRACK_LINKS];
+    int link_count;
+    uint32_t start_ms;
+} FlipperRxTrackState;
+
+/* Generalized rollback: ring of decoded presses for one serial. */
+typedef struct {
+    FlipperDecodeResult frames[GROLLBACK_MAX_CAPS];
+    int count;
+    GrollbackPlan plan;
+} FlipperRxGrollbackState;
+
 /* FOBwatch, FOBlabs, and FOBhunt share this summary state. The capture engine
-   owns the pulse buffer; storing only metrics keeps heap use down. */
+   owns the pulse buffer; storing only metrics keeps heap use down. Lab tools
+   share one union so BSS stays under the loader cap. */
 typedef struct {
     FlipperRxToolKind kind;
     bool running;
@@ -194,6 +235,12 @@ typedef struct {
     float hunt_rssi[FOBSCAN_FREQ_MAX];
     float hunt_peak[FOBSCAN_FREQ_MAX];
     int peak_idx;
+    union {
+        FobReportReport report;
+        FlipperRxFreqState freq;
+        FlipperRxTrackState track;
+        FlipperRxGrollbackState grollback;
+    } lab;
 } FlipperRxToolState;
 
 typedef struct {
