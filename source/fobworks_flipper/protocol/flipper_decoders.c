@@ -611,7 +611,7 @@ bool flipper_decode_tpms(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
 #include "flipper_plugin.h"
 /* Device FAP keeps Scher-Khan, Toyota, and Nissan out of the host image.
    Force-decode maps fw_force.fal and runs the parsers there. Host tests
-   compile the real protocol/*.c files instead of these stubs. */
+   compile the real protocol sources instead of these stubs. */
 bool flipper_decode_scher_khan(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
     const FobworksForceApi* a = flipper_force_api();
     if(!a || !a->decode) return false;

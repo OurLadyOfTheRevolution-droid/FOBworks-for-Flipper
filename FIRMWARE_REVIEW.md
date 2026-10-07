@@ -164,6 +164,10 @@ checked in yet.
   keeps Security+2.0 force-only).
 - Classify (`40 --check`): Security+1.0 and Security+2.0 forced 100%. Overall
   forced 100% on this seed. Scher-Khan force path is covered in `test_sim`.
+- `make secplus-live` with an empty drop folder exits 0 and prints the
+  drop-folder hint.
+- `ufbt` APPCHK: Target 7, API 87.1. Host `.text` 59284 / 61352 (2068 free)
+  after parking Toyota/Nissan in `fw_force.fal`.
 
 ## Remaining debt
 
