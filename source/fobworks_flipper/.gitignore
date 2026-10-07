@@ -8,6 +8,9 @@
 /tools/test_classify
 /tools/test_vehicle_decoder
 /tools/test_keyvault
+/tools/test_hitag2
+/tools/test_link_auth
+/tools/test_new_modules
 /tools/sub_check
 /dist/fobworks_flipper_unleashed.fap
 /out/
