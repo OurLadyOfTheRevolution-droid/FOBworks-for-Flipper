@@ -1,5 +1,6 @@
 #include "../flipper_fobscan_app.h"
 #include "../protocol/flipper_radio_loader.h"
+#include <furi_hal_random.h>
 #include <stdio.h>
 
 /* Advanced Settings uses the shared VariableItemList for FOBscan's frequency,
@@ -90,9 +91,13 @@ static void on_link_auth(VariableItem* item) {
         app->adv.access_code[0] = '\0';
         variable_item_set_current_value_text(item, "Off");
     } else {
-        /* Lab default. Change over the link with {"cmd":"auth","new_code":"...."}. */
-        snprintf(app->adv.access_code, sizeof(app->adv.access_code), "0000");
-        variable_item_set_current_value_text(item, "0000");
+        /* Fresh 6-digit gate each time Auth is turned on. Never install the old
+           lab default 0000. Rotate later over the link with
+           {"cmd":"auth","code":"<current>","new_code":"...."}. */
+        uint32_t n = 1000u + (furi_hal_random_get() % 9000u);
+        snprintf(app->adv.access_code, sizeof(app->adv.access_code), "%04lu",
+                 (unsigned long)n);
+        variable_item_set_current_value_text(item, app->adv.access_code);
     }
 }
 
@@ -162,7 +167,8 @@ void flipper_scene_adv_settings_on_enter(void* ctx) {
 
     it = variable_item_list_add(vl, "Link Auth", 2, on_link_auth, app);
     variable_item_set_current_value_index(it, app->adv.access_code[0] ? 1 : 0);
-    variable_item_set_current_value_text(it, app->adv.access_code[0] ? "On" : "Off");
+    variable_item_set_current_value_text(
+        it, app->adv.access_code[0] ? app->adv.access_code : "Off");
 
     it = variable_item_list_add(vl, "CC1101", 2, on_ext_radio, app);
     variable_item_set_current_value_index(it, app->adv.prefer_external ? 1 : 0);

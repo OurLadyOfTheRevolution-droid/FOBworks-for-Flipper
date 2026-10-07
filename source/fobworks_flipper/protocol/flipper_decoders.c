@@ -609,13 +609,23 @@ bool flipper_decode_tpms(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
 }
 #ifdef FLIPPER_FAP_SLIM
 #include "flipper_plugin.h"
-/* Device FAP keeps Scher-Khan out of the host image. Force-decode maps
-   fw_force.fal and runs the Magicar PWM parser there. Host tests compile
-   protocol/flipper_scher_khan.c instead of this stub. */
+/* Device FAP keeps Scher-Khan, Toyota, and Nissan out of the host image.
+   Force-decode maps fw_force.fal and runs the parsers there. Host tests
+   compile the real protocol/*.c files instead of these stubs. */
 bool flipper_decode_scher_khan(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
     const FobworksForceApi* a = flipper_force_api();
     if(!a || !a->decode) return false;
     return a->decode(buf, r, FlipperForceScherKhan);
+}
+bool flipper_decode_toyota(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
+    const FobworksForceApi* a = flipper_force_api();
+    if(!a || !a->decode) return false;
+    return a->decode(buf, r, FlipperForceToyota);
+}
+bool flipper_decode_nissan(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
+    const FobworksForceApi* a = flipper_force_api();
+    if(!a || !a->decode) return false;
+    return a->decode(buf, r, FlipperForceNissan);
 }
 #endif
 
