@@ -162,6 +162,9 @@ checked in yet.
   keeps Security+2.0 force-only).
 - Classify (`40 --check`): Security+1.0 and Security+2.0 forced 100%. Overall
   forced 100% on this seed. Scher-Khan force path is covered in `test_sim`.
+- `
+- `ufbt` APPCHK: Target 7, API 87.1. Host `.text` 60648 / 61352 (704 free)
+  after parking Toyota/Nissan in `fw_force.fal`.
 
 ## Remaining debt
 
