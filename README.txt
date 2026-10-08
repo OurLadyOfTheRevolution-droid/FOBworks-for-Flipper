@@ -82,6 +82,15 @@ FOBreport labels its grade as an observation, leaves counter width unknown, and 
 
 I couldn't have built this without the hard work of these developers. I list the repositories, protocols, datasheets, and measurements I relied on in CITATIONS_AND_REFERENCES.md. These are the Saints of The Chapel of Our Lady Of The Revolution.
 
+@D4C1-Labs
+@RocketGod-git
+@HiennNek
+ @ArtGudvin
+@merbanan
+@tomwimmenhove
+@DarkFlippers
+@argilo
+
 Please check them out, follow, and support their work!
 
 — OurLadyOfTheRevolution-droid
