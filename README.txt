@@ -55,7 +55,7 @@ The dashboard link requires a random 6-digit access code on the Flipper and `AUT
 
 Architecture
 ------------
-The host FAP is slim EXTERNAL. Vehicle/year tables live in `fw_catalog.fal`. Sec+ 1.0/2.0, Scher-Khan, Hitag2, Mazda, Honda (incl. KR5), Toyota, and Nissan live in `fw_force.fal`. Both are `fal_embedded` under `/assets/plugins/`, mapped when FOBclone / FOBcatch / FOBback / Force need them, and unmapped on the main menu. Advanced Settings picks the built-in or an OTG CC1101; external presence is confirmed with `subghz_devices_is_connect` on `cc1101_ext` after OTG, not OTG power alone. PSA Mode 0x23 stays on the host inside `oem_wire` until I can split its Manchester helpers.
+The host FAP is slim EXTERNAL. Vehicle/year tables live in `fw_catalog.fal`. Sec+ 1.0/2.0, Scher-Khan, Hitag2, Mazda, Honda (incl. KR5), Toyota, Nissan, and PSA Mode 0x23 live in `fw_force.fal`. Both are `fal_embedded` under `/assets/plugins/`, mapped when FOBclone / FOBcatch / FOBback / Force need them, and unmapped on the main menu. Advanced Settings picks the built-in or an OTG CC1101; external presence is confirmed with `subghz_devices_is_connect` on `cc1101_ext` after OTG, not OTG power alone.
 
 Loader sizes for this host image (limits 61864 / 16621 / 5924):
   .text 61464, .rodata 15431, .bss 5200.

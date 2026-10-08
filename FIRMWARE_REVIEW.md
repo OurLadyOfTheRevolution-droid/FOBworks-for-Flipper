@@ -26,10 +26,10 @@ the product. Menu names put the tool first (FOBscan, FOBclone, FOBcatch,
 FOBback, FOBpwn, FOBreport, FOBfreq, FOBtrack, FOBroll).
 
 The host FAP is slim EXTERNAL. Vehicle tables live in `fw_catalog.fal`.
-Sec+ 1.0/2.0, Scher-Khan, Hitag2, Mazda, Honda (incl. KR5), Toyota, and
-Nissan live in `fw_force.fal`. Both plugins are `fal_embedded` under
-`/assets/plugins/`, mapped on demand and unmapped on the main menu. I keep
-the live section sizes and budgets in SIZE_BASELINE.md and stay inside
+Sec+ 1.0/2.0, Scher-Khan, Hitag2, Mazda, Honda (incl. KR5), Toyota, Nissan,
+and PSA Mode 0x23 live in `fw_force.fal`. Both plugins are `fal_embedded`
+under `/assets/plugins/`, mapped on demand and unmapped on the main menu. I
+keep the live section sizes and budgets in SIZE_BASELINE.md and stay inside
 those ceilings.
 
 Host tests live in `source/fobworks_flipper/tools`. `make test` is the check
@@ -148,14 +148,14 @@ on the listen scene now; Make maps the catalog first.
 ### 12. Force extras and link auth
 
 Security+ 1.0 / 2.0, Scher-Khan, Hitag2, Mazda, Honda (incl. KR5), Toyota,
-and Nissan parsers live in `fw_force.fal` (host stubs only). Auto stays
-clean for force-only families; Mazda and Honda KR5 remain Auto-safe via the
-stubs. PSA Mode 0x23 stays host-side inside `oem_wire` for now — peeling it
-means splitting the shared Manchester helpers. Dashboard Link Auth installs
-a fresh random 6-digit code when turned On — never a guessable default.
-Commands honor `auth` / `code=` / `new_code=`. The WiFi bridge requires
-`AUTH:<BRIDGE_KEY>` before forwarding. External CC1101 uses
-`subghz_devices_is_connect` on `cc1101_ext` after OTG.
+Nissan, and PSA Mode 0x23 parsers live in `fw_force.fal` (host stubs only).
+Auto stays clean for force-only families; Mazda and Honda KR5 remain
+Auto-safe via the stubs. PSA keeps its own Manchester helpers inside
+`flipper_psa.c` so `oem_wire` stays on the host without the Mode 0x23 path.
+Dashboard Link Auth installs a fresh random 6-digit code when turned On —
+never a guessable default. Commands honor `auth` / `code=` / `new_code=`.
+The WiFi bridge requires `AUTH:<BRIDGE_KEY>` before forwarding. External
+CC1101 uses `subghz_devices_is_connect` on `cc1101_ext` after OTG.
 
 Live Security+ `.sub` captures from my owned hardware go in
 `source/deliverables/secplus-live-captures/`; `make secplus-live` reports
@@ -180,9 +180,7 @@ them for CORPUS_HONESTY.md.
 ## Remaining debt
 
 **More OEM FALs.** Catalog and force extras are the first two plugins.
-Nissan now sits with the other force OEMs. PSA Mode 0x23 is still host-side
-(`oem_wire`); I will peel it into `fw_force.fal` when I can split the shared
-Manchester helpers without dragging BMW/Fiat/VAG along. Same ABI
+Nissan and PSA Mode 0x23 now sit with the other force OEMs. Same ABI
 (`FOBWORKS_PLUGIN_APPID` / `FOBWORKS_PLUGIN_ABI`). I am not forking into
 firmware for size.
 
@@ -246,7 +244,8 @@ New capabilities:
   coarse edge timing, temporal TPMS↔RKE co-occurrence and a generalized
   RollBack analyzer. I do not treat these as a full security assessment or
   proof of transmitter or vehicle identity.
-- Mazda / Honda / Toyota / Nissan parsers parked in `fw_force.fal` (host stubs).
+- Mazda / Honda / Toyota / Nissan / PSA parsers parked in `fw_force.fal`
+  (host stubs).
 
 ## Next steps
 
@@ -255,8 +254,8 @@ New capabilities:
    CORPUS_HONESTY.md before any Auto debate.
 2. I will use real CC1101 FREQEST measurements in FOBfreq when the device API
    exposes them.
-3. I will peel PSA out of `oem_wire` into `fw_force.fal` when host `.text`
-   tightens again.
+3. I will peel further host-side families into FALs when `.text` tightens
+   again.
 
 KeeLoq decrypt in this tree already follows AN1064 (NLF 0x3A5C742E, 528
 rounds) and passes the three published vectors. Clone synthesis now uses
