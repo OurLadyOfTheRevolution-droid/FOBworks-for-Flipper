@@ -164,7 +164,9 @@ bool flipper_decode_secplus2(const FlipperPulseBuf* buf, FlipperDecodeResult* r)
     if(!a || !a->decode) return false;
     return a->decode(buf, r, FlipperForceSecplus2);
 }
-/* Mazda / Honda / Toyota parsers live in fw_force.fal. Thin stubs keep the host under the loader .text cap; Auto and Force both map the FAL on demand. */
+/* Mazda / Honda / Toyota / Nissan parsers live in fw_force.fal. Thin stubs
+   keep the host under the loader .text cap; Auto and Force both map the FAL
+   on demand. Host tests compile the real protocol sources instead. */
 bool flipper_decode_mazda(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
     const FobworksForceApi* a = flipper_force_api();
     if(!a || !a->decode) return false;
@@ -184,6 +186,11 @@ bool flipper_decode_toyota(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
     const FobworksForceApi* a = flipper_force_api();
     if(!a || !a->decode) return false;
     return a->decode(buf, r, FlipperForceToyota);
+}
+bool flipper_decode_nissan(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
+    const FobworksForceApi* a = flipper_force_api();
+    if(!a || !a->decode) return false;
+    return a->decode(buf, r, FlipperForceNissan);
 }
 #endif
 

@@ -644,10 +644,9 @@ const int FLIPPER_FBK_PROFILE_COUNT = (int)(sizeof(FLIPPER_FBK_PROFILES) / sizeo
 /* FOBback vehicle makes (FBK_V)                                              */
 /* ─────────────────────────────────────────────────────────────────────────── */
 
-/* I resolve profile keys at first use; this avoids a forward reference in the static model table. */
-static inline const FlipperFbkProfile* FP(const char* k) {
-    return flipper_fbk_profile_by_key(k);
-}
+/* Profile pointers stay NULL in the static model rows. I resolve keys through
+   the parallel *_pkeys tables in flipper_fbk_model_profile() so the model
+   arrays do not need a forward helper. */
 
 static const FlipperFbkModel hyundai_models[] = {
     { "Elantra 2013-2015 (315 MHz)", NULL /* hy_kia_315 */ },
