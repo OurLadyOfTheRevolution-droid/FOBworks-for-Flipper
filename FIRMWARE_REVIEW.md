@@ -175,9 +175,10 @@ them for CORPUS_HONESTY.md.
   keeps Security+2.0 force-only).
 - Classify (`40 --check`): Security+1.0 and Security+2.0 forced 100%. Overall
   forced 100% on this seed. Scher-Khan force path is covered in `test_sim`.
-- `ufbt` APPCHK: Target 7, API 87.1. After parking Nissan and PSA in
-  `fw_force.fal`, host `.text` is 61088 / 61864 (776 free); `.rodata`
-  15396 / 16621; `.bss` 5199 / 5924. See SIZE_BASELINE.md.
+- `ufbt` APPCHK: Target 7, API 87.1. After parking Nissan, PSA, and the
+  force-only fixed-code family in `fw_force.fal`, host `.text` is
+  58840 / 61864 (3024 free); `.rodata` 15197 / 16621; `.bss` 5200 / 5924.
+  See SIZE_BASELINE.md.
 
 ## Remaining debt
 
@@ -246,8 +247,8 @@ New capabilities:
   coarse edge timing, temporal TPMS↔RKE co-occurrence and a generalized
   RollBack analyzer. I do not treat these as a full security assessment or
   proof of transmitter or vehicle identity.
-- Mazda / Honda / Toyota / Nissan / PSA parsers parked in `fw_force.fal`
-  (host stubs).
+- Mazda / Honda / Toyota / Nissan / PSA and force-only fixed-code parsers
+  parked in `fw_force.fal` (host stubs).
 
 ## Next steps
 
