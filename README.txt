@@ -58,10 +58,10 @@ Architecture
 The host FAP is slim EXTERNAL. Vehicle/year tables live in `fw_catalog.fal`. Sec+ 1.0/2.0, Scher-Khan, Hitag2, Mazda, Honda (incl. KR5), Toyota, Nissan, and PSA Mode 0x23 live in `fw_force.fal`. Both are `fal_embedded` under `/assets/plugins/`, mapped when FOBclone / FOBcatch / FOBback / Force need them, and unmapped on the main menu. Advanced Settings picks the built-in or an OTG CC1101; external presence is confirmed with `subghz_devices_is_connect` on `cc1101_ext` after OTG, not OTG power alone.
 
 Loader sizes for this host image (limits 61864 / 16621 / 5924):
-  .text 61464, .rodata 15431, .bss 5200.
+  .text 61088, .rodata 15396, .bss 5199.
 
 SHA-256 of the copy in this repository:
-f8fd00191e02809ab46740d12872cd627ec7ec0f93e678b14446dfab02d36236
+9fe94b310be29f1ec60c2c4e4ef9aa4f6be84cbafe30d5829784fbaa5bf970b1
 
 The binary attached to a GitHub release is built by the "Build FAP" workflow from this source. The build is not byte-reproducible, so digests drift between runs. Target/API alone is NOT proof of equivalent contents. The workflow also uploads SHA256SUMS and BUILD_MANIFEST.json with the exact built FAP. After any local build, I run:
   python3 tools/sync_release.py --sync
