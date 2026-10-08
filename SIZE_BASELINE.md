@@ -5,15 +5,15 @@ These sizes do not tell me whether heap and stack usage are safe on hardware.
 
 | Host section | Bytes | Recorded budget | Headroom |
 |---|---:|---:|---:|
-| `.text` | 61464 | 61864 | 400 |
-| `.rodata` | 15431 | 16621 | 1190 |
-| `.bss` | 5200 | 5924 | 724 |
+| `.text` | 61088 | 61864 | 776 |
+| `.rodata` | 15396 | 16621 | 1225 |
+| `.bss` | 5199 | 5924 | 725 |
 
 | Embedded plugin | .text | .rodata | .data | .bss | Resident sections |
 |---|---:|---:|---:|---:|---:|
 | `fw_catalog.fal` | 308 | 5968 | 1220 | 0 | 7496 |
-| `fw_force.fal` | 8304 | 948 | 0 | 2560 | 11812 |
+| `fw_force.fal` | 8960 | 990 | 0 | 2560 | 12510 |
 
-Embedded assets: 30448 bytes.
+Embedded assets: 31516 bytes.
 
-Host SHA-256: `f8fd00191e02809ab46740d12872cd627ec7ec0f93e678b14446dfab02d36236`.
+Host SHA-256: `9fe94b310be29f1ec60c2c4e4ef9aa4f6be84cbafe30d5829784fbaa5bf970b1`.
