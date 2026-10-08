@@ -5,14 +5,14 @@
   "sdk": "official 1.4.3",
   "sdk_sha256": "2e89e70c6b5770440cbf02f2ca01a2f8804e05ddb77f66afdd23ed2584740c7f",
   "sha256": {
-    "fobworks_flipper.fap": "039d75e9d37c83237d295b7503a9fe43e28b6448650196dd9be7e8803ae96ce5",
-    "fw_catalog.fal": "8452b373d590a47dd6ebc522c934d6672f832101cb7bbabd9c612db7f1e3d78d",
-    "fw_force.fal": "4c0b68769c03b31626a83306c9a1570a4b2e56d5876535c32193361c7a034e16"
+    "fobworks_flipper.fap": "f8fd00191e02809ab46740d12872cd627ec7ec0f93e678b14446dfab02d36236",
+    "fw_catalog.fal": "7d2eb9fc8e3f0ea4e28fd8dd33da9a3abddd0ce4f65771446fb85ea41be4b6a6",
+    "fw_force.fal": "0acb1ce03061ca19abe7fcd2e84560edd1d7b41f3d2fb0e788df9503a9c28d95"
   },
   "host_sections": {
-    ".text": 61852,
-    ".rodata": 15480,
-    ".bss": 5199
+    ".text": 61464,
+    ".rodata": 15431,
+    ".bss": 5200
   },
   "qualification": "I checked the SDK build and host regressions; full hardware testing is still pending"
 }
