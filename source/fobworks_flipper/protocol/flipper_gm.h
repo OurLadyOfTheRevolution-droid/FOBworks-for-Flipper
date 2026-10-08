@@ -5,7 +5,7 @@
 /* ─────────────────────────────────────────────────────────────────────────── */
 /* GM Protocol — FOBworks implementation.                                     */
 /*   112-bit (14-byte) frames, PPM encoding.                                  */
-/*   Additive mod-256 checksums. REPLAY only — cannot forge.                  */
+/*   Additive mod-256 checksums. REPLAY only — I cannot forge.                */
 /* ─────────────────────────────────────────────────────────────────────────── */
 
 typedef struct {

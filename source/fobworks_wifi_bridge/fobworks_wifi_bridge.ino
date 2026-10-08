@@ -3,11 +3,11 @@
  *
  * Forwards newline-delimited JSON between the dashboard and Flipper app.
  * The dashboard connects to ws://192.168.4.1:81 (no path). The bridge does
- * not parse messages; it passes them to the FAP over USART pins 13 and 14 at
- * 115200 8N1. Turn on Dashboard link in Advanced Settings first.
+ * not parse messages; I pass them to the FAP over USART pins 13 and 14 at
+ * 115200 8N1. I turn on Dashboard link in Advanced Settings first.
  *
  * Target: ESP32-S2 (official Flipper WiFi Devboard) or ESP32. Serial1 keeps
- * the USB console available. Connect Flipper TX (pin 13) to ESP RX and
+ * the USB console available. I connect Flipper TX (pin 13) to ESP RX and
  * Flipper RX (pin 14) to ESP TX.
  *
  * Uses arduinoWebSockets (Links2004); WiFi and WebServer come with the ESP32
@@ -19,7 +19,7 @@
 #include <WebSocketsServer.h>
 #include "bridge_policy.h"
 
-/* Configure locally; never commit deployment credentials. */
+/* I configure locally; I never commit deployment credentials. */
 #if __has_include("bridge_config.h")
 #include "bridge_config.h"
 #endif
@@ -32,22 +32,23 @@
 
 /* Anyone connected to this AP can send radio commands. The dashboard does not
  * authenticate WebSocket clients, so the AP password is the only access
- * control. Replace the default before flashing. */
+ * control. I replace the default before flashing. */
 static const char* AP_SSID = "FOBworks-Flipper";
 static const char* AP_PASS = FOBWORKS_AP_PASSWORD;
 
 /* Bridge-level shared secret. A WebSocket client must send
  *   AUTH:<key>\n
+ *
  * before any other frame is forwarded to the Flipper. This is a second,
  * independent gate on top of the AP password, so joining the AP is not enough
- * to drive the radio. Replace before flashing. */
+ * to drive the radio. I replace before flashing. */
 static const char* BRIDGE_KEY = FOBWORKS_BRIDGE_KEY;
 
 #define FLIPPER_UART    Serial1
 #define FLIPPER_BAUD    115200
 #define FLIPPER_UART_RX 18   /* ESP RX <- Flipper TX, pin 13 */
 #define FLIPPER_UART_TX 17   /* ESP TX -> Flipper RX, pin 14 */
-#undef LINE_MAX /* macOS host toolchains predefine it via syslimits.h */
+#undef LINE_MAX /* I clear the macro predefined by macOS host toolchains. */
 #define LINE_MAX        512  /* FAP transmit buffer size */
 
 WebServer http(80);

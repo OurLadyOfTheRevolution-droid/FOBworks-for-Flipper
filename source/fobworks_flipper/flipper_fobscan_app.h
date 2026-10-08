@@ -1,6 +1,7 @@
 #pragma once
 
 #include <furi.h>
+#include <furi/core/event_loop_timer.h>
 #include <furi_hal.h>
 #include <gui/gui.h>
 #include <gui/view.h>
@@ -139,7 +140,18 @@ typedef enum {
     FobscanModeSweep,      /* auto-sweep across the custom range, linger on hits */
 } FobscanUiMode;
 
+#ifdef FOBSCAN_STARTUP_PROBE
+typedef enum {
+    FobscanProbeFull = 0,
+    FobscanProbeDisplayOnly,
+    FobscanProbeRxOnly,
+} FobscanProbeMode;
+#endif
+
 typedef struct {
+#ifdef FOBSCAN_STARTUP_PROBE
+    FobscanProbeMode probe_mode;
+#endif
     bool     scanning;
     float    rssi_dbm;
     float    freq_mhz;
@@ -148,7 +160,7 @@ typedef struct {
     uint32_t cap_count;
     FlipperDecodeResult last_decode;
     bool     last_decode_valid;
-    int      flash_ticks;   /* >0: draw "SIGNAL CAPTURED" banner, counts down    */
+    int      flash_ticks;   /* >0: draw \"SIGNAL CAPTURED\" banner, counts down    */
     bool     flash_decoded; /* last capture was decoded (vs raw burst)            */
 
     /* Custom-range sweep (Left button) */
@@ -182,7 +194,8 @@ typedef enum {
     FlipperRxToolGrollback,
 } FlipperRxToolKind;
 
-/* FOBfreq: two timing profiles (reference vs suspect); coarse, not identity. */
+/* FOBfreq: I compare reference and suspect pulse-timing profiles.
+   I do not use these measurements as oscillator or transmitter identity. */
 typedef struct {
     FobTimingProfile a;
     FobTimingProfile b;
@@ -400,8 +413,8 @@ typedef struct {
     View*   fobpwn_view;
     View*   fobcrack_view;
 
-    /* 500 ms status tick */
-    FuriTimer* tick_timer;
+    /* 500 ms app-thread timer; never run app work on shared TimersSrv. */
+    FuriEventLoopTimer* tick_timer;
 
     /* ── Dashboard control links (USB CDC + GPIO UART) ─────────────────── */
     FlipperLink* usb_link;
@@ -464,6 +477,7 @@ void flipper_app_gui_radio_release(FlipperApp* app);
 
 /* Canvas draw and input callbacks, defined in the scene files. */
 void flipper_fobscan_draw_cb (Canvas* c, void* ctx);
+void flipper_fobscan_view_init(FlipperApp* app);
 bool flipper_fobscan_input_cb(InputEvent* e, void* ctx);
 void flipper_fobclone_draw_cb (Canvas* c, void* ctx);
 bool flipper_fobclone_input_cb(InputEvent* e, void* ctx);

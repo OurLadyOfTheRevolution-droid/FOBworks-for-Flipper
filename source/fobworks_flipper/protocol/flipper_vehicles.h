@@ -27,7 +27,7 @@ typedef struct {
 typedef struct {
     const char*       make;
     const char*       model;
-    const char*       years[FC_YEARS_MAX];
+    const char* const* years;
     int               year_count;
     const FlipperFcProfile* profile;
 } FlipperFcVehicle;
@@ -64,14 +64,12 @@ typedef struct {
 typedef struct {
     const char*   make;
     const char*   region;
-    FlipperFbkModel   models[FBK_MODELS_MAX];
+    const FlipperFbkModel* models;
     int           model_count;
 } FlipperFbkMake;
 
 /* ── Counts ───────────────────────────────────────────────────────────────── */
-/* Globals live in flipper_vehicles.c (host tests + fw_catalog.fal). The
-   device host FAP does not link that file; scenes use the accessors below,
-   which forward into the catalog plugin. */
+/* Globals live in flipper_vehicles.c (host tests + fw_catalog.fal). The device host FAP does not link that file; scenes use the accessors below, which forward into the catalog plugin. */
 extern const int FLIPPER_FC_PROFILE_COUNT;
 extern const int FLIPPER_FC_VEHICLE_COUNT;
 extern const int FLIPPER_FBK_MAKE_COUNT;

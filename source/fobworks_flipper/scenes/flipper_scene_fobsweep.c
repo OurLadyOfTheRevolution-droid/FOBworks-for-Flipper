@@ -2,9 +2,7 @@
 #include <notification/notification_messages.h>
 #include <stdio.h>
 
-/* FOBsweep measures RSSI on the selected frequency. Auto-advance scans the
- * shared frequency table and holds each peak, forming a spectrum across the
- * lower bar. Decoding and replay are handled in the Library. */
+/* FOBsweep measures RSSI on the selected frequency. Auto-advance scans the shared frequency table and holds each peak, forming a spectrum across the lower bar. Decoding and replay are handled in the Library. */
 
 #define SWEEP_FLOOR_DBM (-100.0f)
 #define SWEEP_CEIL_DBM  (-30.0f)
@@ -54,8 +52,7 @@ void flipper_fobsweep_draw_cb(Canvas* canvas, void* model) {
     canvas_draw_frame(canvas, 0, 26, 122, 8);
     if(mw > 0) canvas_draw_box(canvas, 1, 27, mw, 6);
 
-    /* Strongest-signal indicator: the frequency holding the highest peak.  Only
-       shown once something has actually risen off the noise floor. */
+    /* Strongest-signal indicator: the frequency holding the highest peak.  Only shown once something has actually risen off the noise floor. */
     if(s->peak_idx < 0 || s->peak_idx >= n) s->peak_idx = 0;
     char peak_line[48];
     if(s->peak[s->peak_idx] > SWEEP_FLOOR_DBM) {
@@ -81,15 +78,13 @@ void flipper_fobsweep_draw_cb(Canvas* canvas, void* model) {
             canvas_draw_line(canvas, x, base_y + 1, x + bw - 2, base_y + 1);
         }
         if(i == s->peak_idx && s->peak[s->peak_idx] > SWEEP_FLOOR_DBM) {
-            /* Cap marker above the strongest column (distinct from the selected
-               underline), so the peak is visible even as the sweep moves on. */
+            /* Cap marker above the strongest column (distinct from the selected underline), so the peak is visible even as the sweep moves on. */
             canvas_draw_box(canvas, x, top_y - 3, bw - 1, 2);
         }
     }
 }
 
-/* Input handlers change state directly. Commit the model after visible changes
-   so the meter redraws without switching views. */
+/* Input handlers change state directly. I commit the model after visible changes so the meter redraws without switching views. */
 static void fobsweep_redraw(FlipperApp* app) {
     view_get_model(app->fobsweep_view);
     view_commit_model(app->fobsweep_view, true);
@@ -177,15 +172,13 @@ bool flipper_scene_fobsweep_on_event(void* ctx, SceneManagerEvent e) {
             s->rssi[i] = r;
             if(r > s->peak[i]) s->peak[i] = r;
 
-            /* Track the frequency holding the strongest peak, for the on-display
-               indicator. */
+            /* Track the frequency holding the strongest peak, for the on-display indicator. */
             s->peak_idx = 0;
             for(int k = 1; k < n; k++)
                 if(s->peak[k] > s->peak[s->peak_idx]) s->peak_idx = k;
 
             if(s->auto_advance) {
-                /* Pause on a signal above the squelch, then advance when the
-                   dwell expires. */
+                /* Pause on a signal above the squelch, then advance when the dwell expires. */
                 bool hit = r > app->adv.squelch_dbm;
                 if(hit) {
                     s->linger = SWEEP_LINGER;

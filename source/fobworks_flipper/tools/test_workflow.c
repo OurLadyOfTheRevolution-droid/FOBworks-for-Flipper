@@ -1,4 +1,4 @@
-/* Exercise each utility's host-side path with synthetic signals: radio-open
+/* I exercise each utility's host-side path with synthetic signals: radio-open
  * noise, a KeeLoq frame using a listed manufacturer key, a frame with no
  * listed key, and a second press. The checks follow the scene rules: FOBcrack
  * stops after one KeeLoq frame, while other listeners keep scanning. */
@@ -68,7 +68,7 @@ static void show(const char* label, int ok, const FlipperDecodeResult* r) {
 int main(void) {
     FlipperPulseBuf buf;
     FlipperDecodeResult a, b, noise;
-    /* The table stores masked keys. Unmask this test value once so the
+    /* The table stores masked keys. I unmask this test value once so the
        remaining checks use the original key. */
     const uint64_t doorhan_stored = 0xC9F1C7E5F53307FDULL;
     const uint64_t doorhan = kl_unmask_key(doorhan_stored);
@@ -76,7 +76,7 @@ int main(void) {
     uint8_t btn = 0x2;
     uint32_t plain1 = ((uint32_t)btn << 28) | ((sn & 0x3FFu) << 16) | 0x0101;
     uint32_t plain2 = ((uint32_t)btn << 28) | ((sn & 0x3FFu) << 16) | 0x0102;
-    /* Check that the stored value differs from the plaintext key without
+    /* I check that the stored value differs from the plaintext key without
        spelling that key out here. */
     expect(doorhan != doorhan_stored, "the stored manufacturer key is not the key itself");
     uint32_t enc1 = kl_encrypt(plain1, doorhan);

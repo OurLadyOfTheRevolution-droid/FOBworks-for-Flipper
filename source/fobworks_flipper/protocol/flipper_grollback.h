@@ -3,23 +3,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-/*
- * Generalized RollBack / resync-window analyzer.
- *
- * FOBpwn is Honda-specific: it hardcodes the RollingPWN 3-code consecutive-run
- * check. This module generalizes that idea to ANY decoded rolling family with
- * an honest, monotonic counter (Subaru, Mazda V0, Suzuki, Kia V7, KeeLoq, …).
- *
- * The model follows Csikor et al. (RollBack, USENIX 2022): capture N codes in
- * order, let the receiver advance, then replay the oldest captured code. If the
- * receiver resynchronizes, every earlier code in the captured run is accepted
- * again. The analyzer only DECIDES that a captured run is a plausible
- * rollback candidate from the counter deltas — it does not, and cannot,
- * confirm that a specific receiver will accept a replay. That confirmation
- * still requires a live, authorized target.
- *
- * No radio is ever keyed by this module.
- */
+/* Generalized RollBack / resync-window analyzer. FOBpwn is Honda-specific: I hardcode the RollingPWN 3-code consecutive-run check. This module generalizes that idea to ANY decoded rolling family with an honest, monotonic counter (Subaru, Mazda V0, Suzuki, Kia V7, KeeLoq, …). The model follows Csikor et al. (RollBack, USENIX 2022): I capture N codes in order, let the receiver advance, then I replay the oldest captured code. If the receiver resynchronizes, every earlier code in the captured run is accepted again. The analyzer only DECIDES that a captured run is a plausible rollback candidate from the counter deltas — it does not, and cannot, confirm that a specific receiver will accept a replay. That confirmation still requires a live, authorized target. I never key radio with this module. */
 #define GROLLBACK_MAX_CAPS 8
 
 typedef struct {
@@ -45,20 +29,13 @@ typedef struct {
     char     note[96];
 } GrollbackPlan;
 
-/*
- * Analyze a run of decoded frames. All frames must share a serial, command,
- * protocol, and frequency; each masked counter step must be in [1, max_delta].
- * The run is a candidate only when its length reaches min_seq. Rejects a
- * plaintext-hop run from being called "enciphered" (forgeable), which matters
- * for honest framing: a plaintext counter is trivially predictable, so the
- * note distinguishes "rollback candidate" from "predictable plaintext".
- */
+/* I analyze a run of decoded frames. All frames must share a serial, command, protocol, and frequency; each masked counter step must be in [1, max_delta]. The run is a candidate only when its length reaches min_seq. I reject a plaintext-hop run from being called "enciphered" (forgeable), which matters for honest framing: a plaintext counter is trivially predictable, so the note distinguishes "rollback candidate" from "predictable plaintext". */
 void grollback_analyze(const GrollbackFrame* frames, int n,
                        uint32_t counter_mask, int min_seq,
                        uint32_t max_delta, float freq_tol_mhz,
                        GrollbackPlan* out);
 
-/* Convenience: build a plan from decoded results (counters already masked). */
+/* Convenience: I build a plan from decoded results (counters already masked). */
 void grollback_analyze_results(const FlipperDecodeResult* results, int n,
                                uint32_t counter_mask, int min_seq,
                                uint32_t max_delta, float freq_tol_mhz,

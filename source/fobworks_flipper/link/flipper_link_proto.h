@@ -2,7 +2,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-/* A dashboard code is exactly six digits; empty/partial input is invalid. */
+/* A dashboard code is exactly six digits; I treat empty/partial input as invalid. */
 bool flipper_proto_valid_access_code(const char* code);
 #include "../protocol/flipper_decoders.h"
 typedef struct FlipperLibEntry FlipperLibEntry;
@@ -18,30 +18,7 @@ typedef enum FlipperPreset FlipperPreset;
 #define FLIPPER_PULSE_MAX 512
 #endif
 
-/*
- * Transport-neutral wire protocol shared by the USB CDC and GPIO UART links.
- *
- * These functions do not depend on Furi or hardware, so tools/test_link.c can
- * exercise them on the host. flipper_link.c uses them to format outbound lines
- * and parse inbound commands.
- *
- * The dashboard's JSON normalizer dispatches on "event", "proto", and "cmd";
- * it does not read a "type" key. Keep this schema in sync with that parser or
- * the dashboard will drop frames.
- *
- * Outbound (Flipper -> dashboard), each newline-terminated:
- *   {"event":"boot", "freq":433.92, "cc1101":true}
- *   {"event":"heartbeat","freq":433.92,"scan":true,"batt_pct":100,"uptime":12,"cc1101":true,"keys":0}
- *   {"proto":"KeeLoq","f":"433.92","sn":123,"btn":2,"ctr":45,"hop":678,"rssi":-72,"hex":"...","mfr":"...","predict":{...}}
- *   {"cmd":"status","freq":433.92,"scan":true,"cc1101":true,...}
- *   {"cmd":"keys","keys":[]}
- *   {"cmd":"<name>","ok":true|false[,"error":"..."]}
- *   {"event":"replay_playing","n":1,"of":1,"ctr":0}
- *   {"event":"replay_stopped","n":1,"ctr":0,"proto":"KeeLoq","sn":123}
- *   {"event":"replay_done"}
- *
- * Inbound (dashboard -> Flipper): {"cmd":"<name>"[,"freq":..][,"val":..]}
- */
+/* * Transport-neutral wire protocol shared by the USB CDC and GPIO UART links. * * These functions do not depend on Furi or hardware, so tools/test_link.c can * exercise them on the host. flipper_link.c uses them to format outbound lines * and parse inbound commands. * * The dashboard's JSON normalizer dispatches on "event", "proto", and "cmd"; * it does not read a "type" key. I keep this schema in sync with that parser to prevent dropped frames. * * Outbound (Flipper -> dashboard), each newline-terminated: *   {"event":"boot", "freq":433.92, "cc1101":true} *   {"event":"heartbeat","freq":433.92,"scan":true,"batt_pct":100,"uptime":12,"cc1101":true,"keys":0} *   {"proto":"KeeLoq","f":"433.92","sn":123,"btn":2,"ctr":45,"hop":678,"rssi":-72,"hex":"...","mfr":"...","predict":{...}} *   {"cmd":"status","freq":433.92,"scan":true,"cc1101":true,...} *   {"cmd":"keys","keys":[]} *   {"cmd":"<name>","ok":true|false[,"error":"..."]} *   {"event":"replay_playing","n":1,"of":1,"ctr":0} *   {"event":"replay_stopped","n":1,"ctr":0,"proto":"KeeLoq","sn":123} *   {"event":"replay_done"} * * Inbound (dashboard -> Flipper): {"cmd":"<name>"[,"freq":..][,"val":..]} */
 
 /* ── Inbound command kinds ────────────────────────────────────────────────── */
 typedef enum {
@@ -68,9 +45,7 @@ typedef enum {
     FlipperCmdLibraryExport, /* library_export                                 */
     FlipperCmdUtility,       /* device-only utility lifecycle query             */
     FlipperCmdAuth,          /* auth — set/clear dashboard access code          */
-    /* Recognized but not possible on single-CC1101 Flipper hardware.
-       Dispatched as an honest {"ok":false,"error":"unsupported..."} reply so
-       the UI reflects reality instead of hanging. */
+    /* I recognize these but they are impossible on single-CC1101 Flipper hardware. I dispatch an honest {"ok":false,"error":"unsupported..."} reply so the UI reflects reality instead of hanging. */
     FlipperCmdUnsupported,
 } FlipperCmdKind;
 
@@ -94,12 +69,10 @@ typedef struct {
     char           new_code[8];/* auth command: code to install                 */
 } FlipperCmd;
 
-/* Parse one newline-free JSON line into a command.
-   Returns true if a "cmd" key was found (kind may be Unknown/Unsupported). */
+/* I parse one newline-free JSON line into a command. Returns true if a "cmd" key was found (kind may be Unknown/Unsupported). */
 bool flipper_proto_parse_cmd(const char* line, FlipperCmd* out);
 
-/* ── Outbound emitters — write a newline-terminated line into out[0..n) ─────
-   All return the number of bytes written (excluding the NUL), 0 on overflow. */
+/* ── Outbound emitters — write a newline-terminated line into out[0..n) ───── All return the number of bytes written (excluding the NUL), 0 on overflow. */
 
 size_t flipper_proto_emit_boot(char* out, size_t n, float freq_mhz, bool cc1101_ok);
 
@@ -125,7 +98,7 @@ size_t flipper_proto_emit_status_ex(
     uint32_t tx_deadline_ms, uint32_t capture_overflow,
     uint32_t peak_free_heap, uint32_t free_heap);
 
-/* Flipper FAP has no host-writable key store, so it honestly reports none. */
+/* The Flipper FAP has no host-writable key store, so I honestly report none. */
 size_t flipper_proto_emit_keys_empty(char* out, size_t n);
 
 size_t flipper_proto_emit_cmdresp(

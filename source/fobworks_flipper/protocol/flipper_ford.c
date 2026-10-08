@@ -21,19 +21,19 @@ static const uint8_t ford_v0_crc_matrix[64] = {
 /* V0 checksum: add the serial bytes, counter bytes, and button shifted by 3. */
 static uint8_t ford_v0_checksum(const FordV0Frame* f) {
     uint8_t sum = 0;
-    /* Add the three bytes of the 24-bit serial. */
+    /* I add the three bytes of the 24-bit serial. */
     sum += (f->serial >> 16) & 0xFF;
     sum += (f->serial >> 8) & 0xFF;
     sum += f->serial & 0xFF;
-    /* Add the two bytes of the 16-bit counter. */
+    /* I add the two bytes of the 16-bit counter. */
     sum += (f->counter >> 8) & 0xFF;
     sum += f->counter & 0xFF;
-    /* Add the shifted button value. */
+    /* I add the shifted button value. */
     sum += (f->button << 3) & 0xFF;
     return sum & 0xFF;
 }
 
-/* Calculate the V0 CRC-8 from the GF(2) matrix. */
+/* I calculate the V0 CRC-8 from the GF(2) matrix. */
 static uint8_t ford_v0_crc8(const uint8_t* data, int bits) {
     uint8_t crc = 0;
     for(int i = 0; i < bits && i < 64; i++) {
@@ -48,8 +48,7 @@ static uint8_t ford_v0_crc8(const uint8_t* data, int bits) {
 bool ford_v0_parse(const uint8_t* raw, int raw_bits, FordV0Frame* out) {
     if(!raw || !out || raw_bits < 64) return false;
 
-    /* Read the 64-bit frame as serial(24) | counter(16) | button(4) |
-       checksum(8) | CRC(8) | pad(4). */
+    /* I read the 64-bit frame as serial(24) | counter(16) | button(4) | checksum(8) | CRC(8) | pad(4). */
     uint64_t frame = 0;
     for(int i = 0; i < 64 && i < raw_bits; i++) {
         frame = (frame << 1) | ((raw[i / 8] >> (7 - (i % 8))) & 1);
@@ -61,20 +60,18 @@ bool ford_v0_parse(const uint8_t* raw, int raw_bits, FordV0Frame* out) {
     out->checksum  = (frame >> 12) & 0xFF;
     out->crc       = (frame >> 4) & 0xFF;
 
-    /* Check the additive checksum before the CRC. */
+    /* I check the additive checksum before the CRC. */
     uint8_t expected_cksum = ford_v0_checksum(out);
     if(out->checksum != expected_cksum) return false;
 
-    /* The CRC covers the 52 bits before its 8-bit field. Including any CRC
-       bits in the calculation would make the value self-referential. */
+    /* The CRC covers the 52 bits before its 8-bit field. Including any CRC bits in the calculation would make the value self-referential. */
     uint8_t expected_crc = ford_v0_crc8(raw, 52);
     if(out->crc != expected_crc) return false;
 
-    /* Both checksums evaluate to zero for an all-zero input; reject it so an
-       empty demodulation is not reported as a valid capture. */
+    /* Both checksums evaluate to zero for an all-zero input; I reject it so an empty demodulation is not reported as a valid capture. */
     if(out->serial == 0) return false;
 
-    /* Convert known button codes to their function names. */
+    /* I convert known button codes to their function names. */
     switch(out->button) {
     case 0x1: out->function = "Lock"; break;
     case 0x2: out->function = "Unlock"; break;
@@ -89,10 +86,10 @@ bool ford_v0_parse(const uint8_t* raw, int raw_bits, FordV0Frame* out) {
 bool ford_v0_build(FordV0Frame* f, uint8_t* out, int* out_bits) {
     if(!f || !out || !out_bits) return false;
 
-    /* Fill in the checksum before packing the frame. */
+    /* I fill in the checksum before packing the frame. */
     f->checksum = ford_v0_checksum(f);
 
-    /* Assemble the non-CRC fields into the 64-bit frame. */
+    /* I assemble the non-CRC fields into the 64-bit frame. */
     uint64_t frame = 0;
     frame |= ((uint64_t)f->serial & 0xFFFFFF) << 40;
     frame |= ((uint64_t)f->counter & 0xFFFF) << 24;
@@ -100,12 +97,12 @@ bool ford_v0_build(FordV0Frame* f, uint8_t* out, int* out_bits) {
     frame |= ((uint64_t)f->checksum & 0xFF) << 12;
     /* The CRC is calculated after the packed bytes are available. */
 
-    /* Write the frame bytes in most-significant-byte-first order. */
+    /* I write the frame bytes in most-significant-byte-first order. */
     for(int i = 0; i < 8; i++) {
         out[i] = (frame >> (56 - i * 8)) & 0xFF;
     }
 
-    /* Calculate CRC over the 52 bits before its field, matching the parser. */
+    /* I calculate CRC over the 52 bits before its field, matching the parser. */
     f->crc = ford_v0_crc8(out, 52);
     out[6] = (out[6] & 0xF0) | (f->crc >> 4);
     out[7] = (out[7] & 0x0F) | (f->crc << 4);
@@ -133,8 +130,7 @@ static uint16_t ford_v1_crc16(const uint8_t* data, int len) {
 bool ford_v1_parse(const uint8_t* raw, int raw_bits, FordV1Frame* out) {
     if(!raw || !out || raw_bits < 136) return false;
 
-    /* This partial parser reads the two 28-bit serial portions directly. It
-       does not decode the air-to-plain XOR flags, counter, or button. */
+    /* This partial parser reads the two 28-bit serial portions directly. I do not decode the air-to-plain XOR flags, counter, or button. */
     uint32_t serial_hi = 0, serial_lo = 0;
     for(int i = 0; i < 28; i++) {
         serial_hi = (serial_hi << 1) | ((raw[i / 8] >> (7 - (i % 8))) & 1);
@@ -153,7 +149,7 @@ bool ford_v1_parse(const uint8_t* raw, int raw_bits, FordV1Frame* out) {
         received_crc = (received_crc << 1) | ((raw[i / 8] >> (7 - (i % 8))) & 1);
     }
 
-    /* Compare against the CRC over the first 120 bits. */
+    /* I compare against the CRC over the first 120 bits. */
     uint16_t expected_crc = ford_v1_crc16(raw, 15);
     if(received_crc != expected_crc) return false;
 
@@ -175,7 +171,7 @@ bool ford_v2_parse(const uint8_t* raw, int raw_bits, FordV2Frame* out) {
     out->button   = (frame >> 8) & 0xFF;
     out->checksum = frame & 0xFF;
 
-    /* Validate the additive checksum across serial, counter, and button. */
+    /* I validate the additive checksum across serial, counter, and button. */
     uint8_t sum = 0;
     sum += (out->serial >> 24) & 0xFF;
     sum += (out->serial >> 16) & 0xFF;

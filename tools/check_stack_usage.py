@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-"""Measure selected production ARM stack frames with the SDK compiler.
+"""I measure selected production ARM stack frames with the SDK compiler.
 
-Run ufbt first to generate .vscode/compile_commands.json. This recompiles only
+I run ufbt first to generate .vscode/compile_commands.json. This recompiles only
 the selected translation units in a temporary directory; it never replaces
 the SDK build's objects. Frame checks are NOT whole-call-chain or hardware
-stack qualification.
-"""
+stack qualification."""
 import argparse
 import hashlib
 import json
@@ -18,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 APP = ROOT / "source/fobworks_flipper"
 # Leave room for callers, SDK functions, interrupts and thread bookkeeping.
 BUDGETS = {
+    "flipper_tick_cb": ("flipper_fobscan_app.c", 512),
     "flipper_app_handle_command": ("flipper_link_dispatch.c", 1536),
     "feed_byte": ("flipper_link.c", 512),
     "usb_rx_thread": ("flipper_link.c", 128),
@@ -25,7 +25,9 @@ BUDGETS = {
     "flipper_capture_notify_worker": ("flipper_capture.c", 256),
     "flipper_capture_start": ("flipper_capture.c", 256),
     "flipper_scene_fobscan_on_enter": ("flipper_scene_fobscan.c", 256),
-    "flipper_fobscan_draw_cb": ("flipper_scene_fobscan.c", 320),
+    "flipper_fobscan_draw_cb": ("flipper_scene_fobscan.c", 64),
+    "fobscan_redraw": ("flipper_scene_fobscan.c", 192),
+    "flipper_fobscan_display_build": ("flipper_fobscan_display.c", 256),
     "fobscan_consume_flush": ("flipper_scene_fobscan.c", 512),
 }
 
@@ -86,15 +88,17 @@ def main():
         for name in BUDGETS)
     rows.extend([
         "",
-        "These are individual compiler-reported frames, not total thread usage.",
+        "I measured individual compiler-reported frames, not total thread usage.",
         "Link workers and the app have 4096-byte stacks; the capture-notify worker",
         "and official GUI service have separate 2048-byte stacks.",
-        "SDK callees, plugin loading, interrupt/context saves and runtime high-water",
-        "marks still need physical-device qualification.",
+        "flipper_tick_cb runs on the app-owned event loop, not the firmware's",
+        "1024-byte TimersSrv. Its scene/decoder/format callees still add frames.",
+        "I still need to check SDK callees, plugin loading, interrupt/context saves",
+        "and runtime high-water marks on the device.",
         "",
-        "The reported MPU fault's thread and PC were not captured. The corrected",
-        "command-handler overflow is verified, but attribution of that",
-        "FOBscan-opening crash remains unconfirmed.",
+        "I did not capture the MPU fault's thread or PC. I verified the corrected",
+        "command-handler overflow, but I have not established the exact cause",
+        "of my FOBscan crash.",
         "",
     ])
     args.report.write_text("\n".join(rows))

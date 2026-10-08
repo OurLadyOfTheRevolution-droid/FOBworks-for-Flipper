@@ -1,25 +1,14 @@
-/* Synthetic decode/classification harness for KeeLoq and OOK signals.
- * It generates labeled test frames with fabricated keys and serials (no real
- * vehicle data), runs them through flipper_decode(), and checks the results
- * against each frame's expected protocol.
- *
- * Build: gcc -I../protocol test_classify.c ../protocol/flipper_keeloq.c \
- *            ../protocol/flipper_decoders.c -o test_classify
- */
+/* Synthetic decode/classification harness for KeeLoq and OOK signals. It generates labeled test frames with fabricated keys and serials (no real vehicle data), runs them through flipper_decode(), and checks the results against each frame's expected protocol. Build: gcc -I../protocol test_classify.c ../protocol/flipper_keeloq.c \\ ../protocol/flipper_decoders.c -o test_classify */
 #include "flipper_decoders.h"
 #include "flipper_keeloq.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 
-/* Longest output directory accepted on the command line. The paths built from
- * it are sized from this, so the snprintf calls below cannot truncate — GCC's
- * -Wformat-truncation is exact about that, and -Werror makes it fatal. */
+/* Longest output directory accepted on the command line. The paths built from it are sized from this, so the snprintf calls below cannot truncate — GCC's -Wformat-truncation is exact about that, and -Werror makes it fatal. */
 #define OUTDIR_MAX 240
 
-/* Longest generated .sub filename: make (23) + "_" + model (26) + set (3) +
- * "_" + year (4) + "_fobA_series" + series (<=5) + "_press" + press (1) +
- * ".sub" + NUL. 96 covers the longest catalogue entry with room to spare. */
+/* Longest generated .sub filename: make (23) + "_" + model (26) + set (3) + "_" + year (4) + "_fobA_series" + series (<=5) + "_press" + press (1) + ".sub" + NUL. 96 covers the longest catalogue entry with room to spare. */
 #define FN_MAX 96
 
 /* ── pulse buffer builder ─────────────────────────────────────────────── */
@@ -32,9 +21,7 @@ static void reset(FlipperPulseBuf* b, float mhz) {
 }
 
 /* ── KeeLoq HCS300 synth ──────────────────────────────────────────────── */
-/* Builds a structurally-valid HCS300 frame that satisfies kl_pwm + kl_parse
- * + the decoder's structural fingerprint. enc low-12 bits are set from
- * btn/disc/ovf as the decoder requires; upper 20 bits vary per press. */
+/* Builds a structurally-valid HCS300 frame that satisfies kl_pwm + kl_parse + the decoder's structural fingerprint. enc low-12 bits are set from btn/disc/ovf as the decoder requires; upper 20 bits vary per press. */
 static void synth_keeloq(FlipperPulseBuf* b, float mhz, uint32_t te,
                          uint32_t sn28, uint8_t btn4, uint32_t upper20) {
     reset(b, mhz);
@@ -63,7 +50,7 @@ static void synth_keeloq(FlipperPulseBuf* b, float mhz, uint32_t te,
 static void synth_came(FlipperPulseBuf* b, float mhz, uint32_t te, uint16_t code) {
     reset(b, mhz);
     push(b, te * 12);         /* leader HIGH >=8T (margin for TE rounding) */
-    push(b, te);              /* short LOW <=2T   */
+    push(b, te);              /* short LOW <=2T */
     for(int i = 0; i < 12; i++) {
         uint32_t hi = ((code >> i) & 1) ? te * 2 : te;   /* '1'=2T HIGH */
         push(b, hi); push(b, te);
@@ -101,8 +88,7 @@ static void synth_holtek(FlipperPulseBuf* b, float mhz, uint32_t te,
                          uint32_t addr20, uint8_t data4) {
     reset(b, mhz);
     push(b, te * 30);         /* leader HIGH >=24T; ds=i+1=1 lands on first group */
-    /* 20 addr bits then 4 data bits; each bit is a 3-duration group,
-       decoder reads durations[ds] (>1.5T => set), ds += 3. */
+    /* 20 addr bits then 4 data bits; each bit is a 3-duration group, decoder reads durations[ds] (>1.5T => set), ds += 3. */
     for(int i = 0; i < 20; i++) {
         uint32_t d0 = ((addr20 >> i) & 1) ? te * 2 : te;
         push(b, d0); push(b, te); push(b, te);
@@ -130,8 +116,7 @@ static void synth_ansonic(FlipperPulseBuf* b, float mhz, uint32_t te, uint16_t c
 static void synth_doorhan(FlipperPulseBuf* b, float mhz, uint32_t te,
                           uint32_t addr, uint32_t hop) {
     reset(b, mhz);
-    /* decoder reads durations[0..31] step2 => addr, [32..63] step2 => hop.
-       >1.5T => bit set. */
+    /* decoder reads durations[0..31] step2 => addr, [32..63] step2 => hop. >1.5T => bit set. */
     for(int i = 0; i < 32; i += 2) {
         uint32_t d = ((addr >> (i >> 1)) & 1) ? te * 2 : te;
         push(b, d); push(b, te);
@@ -143,7 +128,7 @@ static void synth_doorhan(FlipperPulseBuf* b, float mhz, uint32_t te,
     while(b->len < 84) push(b, te);   /* len>=80 */
 }
 
-/* ── Security+ 1.0 synth (argilo/secplus OOK, two ternary packets) ─────── */
+/* ── Security+ 1.0 synth (the secplus reference implementation OOK, two ternary packets) ─────── */
 static uint32_t synth_secplus1_rev32(uint32_t n) {
     uint32_t r = 0;
     for(int i = 0; i < 32; i++) {
@@ -204,7 +189,7 @@ static void synth_secplus1(FlipperPulseBuf* b, float mhz, uint32_t te,
     if(run) push(b, run * te);
 }
 
-/* ── Security+ 2.0 synth (argilo encode_v2_manchester, TE = half-bit) ─── */
+/* ── Security+ 2.0 synth (secplus encode_v2_manchester, TE = half-bit) ─── */
 static const uint8_t SP2_ORDER[11][3] = {
     {0, 2, 1}, {2, 0, 1}, {0, 1, 2}, {0, 0, 0}, {1, 2, 0}, {1, 0, 2},
     {2, 1, 0}, {0, 0, 0}, {1, 2, 0}, {2, 1, 0}, {0, 1, 2},
@@ -296,8 +281,7 @@ static void synth_secplus2(FlipperPulseBuf* b, float mhz, uint32_t te,
     synth_secplus2_half(roll1, fb, h1);
     synth_secplus2_half(roll2, fb + 20, h2);
 
-    /* preamble(16×0+4×1) + frame-id + half; raw chip blank; second packet.
-     * argilo encode_v2_manchester: manchester(p1) + [0]*blank + manchester(p2). */
+    /* preamble(16×0+4×1) + frame-id + half; raw chip blank; second packet. secplus encode_v2_manchester: manchester(p1) + [0]*blank + manchester(p2). */
     uint8_t bits[80];
     uint8_t chips[400];
     int nc = 0;
@@ -390,9 +374,7 @@ static void synth_tpms(FlipperPulseBuf* b, float mhz, uint32_t te, uint32_t word
 
 /* ── run one buffer through the real pipeline ─────────────────────────── */
 
-/* Test both paths: Auto, which uses auto_safe decoders, and the selected
-   protocol's forced decoder. Reporting only Auto would count every force-only
-   protocol as a failure, even when its decoder works. */
+/* Test both paths: Auto, which uses auto_safe decoders, and the selected protocol's forced decoder. Reporting only Auto would count every force-only protocol as a failure, even when its decoder works. */
 static uint32_t run_pipeline(FlipperPulseBuf* b, char* auto_out, char* force_out,
                              FlipperForceProto force) {
     FlipperDecodeResult r;
@@ -412,19 +394,14 @@ enum { P_KEELOQ, P_SECP2, P_SECP1, P_DOORHAN, P_CAME, P_NICE,
        P_HOLTEK, P_FAAC, P_ANSONIC, P_LINEAR, P_PT2262, P_EV1527, P_TPMS, N_PROTO };
 
 typedef struct {
-    const char*      label;    /* substring of the string the DECODER writes into
-                                  r->proto -- NOT the registry display name. Nice
-                                  and FAAC differ between the two. */
+    const char*      label;    /* substring of the string the DECODER writes into r->proto -- NOT the registry display name. Nice and FAAC differ between the two. */
     const char*      make;     /* SYNTHETIC label */
     const char*      model;
     float            mhz;
     uint32_t         te;
     int              rolling;  /* 1 = counter advances per press */
     FlipperForceProto force;   /* id for the force-only path */
-    int              known_broken; /* 1 = the decoder does not implement this protocol.
-                                      Reported separately and EXCLUDED from the headline
-                                      accuracy, so a broken decoder cannot hide inside an
-                                      average. See the note on Security+1.0 below. */
+    int              known_broken; /* 1 = the decoder does not implement this protocol. Reported separately and EXCLUDED from the headline accuracy, so a broken decoder cannot hide inside an average. See the note on Security+1.0 below. */
 } ProtoSpec;
 
 static const ProtoSpec CATALOG[N_PROTO] = {
@@ -493,10 +470,7 @@ static void write_sub(const char* path, const FlipperPulseBuf* b, float mhz) {
     fclose(f);
 }
 
-/* Check derivation order and transformations using the current table. The old
- * assertions named invented filler entries, so they stopped working when the
- * real 73-key corpus replaced them. Building expectations from the table keeps
- * these checks useful if the table changes again. */
+/* Check derivation order and transformations using the current table. The old assertions named invented filler entries, so they stopped working when the real 73-key corpus replaced them. Building expectations from the table keeps these checks useful if the table changes again. */
 static int test_keeloq_derivation_order(void) {
     static DerivedKey all[MAX_DERIVED_KEYS];
     int n = kl_derive_all_keys(all);
@@ -550,9 +524,7 @@ int main(int argc, char** argv) {
         if(v > 0) { total_sets = v > 500 ? 500 : v; }
     }
     const int PRESSES = 3;
-    /* Bound the output directory before it is used to size anything else. The
-       default is 41 characters; the cap exists so the buffers below can be
-       sized from a known maximum and the copies provably cannot truncate. */
+    /* Bound the output directory before it is used to size anything else. The default is 41 characters; the cap exists so the buffers below can be sized from a known maximum and the copies provably cannot truncate. */
     if(strlen(outdir) > OUTDIR_MAX) {
         fprintf(stderr, "outdir too long (max %d): %s\n", OUTDIR_MAX, outdir);
         return 2;
@@ -579,8 +551,7 @@ int main(int argc, char** argv) {
     int dec_ok[N_PROTO] = {0}, cls_ok[N_PROTO] = {0}, cnt[N_PROTO] = {0};
     int fdec_ok[N_PROTO] = {0}, fcls_ok[N_PROTO] = {0};
     int tot = 0;
-    /* Keep unimplemented decoders out of the overall totals; their separate
-       rows should not affect the reported accuracy. */
+    /* Keep unimplemented decoders out of the overall totals; their separate rows should not affect the reported accuracy. */
     int g_tot = 0, g_tot_dec = 0, g_tot_cls = 0, g_tot_fdec = 0, g_tot_fcls = 0;
 
     FlipperPulseBuf b;
@@ -639,9 +610,9 @@ int main(int argc, char** argv) {
     #define OUT(...) do { printf(__VA_ARGS__); if(sf) fprintf(sf, __VA_ARGS__); } while(0)
     OUT("FOBscan decode and classification accuracy — synthetic test corpus\n");
     OUT("================================================================\n");
-    OUT("All signals are synthetic and use fabricated serials and keys. No real\n");
-    OUT("vehicle, gate, or third-party captures were used. Ground truth comes from\n");
-    OUT("the generator's label.\n\n");
+    OUT("I generated every signal with fabricated serials and keys. I used no real\n");
+    OUT("vehicle, gate, or third-party captures. I use the generator's label as\n");
+    OUT("ground truth.\n\n");
     OUT("Sets: %d   Presses/set: %d   Total signals: %d\n\n", total_sets, PRESSES, tot);
     OUT("%-16s %5s | %8s %8s | %8s %8s\n", "PROTOCOL", "N",
         "AUTO-DEC", "AUTO-CLS", "FRC-DEC", "FRC-CLS");
@@ -683,10 +654,10 @@ int main(int argc, char** argv) {
         OUT("no longer runs in Auto; it is reachable only when selected explicitly.\n");
     }
 
-    OUT("\nAUTO uses `flipper_decode()` and only the `auto_safe` decoders; this is the\n");
-    OUT("default path. FRC uses `flipper_decode_ex()` after the protocol has been\n");
-    OUT("selected. A force-only protocol's 0%% AUTO score reflects the registry policy,\n");
-    OUT("not a decoder failure; see the `auto_safe` field in `FLIPPER_DECODERS`.\n");
+    OUT("\nI test the default AUTO path with `flipper_decode()` and only the\n");
+    OUT("`auto_safe` decoders. I test FRC with `flipper_decode_ex()` after selecting\n");
+    OUT("the protocol. A force-only protocol's 0%% AUTO score reflects my registry\n");
+    OUT("policy, not a decoder failure; see `auto_safe` in `FLIPPER_DECODERS`.\n");
     if(sf) fclose(sf);
     if(write_output)
         printf("\nWrote %d .sub files + manifest.csv + SUMMARY.txt to\n%s\n", tot, outdir);

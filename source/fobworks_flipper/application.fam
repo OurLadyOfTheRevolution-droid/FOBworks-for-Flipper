@@ -51,6 +51,7 @@ App(
         "scenes/flipper_scene_fobprotos.c",
         "scenes/flipper_scene_fobpwn.c",
         "scenes/flipper_scene_fobscan.c",
+        "scenes/flipper_fobscan_display.c",
         "scenes/flipper_scene_fobsweep.c",
         "scenes/flipper_scene_info.c",
         "scenes/flipper_scene_library.c",

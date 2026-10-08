@@ -3,14 +3,14 @@
 #include <stdbool.h>
 
 /* ─────────────────────────────────────────────────────────────────────────── */
-/* KIA/Hyundai Protocol Suite (V0-V7) — FOBworks implementation.              */
-/*   V0: PWM 250/500μs, CRC8 (also Suzuki/Honda/Mitsubishi)                   */
-/*   V1: Manchester 800/1600μs, CRC4                                          */
-/*   V2: Manchester 500/1000μs, Custom CRC                                     */
-/*   V3/V4: Manchester 400/800μs, KeeLoq + CRC brute-force                    */
-/*   V5: Manchester 400/800μs, Custom Mixer + Kia V5 key                      */
-/*   V6: Manchester 200/400μs, AES-128 (144-bit frames)                       */
-/*   V7: PWM 250/500μs, CRC8                                                  */
+/* KIA/Hyundai Protocol Suite (V0-V7) — FOBworks implementation. */
+/*   V0: PWM 250/500μs, CRC8 (also Suzuki/Honda/Mitsubishi) */
+/*   V1: Manchester 800/1600μs, CRC4 */
+/*   V2: Manchester 500/1000μs, Custom CRC */
+/*   V3/V4: Manchester 400/800μs, KeeLoq + CRC brute-force */
+/*   V5: Manchester 400/800μs, Custom Mixer + Kia V5 key */
+/*   V6: Manchester 200/400μs, AES-128 (144-bit frames) */
+/*   V7: PWM 250/500μs, CRC8 */
 /* ─────────────────────────────────────────────────────────────────────────── */
 
 /* KIA V0 frame */

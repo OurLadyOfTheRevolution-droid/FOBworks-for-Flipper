@@ -11,7 +11,7 @@
  * and sends events and replies back to the host.
  *
  * The GUI scenes and remote commands share one CC1101. While a scene owns it
- * (app->gui_radio_active), remote radio commands receive "radio-busy".
+ * (app->gui_radio_active), remote radio commands receive \"radio-busy\".
  * Status and key queries remain available.
  */
 
@@ -358,8 +358,7 @@ void flipper_app_handle_command(void* app_ctx, const FlipperCmd* cmd, FlipperLin
             jam.len = 2; jam.te_us = 1000; jam.freq_mhz = jf;
             jam.durations[0] = 400000; /* 400 ms HIGH */
             jam.durations[1] = 100000; /* 100 ms LOW: exactly 80% duty */
-            /* Leave remote scanning stopped even if enqueue fails; reporting
-               a failed jam while silently restarting RX is unsafe. */
+            /* Stop remote scanning even if enqueue fails; I consider reporting a failed jam while silently restarting RX unsafe. */
             if(app->remote_scanning) remote_scan_stop(app);
             flipper_capture_stop(app->capture);
              bool jam_ok = flipper_capture_tx_ex_owner(
@@ -513,16 +512,14 @@ void flipper_app_handle_command(void* app_ctx, const FlipperCmd* cmd, FlipperLin
     }
 
     case FlipperCmdUtility:
-        /* Guided utilities own scene state and are intentionally not driven
-           from the link thread.  Do not claim a remote implementation. */
+        /* I designed guided utilities to own scene state; they are not driven from the link thread. I do not claim a remote implementation. */
         ack(origin, cmd, false, "device-only utility; run on Flipper");
         break;
 
     case FlipperCmdFbkArm:
     case FlipperCmdFbkDisarm:
     case FlipperCmdFbkReplay:
-        /* RollBack sequence capture is driven from the on-device FOBback scene;
-           remote sequencing is a documented bring-up seam. */
+        /* I drive the RollBack sequence capture from the on-device FOBback scene; remote sequencing is a bring-up seam I have documented. */
         ack(origin, cmd, false, "run FOBback on-device");
         break;
 

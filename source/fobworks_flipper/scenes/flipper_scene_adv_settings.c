@@ -2,9 +2,7 @@
 #include "../protocol/flipper_radio_loader.h"
 #include <stdio.h>
 
-/* Advanced Settings uses the shared VariableItemList for FOBscan's frequency,
- * modulation, squelch, forced-protocol, and auto-save options. Changes update
- * app->adv and are saved when the screen closes. */
+/* Advanced Settings uses the shared VariableItemList for FOBscan's frequency, modulation, squelch, forced-protocol, and auto-save options. Changes update app->adv and are saved when the screen closes. */
 
 #define SQUELCH_COUNT 11   /* -50 .. -100 dBm, 5 dB steps */
 static int squelch_from_index(int i) { return -50 - i * 5; }
@@ -88,10 +86,7 @@ static void on_link_auth(VariableItem* item) {
     FlipperApp* app = variable_item_get_context(item);
     uint8_t i = variable_item_get_current_value_index(item);
     if(i != 0) {
-        /* Fail closed: never fall back to a guessable default. Generate a
-           fresh random 6-digit code with no rolling of a weak lab value, so
-           enabling auth immediately installs something the operator must
-           read from this screen. Rotate it over the link later if desired. */
+        /* I fail closed: I never fall back to a guessable default. I generate a fresh random 6-digit code with no rolling of a weak lab value, so enabling auth immediately installs something the operator must read from this screen. I rotate it over the link later if desired. */
         flipper_app_new_access_code(app);
         variable_item_set_current_value_text(item, app->adv.access_code);
     }
@@ -184,7 +179,7 @@ void flipper_scene_adv_settings_on_exit(void* ctx) {
     FlipperApp* app = (FlipperApp*)ctx;
     variable_item_list_reset(app->var_list);
     flipper_adv_settings_save(app);
-    /* Match the allocated links to the final toggle value. */
+    /* I match the allocated links to the final toggle value. */
     if(app->adv.dashboard_link) flipper_links_ensure(app);
     else                        flipper_links_release(app);
 }

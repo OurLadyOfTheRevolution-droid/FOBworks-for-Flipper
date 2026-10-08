@@ -5,8 +5,7 @@
 #define TX_DEFAULT_MAX_FRAMES 8u
 #define TX_DEFAULT_MAX_DUTY_PCT 80u
 
-/* Compare deadlines with signed subtraction so the check remains valid when
-   the 32-bit tick counter wraps. */
+/* I compare deadlines with signed subtraction so the check remains valid when the 32-bit tick counter wraps. */
 bool flipper_tx_deadline_reached(uint32_t now, uint32_t deadline) {
     return (int32_t)(now - deadline) >= 0;
 }
@@ -121,8 +120,7 @@ bool flipper_tx_session_cancel_ex(
     uint32_t now_ms) {
     if(!s) return false;
     if(!flipper_tx_session_is_active(s)) {
-        /* Repeating a cancellation is harmless. A stale ID cannot change the
-           current operation; an unqualified repeat has nothing left to cancel. */
+        /* Repeating a cancellation is harmless. A stale ID cannot change the current operation; an unqualified repeat has nothing left to cancel. */
         return (matching_generation == 0 || matching_generation == s->operation_id) &&
                (matching_request_id == 0 || matching_request_id == s->request_id) &&
                (matching_owner_id == 0 || matching_owner_id == s->owner_id);

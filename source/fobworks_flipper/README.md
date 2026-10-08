@@ -1,13 +1,18 @@
 # FOBworks for Flipper
 
 I identify this release as version 1.4 in the source manifest and bundled FAP.
-Official firmware 1.4.2 / 1.4.3 (FAP target 7, API 87.1) is the supported
-runtime. A FAP loads only on an exact API match, so this build does not run on
+Official firmware 1.4.2 / 1.4.3 (FAP target 7, API 87.1) is my supported
+runtime. A FAP loads only on an exact API match, so my build does not run on
 1.3.x (API 86.0).
 
-Copy `dist/fobworks_flipper.fap` to `SD:/apps/Sub-GHz/`. Reboot before
+I copy `dist/fobworks_flipper.fap` to `SD:/apps/Sub-GHz/` and keep that exact
+filename. I reboot before
 replacing an older copy; a failed launch can fragment the heap. Catalog and
 Scher-Khan plugins are already packed inside that one FAP.
+
+My bundled M4 FAP restores the FOBclone and FOBcatch Make menus on my Flipper.
+I kept that tested binary unchanged. I have not
+separately recorded a new FOBback check or tested every protocol end to end.
 
 ## Menu
 
@@ -23,17 +28,21 @@ Scher-Khan plugins are already packed inside that one FAP.
 - **FOBwatch** receives and saves signals.
 - **FOBlabs** displays edge timing.
 - **FOBhunt** scans the frequency table for signal level.
-- **FOBcrack** opens the radio when you press OK, waits through the first
+- **FOBcrack** opens the radio when I press OK, waits through the first
   second, then stops on one KeeLoq frame. It displays FOUND for a listed
-  manufacturer-key match; otherwise it shows the serial. Use Up and Down to
+  manufacturer-key match; otherwise it shows the serial. I use Up and Down to
   change frequency, then press OK on the result to listen again.
-- **FOBreport** is a read-only health check. Press your fob a few times and it
-  grades the remote (A = encrypted rolling, D = fixed/replayable) without ever
-  transmitting.
-- **FOBfreq** compares two pulse-timing profiles (profiles A/B; Left
-  switches). Same protocol only; read-only.
-- **FOBtrack** scores TPMS↔RKE co-occurrence from ambient captures. Set Force
-  Proto to TPMS when sampling tire sensors. Read-only.
+- **FOBreport** shows read-only observations from my captures. I press my fob
+  a few times to collect them. Its grade describes the observed frames, not a
+  complete security assessment of the remote or receiver.
+- **FOBfreq** compares coarse edge timing for two profiles of the same
+  decoded protocol. I use Left to switch profiles and collect at least four
+  samples per profile. The results are in microseconds, not crystal ppm or
+  proof of transmitter identity. It is read-only.
+- **FOBtrack** records temporal TPMS↔RKE co-occurrence. I use Left to switch
+  between rolling RKE and force-only TPMS reception without clearing the
+  observations, and OK to reset them. Co-occurrence does not prove vehicle
+  identity. It is read-only.
 - **FOBroll** analyzes consecutive rolling-code counters for a generalized
   RollBack candidate (Csikor et al.). Read-only; it never transmits.
 - **Library** contains saved `.sub` files.
@@ -68,7 +77,7 @@ dashboard link is enabled.
 
 The optional bridge source is in `../fobworks_wifi_bridge/`. It creates the
 `FOBworks-Flipper` access point, and the dashboard connects to
-`ws://192.168.4.1:81`. Set `AP_PASS` in the sketch before flashing the bridge.
+`ws://192.168.4.1:81`. I set `AP_PASS` in the sketch before flashing the bridge.
 The page at `http://192.168.4.1/` is the bridge status page, not the dashboard.
 
 The `hello` response reports protocol 1.2 and these capabilities: `status`,
@@ -84,7 +93,7 @@ ufbt
 ```
 
 That builds against whatever SDK `ufbt` last downloaded. To build against the
-release this FAP was built for, pin it first:
+release this FAP was built for, I pin it first:
 
 ```sh
 ufbt update --url \
@@ -96,13 +105,15 @@ ufbt
 The build reports `Target: 7, API: 87.1`. A FAP loads only on an exact API
 match, so a binary built this way runs on 1.4.2 and 1.4.3, not on 1.3.x.
 
-The build is not byte-reproducible; the linker lays code out differently between
-runs, so rebuilds of the same sources have different hashes. Compare the API and
-target version, not the digest. `.github/workflows/build-fap.yml` does this on
-demand from the public source if you would rather not build locally.
+The build is not byte-reproducible, so a rebuild can have a different hash.
+I check the source, target, API and build manifest together; matching target/API
+alone does not prove identical contents. I use SHA256SUMS to verify the exact
+distributed binary. `.github/workflows/build-fap.yml` builds on demand from
+the public source if I prefer not to build locally.
 
-Loader limits for the host image: `.text` 61352, `.rodata` 17645, `.bss` 5924.
-See `SIZE_BASELINE.md` for the numbers on this tree.
+My recorded host budgets are `.text` 61864, `.rodata` 16621 and `.bss` 5924.
+I retain the original combined ceiling and a separate 512-byte display-model
+reserve. The current measurements are in `../../SIZE_BASELINE.md`.
 
 ```sh
 cd tools && make test

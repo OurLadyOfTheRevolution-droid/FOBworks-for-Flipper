@@ -11,7 +11,7 @@
 /* ── Hitag2 Filter Functions (Fiat V1 BCM) ──────────────────────────────── */
 /* Source: FOBworks protocol database                                         */
 static uint32_t hitag2_fiat_filter(uint64_t state) {
-    /* Apply the fa=0x2C79 and fb=0x6671 filters, then mask with fc=0x7907287B. */
+    /* I apply the fa=0x2C79 and fb=0x6671 filters, then mask with fc=0x7907287B. */
     uint32_t fa = 0, fb = 0;
 
     /* fa: bits 0,1,4,5,6,17,21,24,25,31,39,40,41,44,45,47 */
@@ -73,7 +73,7 @@ static uint64_t hitag2_fiat_feedback(uint64_t state) {
 static uint64_t hitag2_step(uint64_t state, uint64_t key) {
     uint64_t fb = 0;
 
-    /* Calculate the standard Hitag2 LFSR feedback bit. */
+    /* I calculate the standard Hitag2 LFSR feedback bit. */
     fb = ((state >>  0) & 1) ^
          ((state >>  1) & 1) ^
          ((state >>  2) & 1) ^
@@ -93,7 +93,7 @@ static uint64_t hitag2_step(uint64_t state, uint64_t key) {
          ((state >> 43) & 1) ^
          ((state >> 47) & 1);
 
-    /* Mix in the least-significant key bit. */
+    /* I mix in the least-significant key bit. */
     fb ^= (key >> 0) & 1;
 
     return (state >> 1) | (fb << 47);
@@ -101,15 +101,15 @@ static uint64_t hitag2_step(uint64_t state, uint64_t key) {
 
 /* ── Hitag2 Generate Keystream ──────────────────────────────────────────── */
 void hitag2_keystream(uint64_t key, uint32_t uid, uint32_t* out, int words) {
-    /* Seed the state with the key and the low 16 bits of the UID. */
+    /* I seed the state with the key and the low 16 bits of the UID. */
     uint64_t state = (key << 16) | (uid & 0xFFFF);
 
-    /* Advance 32 cycles before collecting output bits. */
+    /* I advance 32 cycles before collecting output bits. */
     for(int i = 0; i < 32; i++) {
         state = hitag2_step(state, key);
     }
 
-    /* Collect the requested number of 32-bit keystream words. */
+    /* I collect the requested number of 32-bit keystream words. */
     for(int i = 0; i < words; i++) {
         uint32_t word = 0;
         for(int j = 0; j < 32; j++) {
@@ -125,7 +125,7 @@ void hitag2_keystream(uint64_t key, uint32_t uid, uint32_t* out, int words) {
 uint32_t hitag2_authenticate(uint64_t key, uint32_t uid, uint32_t challenge) {
     uint64_t state = (key << 16) | (uid & 0xFFFF);
 
-    /* Mix the challenge into the state, one bit per cycle. */
+    /* I mix the challenge into the state, one bit per cycle. */
     for(int i = 0; i < 32; i++) {
         uint64_t fb = 0;
         fb = ((state >>  0) & 1) ^
@@ -151,7 +151,7 @@ uint32_t hitag2_authenticate(uint64_t key, uint32_t uid, uint32_t challenge) {
         state = (state >> 1) | (fb << 47);
     }
 
-    /* Generate a 32-bit response from the resulting state. */
+    /* I generate a 32-bit response from the resulting state. */
     uint32_t response = 0;
     for(int i = 0; i < 32; i++) {
         state = hitag2_step(state, key);
@@ -163,9 +163,7 @@ uint32_t hitag2_authenticate(uint64_t key, uint32_t uid, uint32_t challenge) {
 
 /* ── Hitag2 Brute-Force (Renault V1 style) ──────────────────────────────── */
 /* Source: FOBworks protocol database                                         */
-/* Check whether candidate keys produce the expected response. The current
-   loop tries only keys 0 through 2^24-1; it does not search the full 48-bit
-   space or split the search across a larger key range. */
+/* I check whether candidate keys produce the expected response. My current loop tries only keys 0 through 2^24-1; I do not search the full 48-bit space or split the search across a larger key range. */
 
 bool hitag2_brute_force(uint32_t uid, uint32_t challenge, uint32_t expected,
                         uint64_t* found_key, int max_keys, uint64_t* found_keys,
@@ -175,8 +173,7 @@ bool hitag2_brute_force(uint32_t uid, uint32_t challenge, uint32_t expected,
     int count = 0;
     uint64_t key = 0;
 
-    /* Limit this on-device pass to 2^24 candidates (16M trials). A complete
-       2^48 search requires substantially more compute. */
+    /* I limit this on-device pass to 2^24 candidates (16M trials). A complete 2^48 search requires substantially more compute. */
     uint32_t max_trials = 1 << 24;
 
     for(uint32_t i = 0; i < max_trials; i++) {
@@ -199,24 +196,21 @@ bool hitag2_brute_force(uint32_t uid, uint32_t challenge, uint32_t expected,
 }
 
 /* ── Hitag2 Fiat Invert Init — FOBworks implementation ───────────────────── */
-/* Assemble a candidate state from the authenticator and low UID bits. This
-   helper does not invert the full initialization or recover a complete key. */
+/* I assemble a candidate state from the authenticator and low UID bits. This helper does not invert the full initialization or recover a complete key. */
 
 uint64_t hitag2_fiat_invert_init(uint32_t uid, uint32_t authenticator) {
-    /* Retain the low UID bits and place the authenticator in the upper half. */
+    /* I retain the low UID bits and place the authenticator in the upper half. */
     uint64_t state = 0;
 
-    /* The current implementation assembles fields directly; it does not
-       invert the cipher's initialization sequence. */
+    /* My current implementation assembles fields directly; it does not invert the cipher's initialization sequence. */
     state = ((uint64_t)authenticator << 16) | (uid & 0xFFFF);
 
     return state;
 }
 
 /* ── Hitag2 Known Keys (Fiat V1 BCM dictionary) ─────────────────────────── */
-/* Source: FOBworks Hitag2 key database                                     */
-/* This table lists known Fiat V1 Hitag2 defaults and recognizable key
-   patterns. */
+/* Source: FOBworks Hitag2 key database */
+/* This table lists known Fiat V1 Hitag2 defaults and recognizable key patterns. */
 
 static const Hitag2KnownKey hitag2_known_keys[] = {
     /* Listed factory keys. */
@@ -252,9 +246,9 @@ const Hitag2KnownKey* hitag2_get_known_key(int index) {
 }
 
 /* ── Hitag2 Serial Permutation (Renault V1) ─────────────────────────────── */
-/* Source: FOBworks protocol database                                         */
+/* Source: FOBworks protocol database */
 uint32_t hitag2_serial_permute(uint32_t serial) {
-    /* Reorder the 28 serial bits using the permutation table below. */
+    /* I reorder the 28 serial bits using the permutation table below. */
     uint32_t result = 0;
     static const int perm[28] = {
         27, 26, 25, 24, 23, 22, 21, 20,

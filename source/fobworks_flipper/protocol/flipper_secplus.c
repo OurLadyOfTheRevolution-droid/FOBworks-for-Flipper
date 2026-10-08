@@ -5,7 +5,7 @@
 /* ── Security+ 1.0 decoder ───────────────────────────────────────────────── */
 /*
  * Two packets of 21 ternary symbols (header + 20 payload) at TE ≈ 500 µs.
- * OOK grouping is 4 chips per symbol (argilo/secplus encode_ook, Flipper
+ * OOK grouping is 4 chips per symbol (the secplus reference implementation encode_ook, Flipper
  * firmware lib/subghz/protocols/secplus_v1.c, rtl_433 secplus_v1.c):
  *   0001 → 0, 0011 → 1, 0111 → 2, 0000 → inter-packet blank.
  * Packet 1 starts with header 0, packet 2 with header 2. The 40 payload
@@ -159,13 +159,13 @@ bool flipper_decode_secplus1(const FlipperPulseBuf* buf, FlipperDecodeResult* r)
     return false;
 }
 
-/* ── Security+ 2.0 decoder (argilo/secplus Manchester + scramble) ───────── */
+/* ── Security+ 2.0 decoder (the secplus reference implementation Manchester + scramble) ───────── */
 /*
- * Two Manchester packets at ~250 µs half-bit (Flipper secplus_v2 / argilo).
+ * Two Manchester packets at ~250 µs half-bit (Flipper secplus_v2 / secplus).
  * Preamble ≈ 16×0 then 4×1; packet select bits; then scrambled fixed/rolling.
  * Force-only: scramble is the integrity gate, but Auto waits on live captures.
  *
- * ORDER/INVERT keys 0..10 with gaps at 3 and 7 (argilo). Packed as three
+ * ORDER/INVERT keys 0..10 with gaps at 3 and 7 (the secplus reference implementation). Packed as three
  * 2-bit lanes per byte to keep the FAP under the loader .text cap.
  */
 static const uint8_t SP2_ORDER_P[11] = {
@@ -259,8 +259,8 @@ static bool secplus2_try_manchester(
     }
     if(nc < 80) return false;
 
-    /* argilo places a raw LOW blank between manchester packets. That blank is
-       often odd-length and breaks a single global pair alignment. Split on
+    /* The secplus reference places a raw LOW blank between manchester packets. That blank is
+       often odd-length and breaks a single global pair alignment. I split on
        long LOW runs and manchester-decode each segment on its own. */
     uint8_t half_bits[2][72];
     int half_n[2] = {0, 0};
@@ -276,7 +276,7 @@ static bool secplus2_try_manchester(
                 while(seg_end + z < nc && chips[seg_end + z] == 0) z++;
                 if(z >= 16) {
                     /* A packet that ends on manchester bit 0 finishes with a LOW
-                       chip that merges into the raw blank. Reclaim one zero so
+                       chip that merges into the raw blank. I reclaim one zero so
                        the segment keeps an even chip count. */
                     if(((seg_end - seg_start) & 1) != 0) seg_end += 1;
                     break;

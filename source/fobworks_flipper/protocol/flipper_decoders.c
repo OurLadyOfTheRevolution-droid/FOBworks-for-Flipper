@@ -12,7 +12,7 @@
 static uint32_t estimate_te_locked(const uint32_t* buf, int n) {
     if(!buf || n < 8) return 0;
 
-    /* 16-bit counts: a capture cannot fill one bucket past 65535. */
+    /* 16-bit counts: I assume a capture cannot fill one bucket past 65535. */
     uint16_t* hist = flipper_scratch_b(sizeof(uint16_t) * 512);
     if(!hist) return 0;
     memset(hist, 0, sizeof(uint16_t) * 512);
@@ -24,7 +24,7 @@ static uint32_t estimate_te_locked(const uint32_t* buf, int n) {
         if(bucket < 512) hist[bucket]++;
     }
 
-    /* Find peak */
+    /* I find the peak */
     uint32_t peak_buck = 0;
     uint16_t peak_cnt = 0;
     for(int b = 1; b < 512; b++) {
@@ -35,7 +35,7 @@ static uint32_t estimate_te_locked(const uint32_t* buf, int n) {
     /* TE estimate = centre of peak bucket */
     uint32_t te = (peak_buck << 5) + 16;
 
-    /* Reject implausible values */
+    /* I reject implausible values */
     if(te < 100 || te > 4000) return 0;
     return te;
 }
@@ -59,7 +59,7 @@ uint32_t flipper_estimate_te(const uint32_t* buf, int n) {
 bool flipper_decode_keeloq(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
     if(!buf || !r || buf->te_us == 0) return false;
 
-    /* Try up to 3 TE candidates (te, te±15%) */
+    /* I try up to 3 TE candidates (te, te±15%) */
     uint32_t te_candidates[3] = {
         buf->te_us,
         buf->te_us * 85 / 100,
@@ -106,10 +106,7 @@ bool flipper_decode_keeloq(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
                 hcs300 = ((f.enc & 0xFFF) == expected_lo);
             }
         }
-        /* kl_parse checks frame length and rejects an empty hop or button. The
-           HCS300 low-12 test compares ciphertext, so Honda frames may not pass;
-           use it only to refine the label. Auto also requires a single known
-           function button (lock, unlock, trunk, or panic). */
+        /* kl_parse checks frame length and rejects an empty hop or button. The HCS300 low-12 test compares ciphertext, so Honda frames may not pass; I use it only to refine the label. Auto also requires a single known function button (lock, unlock, trunk, or panic). */
         if(!got) continue;
 
         uint8_t btn4 = f.btn & 0xF;
@@ -139,11 +136,7 @@ bool flipper_decode_keeloq(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
             snprintf(r->predict_note, sizeof(r->predict_note),
                      "OK=next hop  Key:%s", f.mfr_name);
         } else {
-            /* No recovered key. kl_parse() fills f->cnt from the LOW 16 BITS OF
-               THE CIPHERTEXT, which carry no counter meaning — the NLFSR output
-               is not the plaintext counter. Advertising a numeric "next" window
-               here is numerical noise, so disable prediction entirely rather
-               than emit a range that would mislead. */
+            /* No recovered key. kl_parse() fills f->cnt from the LOW 16 BITS OF THE CIPHERTEXT, which carry no counter meaning — the NLFSR output is not the plaintext counter. I disable prediction entirely rather than emit a range that would mislead. */
             r->predict_window = 0;
             r->predict_lo = 0;
             r->predict_hi = 0;
@@ -158,11 +151,7 @@ bool flipper_decode_keeloq(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
 }
 
 /* ── Security+ 1.0 / 2.0 ─────────────────────────────────────────────────── */
-/*
- * Full parsers live in flipper_secplus.c. The device host FAP keeps only thin
- * force-plugin stubs so that .text stays under the loader cap; fw_force.fal
- * (and host tests) link the real file. Auto stays off either way.
- */
+/* * Full parsers live in flipper_secplus.c. The device host FAP keeps only thin * force-plugin stubs so that .text stays under the loader cap; fw_force.fal * (and host tests) link the real file. Auto stays off either way. */
 #ifdef FLIPPER_FAP_SLIM
 #include "flipper_plugin.h"
 bool flipper_decode_secplus1(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
@@ -175,8 +164,7 @@ bool flipper_decode_secplus2(const FlipperPulseBuf* buf, FlipperDecodeResult* r)
     if(!a || !a->decode) return false;
     return a->decode(buf, r, FlipperForceSecplus2);
 }
-/* Mazda / Honda / Toyota parsers live in fw_force.fal. Thin stubs keep the
-   host under the loader .text cap; Auto and Force both map the FAL on demand. */
+/* Mazda / Honda / Toyota parsers live in fw_force.fal. Thin stubs keep the host under the loader .text cap; Auto and Force both map the FAL on demand. */
 bool flipper_decode_mazda(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
     const FobworksForceApi* a = flipper_force_api();
     if(!a || !a->decode) return false;
@@ -200,21 +188,16 @@ bool flipper_decode_toyota(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
 #endif
 
 /* ── CAME 12-bit decoder ─────────────────────────────────────────────────── */
-/*
- * CAME's 12-bit fixed code uses OOK at 433.92 MHz, with a long HIGH leader
- * followed by 12 Manchester-style bits. Typical TE is about 320 µs; the
- * 12-bit word has 4095 nonzero values.
- */
+/* * CAME's 12-bit fixed code uses OOK at 433.92 MHz, with a long HIGH leader * followed by 12 Manchester-style bits. Typical TE is about 320 µs; the * 12-bit word has 4095 nonzero values. */
 bool flipper_decode_came12(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
     if(!buf || !r) return false;
     uint32_t te = buf->te_us;
     if(te < 200 || te > 500) return false;
 
-    /* Find leader: HIGH ≥ 8T */
+    /* I find leader: HIGH ≥ 8T */
     int ds = -1;
     for(int i = 0; i + 1 < buf->len; i++) {
-        /* Bound the leader to 8T..40T to reject very long sync pulses, including
-           the longer leaders used by some TPMS frames. */
+        /* I bound the leader to 8T..40T to reject very long sync pulses, including the longer leaders I see in some TPMS frames. */
         if(buf->durations[i] >= te * 8 && buf->durations[i] <= te * 40 &&
            buf->durations[i+1] <= te * 2)
             { ds = i + 2; break; }
@@ -231,8 +214,7 @@ bool flipper_decode_came12(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
         if(hi > te + (te >> 1)) code |= (1u << b);  /* 2T HIGH = '1' */
     }
     if(!ok || code == 0) return false;
-    /* CAME frames end shortly after bit 12. Let longer TPMS and Holtek frames
-       continue to their own decoders. */
+    /* CAME frames end shortly after bit 12. I let longer TPMS and Holtek frames continue to their own decoders. */
     if(buf->len - ds > 8) return false;
 
     r->addr    = code;
@@ -249,10 +231,7 @@ bool flipper_decode_came12(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
 }
 
 /* ── Nice FLO decoder ────────────────────────────────────────────────────── */
-/*
- * Nice FLO is a 12-bit OOK fixed code at 433.92 MHz. Its leader resembles
- * CAME's but uses the opposite polarity; typical TE is about 500 µs.
- */
+/* * Nice FLO is a 12-bit OOK fixed code at 433.92 MHz. Its leader resembles * CAME's but uses the opposite polarity; typical TE is about 500 µs. */
 bool flipper_decode_nice_flo(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
     if(!buf || !r) return false;
     uint32_t te = buf->te_us;
@@ -291,10 +270,7 @@ bool flipper_decode_faac_slh(const FlipperPulseBuf* buf, FlipperDecodeResult* r)
     uint32_t te = buf->te_us;
     if(te < 250 || te > 380) return false;
 
-    /* FAAC SLH carries a fixed 22-bit word after a preamble of roughly 2T
-       equal-width pairs. A HIGH longer than about 1.5T represents a 1. Find
-       the preamble by checking both pulse widths rather than relying on a
-       fixed edge index. */
+    /* FAAC SLH carries a fixed 22-bit word after a preamble of roughly 2T equal-width pairs. A HIGH longer than about 1.5T represents a 1. I find the preamble by checking both pulse widths rather than relying on a fixed edge index. */
     uint32_t thr = te + (te >> 1);   /* ~1.5T bit threshold */
     int ds = -1;
     for(int i = 0; i + 1 < buf->len; i += 2) {
@@ -336,9 +312,7 @@ bool flipper_decode_doorhan(const FlipperPulseBuf* buf, FlipperDecodeResult* r) 
     if(te < 500 || te > 1500) return false;
     if(buf->len < 80) return false;
 
-    /* This simplified 64-bit 2FSK parser treats the first 32 bits as the
-       address and the next 32 as the hop. It does not decrypt the KeeLoq
-       variant used by DoorHan. */
+    /* This simplified 64-bit 2FSK parser treats the first 32 bits as the address and the next 32 as the hop. It does not decrypt the KeeLoq variant I see used by DoorHan. */
     uint32_t addr = 0, hop = 0;
     for(int i = 0; i < 32 && i + 1 < buf->len; i += 2)
         if(buf->durations[i] > te + (te>>1)) addr |= (1u << (i>>1));
@@ -369,8 +343,7 @@ bool flipper_decode_ansonic(const FlipperPulseBuf* buf, FlipperDecodeResult* r) 
     if(te < 400 || te > 800) return false;
     if(buf->len < 72) return false;
 
-    /* Ansonic-12, Prastel, and related remotes use a 12-bit OOK fixed code:
-       '0' = 1T HIGH + 2T LOW; '1' = 2T HIGH + 1T LOW. */
+    /* Ansonic-12, Prastel, and related remotes use a 12-bit OOK fixed code: '0' = 1T HIGH + 2T LOW; '1' = 2T HIGH + 1T LOW. */
     int ds = -1;
     for(int i = 0; i + 1 < buf->len; i++)
         if(buf->durations[i] >= te * 10) { ds = i + 1; break; }
@@ -395,8 +368,7 @@ bool flipper_decode_ansonic(const FlipperPulseBuf* buf, FlipperDecodeResult* r) 
 }
 
 /* ── Linear-10 (gate/barrier) decoder ───────────────────────────────────── */
-/* Reject degenerate words and implausible pulse sequences to avoid matching
-   unrelated signals as a Linear-10 frame. */
+/* I reject degenerate words and implausible pulse sequences to avoid matching unrelated signals as a Linear-10 frame. */
 bool flipper_decode_linear10(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
     if(!buf || !r) return false;
     uint32_t te = buf->te_us;
@@ -407,10 +379,9 @@ bool flipper_decode_linear10(const FlipperPulseBuf* buf, FlipperDecodeResult* r)
     for(int i = 0; i < 10 && i + 1 < buf->len; i++) {
         if(buf->durations[i * 2] > te + (te >> 1)) word |= (1u << i);
     }
-    /* Reject all-zero and all-one (degenerate noise) */
+    /* I reject all-zero and all-one (degenerate noise) */
     if(word == 0 || word == 0x3FF) return false;
-    /* Require each pulse to fit a bit or filler cell. A pulse outside 0.25T..4T
-       at an even index, or any very long leader, indicates another protocol. */
+    /* I require each pulse to fit a bit or filler cell. A pulse outside 0.25T..4T at an even index, or any very long leader, indicates another protocol. */
     for(int i = 0; i < buf->len; i++) {
         uint32_t v = buf->durations[i];
         if(v > te * 4 && (i % 2 == 0 || i > 19)) return false;
@@ -436,8 +407,7 @@ bool flipper_decode_holtek(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
     if(te < 100 || te > 600) return false;
     if(buf->len < 80) return false;
 
-    /* HT6P20 frames carry a 20-bit address and 4-bit data over OOK at about
-       315 or 433 MHz: '0' = 1T HIGH + 2T LOW; '1' = 2T HIGH + 1T LOW. */
+    /* HT6P20 frames carry a 20-bit address and 4-bit data over OOK at about 315 or 433 MHz: '0' = 1T HIGH + 2T LOW; '1' = 2T HIGH + 1T LOW. */
     int ds = -1;
     for(int i = 0; i + 1 < buf->len; i++)
         if(buf->durations[i] >= te * 24) { ds = i + 1; break; }
@@ -466,27 +436,17 @@ bool flipper_decode_holtek(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
 }
 
 /* ── Beninca XOR Type-1 decoder ─────────────────────────────────────────── */
-/*
- * Beninca and compatible remotes use KeeLoq with XOR-Type-1 manufacturer-key
- * diversification (per @li0ard/keeloq analysis). Their pulse format is handled
- * by the KeeLoq decoder and its key sweep; this wrapper only assigns the
- * Beninca label when key recovery identifies that variant.
- */
+/* * Beninca and compatible remotes use KeeLoq with XOR-Type-1 manufacturer-key * diversification (per the KeeLoq reference implementation analysis). I handle their pulse format * with the KeeLoq decoder and its key sweep; this wrapper only assigns the * Beninca label when key recovery identifies that variant. */
 bool flipper_decode_beninca(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
     if(!flipper_decode_keeloq(buf, r)) return false;
-    /* Change the label only when recovery identified an XOR-Type-1 key. */
+    /* I change the label only when recovery identified an XOR-Type-1 key. */
     if(strstr(r->mfr_name, "xor-type1"))
         strncpy(r->proto, "KeeLoq-Beninca", sizeof(r->proto) - 1);
     return true;
 }
 
 /* ── PT2262 / PT2272 fixed-code decoder ──────────────────────────────────── */
-/*
- * PT2262 and compatible PT2272 remotes send unencrypted fixed codes over OOK
- * at 315 or 433.92 MHz, so captured codes can be replayed or cloned. The frame
- * starts with a HIGH sync of at least 16T, followed by 12–24 data bits; a bit
- * is 1 when HIGH exceeds 1.5T. The decoder reports the received word unchanged.
- */
+/* * PT2262 and compatible PT2272 remotes send unencrypted fixed codes over OOK * at 315 or 433.92 MHz, so captured codes can be replayed or cloned. The frame * starts with a HIGH sync of at least 16T, followed by 12–24 data bits; a bit * is 1 when HIGH exceeds 1.5T. I report the received word unchanged. */
 bool flipper_decode_pt2262(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
     if(!buf || !r) return false;
     if(buf->len < 40 || buf->len > FLIPPER_PULSE_MAX) return false;
@@ -531,13 +491,7 @@ bool flipper_decode_pt2262(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
 }
 
 /* ── EV1527 / HS1527 / RT1527 fixed-code decoder ──────────────────────────── */
-/*
- * EV1527-family gate and garage remotes (including HS1527, RT1527, and SC1527)
- * use OOK fixed codes at 315 or 433 MHz. Their pulse shape resembles PT2262,
- * but the sync is shorter (at least 4T) and has no long leader. Keep this
- * decoder separate so captures retain the EV1527 label; fixed codes can be
- * replayed or cloned.
- */
+/* * EV1527-family gate and garage remotes (including HS1527, RT1527, and SC1527) * use OOK fixed codes at 315 or 433 MHz. Their pulse shape resembles PT2262, * but the sync is shorter (at least 4T) and has no long leader. I keep this * decoder separate so captures retain the EV1527 label; fixed codes can be * replayed or cloned. */
 bool flipper_decode_ev1527(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
     if(!buf || !r) return false;
     if(buf->len < 32 || buf->len > FLIPPER_PULSE_MAX) return false;
@@ -559,15 +513,13 @@ bool flipper_decode_ev1527(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
     int bits = avail > 20 ? 20 : avail;
     if(bits < 10) return false;
 
-    /* Check each pair's shape: HIGH must be 0.75T..3T and LOW no longer than
-       2.5T. This excludes short preamble pulses and oversized leaders. */
+    /* I check each pair's shape: HIGH must be 0.75T..3T and LOW no longer than 2.5T. This excludes short preamble pulses and oversized leaders. */
     for(int b = 0; b < bits && ds + 2 * b + 1 < buf->len; b++) {
         uint32_t hi = buf->durations[ds + 2 * b];
         uint32_t lo = buf->durations[ds + 2 * b + 1];
         if(hi < (te * 3 / 4) || hi > (te * 3) || lo > (te * 5 / 2)) return false;
     }
-    /* Reject the Security+ 1.0 preamble: it has at least five pairs totaling
-       <=1.7T, while EV1527 data pairs are at least 2T. */
+    /* I reject the Security+ 1.0 preamble: it has at least five pairs totaling <=1.7T, while EV1527 data pairs are at least 2T. */
     {
         int pc = 0;
         for(int b = 0; b < bits && ds + 2 * b + 1 < buf->len; b++) {
@@ -600,13 +552,7 @@ bool flipper_decode_ev1527(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
 }
 
 /* ── Tire Pressure Monitoring System (TPMS) decoder ──────────────────────── */
-/*
- * This generic parser handles 315/433 MHz TPMS-style frames with a HIGH sync
- * of at least 24T, a 20-bit sensor ID, and four status bits. It does not
- * decrypt the frame; it reports the raw ID for correlation. A listener that
- * trusts that ID may accept a replay, so Auto uses this decoder only when the
- * frame structure is unambiguous.
- */
+/* * This generic parser I use handles 315/433 MHz TPMS-style frames with a HIGH sync * of at least 24T, a 20-bit sensor ID, and four status bits. I do not * decrypt the frame; I report the raw ID for correlation. A listener that * trusts that ID may accept a replay, so I use this decoder in Auto only when the * frame structure is unambiguous. */
 bool flipper_decode_tpms(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
     if(!buf || !r) return false;
     if(buf->len < 56 || buf->len > FLIPPER_PULSE_MAX) return false;
@@ -651,9 +597,7 @@ bool flipper_decode_tpms(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
 }
 #ifdef FLIPPER_FAP_SLIM
 #include "flipper_plugin.h"
-/* Device FAP keeps Scher-Khan out of the host image. Force-decode maps
-   fw_force.fal and runs the Magicar PWM parser there. Host tests compile
-   protocol/flipper_scher_khan.c instead of this stub. */
+/* Device FAP keeps Scher-Khan out of the host image. Force-decode maps fw_force.fal and runs the Magicar PWM parser there. Host tests compile protocol/flipper_scher_khan.c instead of this stub. */
 bool flipper_decode_scher_khan(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
     const FobworksForceApi* a = flipper_force_api();
     if(!a || !a->decode) return false;
@@ -687,51 +631,33 @@ void flipper_kl_predict(FlipperDecodeResult* r, const FlipperDecodeResult* r2) {
 }
 
 /* ── Top-level decoder dispatcher ────────────────────────────────────────── */
-/*
- * Keep the Auto priority order in the registry below. Prefer parsers with
- * stronger checks ahead of broader structural matches to limit false positives.
- */
+/* * I maintain the Auto priority order in the registry below. I prefer parsers with * stronger checks ahead of broader structural matches to limit false positives. */
 /* ── Decoder registry — single source of truth ───────────────────────────── */
-/* This array is the Auto priority chain: parsers with OEM checks first, then
- * KeeLoq and other structured protocols. Broad fixed-code parsers are force-
- * only. Entries with auto_safe == false run only when explicitly selected. */
+/* This array is my Auto priority chain: parsers with OEM checks first, then * KeeLoq and other structured protocols. Broad fixed-code parsers are force- * only. Entries with auto_safe == false run only when explicitly selected. */
 const FlipperDecoderReg FLIPPER_DECODERS[] = {
-    /* Run OEM parsers before KeeLoq. Their CRC, checksum, or preamble checks
-       reduce false matches; the shared OOK-PWM encoding could otherwise let a
-       GM, Ford, or similar frame look like a KeeLoq hop. */
+    /* I run OEM parsers before KeeLoq. Their CRC, checksum, or preamble checks * reduce false matches; the shared OOK-PWM encoding I see could otherwise let a * GM, Ford, or similar frame look like a KeeLoq hop. */
     { FlipperForceGm,       "GM",         flipper_decode_gm,       true  },
     { FlipperForceFord,     "Ford",       flipper_decode_ford,     true  },
     { FlipperForceChrysler, "Chrysler",   flipper_decode_chrysler, true  },
-    /* Check Suzuki first: the Kia-V0 preamble and CRC can also match Suzuki
-       PWM, so this order gives the Suzuki CRC-8 parser first chance. */
+    /* I check Suzuki first: the Kia-V0 preamble and CRC can also match Suzuki * PWM, so this order gives the Suzuki CRC-8 parser the first chance. */
     { FlipperForceSuzuki,   "Suzuki",     flipper_decode_suzuki,   true  },
     { FlipperForceKia,      "KIA/Hyundai",flipper_decode_kia,      true  },
     { FlipperForceVag,      "VAG",        flipper_decode_vag,      true  },
-    /* PSA Mode 0x23 has only XOR and an 8-bit sum, which also matched unrelated
-       Buick/VW Manchester captures in testing. Keep it force-only until its
-       checks are stronger; it did not match the available Groupe PSA captures. */
+    /* PSA Mode 0x23 has only XOR and an 8-bit sum, which matched unrelated * Buick/VW Manchester captures in my testing. I keep it force-only until its * checks are stronger; it did not match the Groupe PSA captures I have. */
     { FlipperForcePsa,      "PSA",        flipper_decode_psa,      false },
     { FlipperForceMazda,    "Mazda",      flipper_decode_mazda,    true  },
     { FlipperForceSubaru,   "Subaru",     flipper_decode_subaru,   true  },
     { FlipperForceHondaKr5, "Honda KR5",  flipper_decode_honda_kr5,true  },
     { FlipperForceLandRover,"Land Rover", flipper_decode_land_rover,true },
-    /* BMW CAS3/CAS4 uses PPM with ~250 µs marks and 500/1500 µs spaces. The
-       >=10 ms sync may be an inter-burst gap outside the pulse buffer, so the
-       parser accepts data-only runs. This is structural; the AES payload is
-       not decrypted. */
+    /* I observe that BMW CAS3/CAS4 uses PPM with ~250 µs marks and 500/1500 µs spaces. The >=10 ms sync may be an inter-burst gap outside the pulse buffer, so I accept data-only runs in my parser. This is structural; I do not decrypt the AES payload. */
     { FlipperForceBmw,      "BMW CAS",    flipper_decode_bmw,      true  },
-    /* V1 uses an XOR checksum and V2 has header 0001; V0 is force-only. Run
-       these before KeeLoq so FCA Pacifica/Jeep Manchester frames get their
-       parser before the shared 66-bit hop shape is considered. */
+    /* V1 uses an XOR checksum and V2 has header 0001; V0 is force-only. I run these before KeeLoq so FCA Pacifica/Jeep Manchester frames get their parser before the shared 66-bit hop shape is considered. */
     { FlipperForceFiat,      "Fiat",       flipper_decode_fiat,       true  },
-    /* KeeLoq follows the OEM parsers; it can also recover keys across frames. */
+    /* KeeLoq follows the OEM parsers; I can also recover keys across frames. */
     { FlipperForceKeeloq,   "KeeLoq",     flipper_decode_keeloq,   true  },
-    /* Sec+ 1.0 now matches the public ternary/OOK format (argilo/secplus,
-       Flipper secplus_v1, rtl_433). It still has no transmitted checksum, so
-       it stays force-only until a live capture set measures false positives. */
+    /* Sec+ 1.0 now matches the public ternary/OOK format (the secplus reference implementation, Flipper secplus_v1, rtl_433). It still has no transmitted checksum, so I keep it force-only until a live capture set measures false positives. */
     { FlipperForceSecplus1, "Sec+ 1.0",   flipper_decode_secplus1, false },
-    /* These parsers lack a checksum or rely on weaker structural checks, so
-       they run only when explicitly selected. */
+    /* These parsers lack a checksum or rely on weaker structural checks, so I run them only when I explicitly select them. */
     { FlipperForceSecplus2,  "Sec+ 2.0",   flipper_decode_secplus2,  false },
     { FlipperForceCame12,    "CAME",       flipper_decode_came12,    false },
     { FlipperForceNiceFlo,   "Nice FLO",   flipper_decode_nice_flo,  false },
@@ -743,8 +669,7 @@ const FlipperDecoderReg FLIPPER_DECODERS[] = {
     { FlipperForceTpms,      "TPMS",       flipper_decode_tpms,      false },
     { FlipperForceFaacSlh,   "FAAC SLH",   flipper_decode_faac_slh,  false },
     { FlipperForceDoorhan,   "DoorHan",    flipper_decode_doorhan,   false },
-    /* These OEM layouts are provisional or have no checksum; keep them out of
-       Auto mode. */
+    /* These OEM layouts are provisional or have no checksum; I keep them out of Auto mode. */
     { FlipperForceHonda,     "Honda RKE",  flipper_decode_honda,      false },
     { FlipperForceScherKhan, "Scher-Khan", flipper_decode_scher_khan, false },
     { FlipperForceToyota,    "Toyota RKE", flipper_decode_toyota,     false },
@@ -771,7 +696,7 @@ static bool decode_locked(const FlipperPulseBuf* buf, FlipperDecodeResult* resul
     result->freq_mhz = buf->freq_mhz;
     s_decode_forced = (force != FlipperForceAuto);
 
-    /* Forced mode runs only the decoder the caller selected. */
+    /* Forced mode runs only the decoder I selected. */
     if(force != FlipperForceAuto) {
         for(int i = 0; i < FLIPPER_DECODER_COUNT; i++)
             if(FLIPPER_DECODERS[i].id == force)
@@ -783,8 +708,7 @@ static bool decode_locked(const FlipperPulseBuf* buf, FlipperDecodeResult* resul
     for(int i = 0; i < FLIPPER_DECODER_COUNT; i++) {
         if(!FLIPPER_DECODERS[i].auto_safe) continue;
         if(FLIPPER_DECODERS[i].fn(buf, result)) return true;
-        /* A failed parser may have partially filled the result. Clear it before
-           trying the next decoder. */
+        /* A failed parser may have partially filled the result. I clear it before trying the next decoder. */
         memset(result, 0, sizeof(*result));
         result->freq_mhz = buf->freq_mhz;
     }
@@ -812,10 +736,7 @@ bool flipper_decode(const FlipperPulseBuf* buf, FlipperDecodeResult* result) {
 #include <lib/subghz/subghz_environment.h>
 
 void flipper_register_unleashed_protocols(SubGhzEnvironment* env) {
-    /* Firmware integration registers protocols through
-       subghz_environment_add_protocol(). The SubGhzProtocol wrappers live in
-       separate translation units and must be instantiated from the firmware
-       protocol template when building inside the firmware tree. */
+    /* I register firmware protocols through subghz_environment_add_protocol(). The SubGhzProtocol wrappers live in separate translation units, and I instantiate them from the firmware protocol template when building inside the firmware tree. */
     (void)env;
 }
 #endif

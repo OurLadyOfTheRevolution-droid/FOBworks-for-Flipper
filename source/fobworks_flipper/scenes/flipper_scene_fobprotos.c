@@ -2,11 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 
-/* FOBprotos — supported-protocol reference.  The web dashboard "Protocols" tab
- * as its own utility: a browsable list of the decoders this build ships, each
- * with a short description shown in the shared info screen.  Decoding itself
- * happens live in FOBscan / in the Library (Force Protocol in Advanced
- * Settings); this screen is the catalog. */
+/* FOBprotos — supported-protocol reference.  The web dashboard "Protocols" tab as its own utility: a browsable list of the decoders this build ships, each with a short description shown in the shared info screen.  Decoding itself happens live in FOBscan / in the Library (Force Protocol in Advanced Settings); this screen is the catalog. */
 
 typedef struct {
     const char* name;

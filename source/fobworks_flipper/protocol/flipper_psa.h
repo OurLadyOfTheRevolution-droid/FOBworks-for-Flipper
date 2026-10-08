@@ -13,8 +13,8 @@ typedef struct {
     const char*  function;  /* decoded button function */
 } PsaFrame;
 
-/* Decode Mode 0x23 with its direct XOR operation; no key search is needed. */
+/* I decode Mode 0x23 with its direct XOR operation; no key search is needed. */
 bool psa_decrypt_mode23(const uint8_t* encrypted, int enc_len, PsaFrame* out);
 
-/* Build a frame using the Mode 0x23 layout. */
+/* I build a frame using the Mode 0x23 layout. */
 bool psa_build_mode23(const PsaFrame* f, uint8_t* out, int* out_len);

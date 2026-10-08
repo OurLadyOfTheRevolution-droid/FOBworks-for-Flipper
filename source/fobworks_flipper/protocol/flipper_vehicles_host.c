@@ -2,10 +2,7 @@
 #include "flipper_vehicles.h"
 #include <stddef.h>
 
-/*
- * Device FAP forwards catalog lookups into fw_catalog.fal. Host tests compile
- * flipper_vehicles.c instead of this file.
- */
+/* Device FAP forwards catalog lookups into fw_catalog.fal. Host tests compile flipper_vehicles.c instead of this file. */
 
 int flipper_fc_vehicle_count(void) {
     const FobworksCatalogApi* a = flipper_catalog_api();

@@ -114,8 +114,7 @@ static bool fiat_try_v1(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
     return false;
 }
 
-/* V2 is force-only: its header and button fields are structural checks, not an
-   integrity check comparable to the V1 checksum. */
+/* V2 is force-only: its header and button fields are structural checks, not an integrity check comparable to the V1 checksum. */
 static bool fiat_try_v2(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
     uint8_t* cells = flipper_scratch_a(0, FLIPPER_PULSE_MAX * 4);
     if(!cells) return false;

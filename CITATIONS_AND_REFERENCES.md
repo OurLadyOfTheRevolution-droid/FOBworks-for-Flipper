@@ -34,7 +34,7 @@ separate from external references at the end.
    Remote Keyless Entry Systems"** — USENIX/Black Hat USA 2022 (Csikor et al.)
    - Describes a replay-and-resynchronize attack and reports validated
      per-platform consecutive-code counts: Honda 5, Mazda-3 3, Nissan Latio
-     2/5 s, Sylphy 2/8 s, and Teana immune. These figures inform the rollback
+     2/5 s, Sylphy 2/8 s, and Teana immune. These figures inform my rollback
      analysis profiles.
 
 8. **"Attacking Automotive RKE Security: How Smart are your 'Smart' Keys?"**
@@ -42,11 +42,11 @@ separate from external references at the end.
    - Identifies the modern Toyota key as a Microchip HCS362T KeeLoq encoder and
      surveys Honda (Hitag2) and Suzuki (12F635 KeeLoq) fob internals.
 
-9. **Rolling-PWN (CVE-2022-27254)** — Kevin2600 and Wesley Li, 2022
+9. **Rolling-PWN (CVE-2022-27254)** — the Rolling-PWN research team, 2022
    - Describes how Honda receivers advance the rolling-code window over a
      short run of consecutive counters, allowing a replay of that run to make
      an older captured command acceptable again.
-   - Informs FOBpwn's region variants, wrap-aware consecutive-run check, and
+   - Informs my FOBpwn's region variants, wrap-aware consecutive-run check, and
      resynchronization replay. The same sequence check is used by the
      Subaru-style rollback profiles.
 
@@ -54,7 +54,7 @@ separate from external references at the end.
 
 ## GitHub Repositories
 
-1. **Flipper-ARF** (@D4C1-Labs) — Custom Flipper Zero firmware with enhanced SubGHz protocols.
+1. **Flipper-ARF** — Custom Flipper Zero firmware with enhanced SubGHz protocols.
    - Provides CC1101 register configurations, including VAG, PSA, KIA, Honda,
      Renault, and FCA presets.
    - Includes a VAG AUT64/XTEA decoder, Ford V0-V3 decoders, and Chrysler and
@@ -63,7 +63,7 @@ separate from external references at the end.
      a Hitag2 cipher core, and the Fiat V1 BCM attack.
    - Also includes region-unlock patterns.
 
-2. **ProtoPirate** (@RocketGod-git) — SubGHz protocol analysis toolkit.
+2. **ProtoPirate** — SubGHz protocol analysis toolkit.
    - Includes the KIA/Hyundai V0-V7 protocol suite (CRC8/4, mixer, AES-128),
      a PSA brute-force engine and crypto modules, a timing database for 23
      protocols, and Hitag2 Fiat V1 and Renault V1 implementations.
@@ -72,17 +72,17 @@ separate from external references at the end.
      KIA/VAG/PSA parsers available to live captures.
    - The Mazda V0 reference specifies Manchester at 250/500 µs, a 0xD7 sync,
      an inverted 64-bit payload, parity-selected byte mask, bit-interleaved
-     counter, and additive checksum. It was reimplemented here as a calibrated,
+     counter, and additive checksum. I reimplemented it here as a calibrated,
      Auto-safe decoder.
    - The Fiat / Alfa Romeo V0 reference uses 64-bit Manchester fix|hop with no
-     checksum; this implementation is force-only.
+     checksum; my implementation is force-only.
    - Fiat V1 uses 104-bit Manchester, header 0x0001, and an XOR checksum. Fiat
      V2/FCA uses 112-bit Manchester, header 0x0001, and an FCA hop when the
-     byte6 high nibble is 0xD0. These paths were cross-checked against in-house
-     `flipper_fiat_honda` decode logic and marked Auto-safe in FOBworks.
+     byte6 high nibble is 0xD0. I cross-checked these paths against my in-house
+     `flipper_fiat_honda` decode logic and marked them Auto-safe in FOBworks.
    - The Scher-Khan / Magicar alarm reference uses a long-HIGH header and start
      bit, symmetric short=0/long=1 data cells, a long-HIGH stop bit, and a
-     51-bit "MAGIC CODE, Dynamic" serial/button/counter split. This implementation
+     51-bit "MAGIC CODE, Dynamic" serial/button/counter split. My implementation
      is force-only; the protocol has no transmitted checksum.
    - The Toyota / Lexus Denso reference uses 40-bit PWM, preamble-derived TE,
      2T/1T HIGH-bit encoding, and a transition-count entropy gate. This is a
@@ -90,10 +90,10 @@ separate from external references at the end.
      applied to the enciphered payload, which has no transmitted checksum, so
      it is not part of the Auto chain.
    - The provisional Nissan RKE layout is based on this background; its field
-     offsets remain best-effort estimates pending calibration.
+     offsets remain best-effort estimates pending my calibration.
    - The Suzuki reference specifies 64-bit PWM, a short/short preamble,
      HIGH-width bit encoding at 250/500 µs, `[counter 20][serial 28][button 4][CRC-8]`,
-     and CRC-8 poly 0x7F over the payload. It was reimplemented as a calibrated,
+     and CRC-8 poly 0x7F over the payload. I reimplemented it as a calibrated,
      Auto-safe decoder.
    - The Land Rover / Jaguar V0 reference specifies 81-bit differential
      Manchester at 250/500 µs, a long short/short preamble, long-HIGH/long-LOW
@@ -101,14 +101,14 @@ separate from external references at the end.
      a 16-bit tail, trailing '1', count-parity check, and `0xFFFF`/`0x7FFF`
      tail selection. The implementation is Auto-safe but gated on the tail and
      check (no key needed). The transmitter's ~319-pair preamble exceeds a
-     256-edge capture, so it anchors on ≥8 preamble pairs and relies on the
-     gate. Validate against a real Land Rover/Jaguar capture before relying on
+     256-edge capture, so I anchor on ≥8 preamble pairs and rely on the
+     gate. I advise validation against a real Land Rover/Jaguar capture before relying on
      the counter for rollback.
    - The GM 14-byte PWM reference (ABO1502T-class, rtl_433 `gm_car_remote`
-     layout) informed the parser's integrity checks: button in the low nibble
+     layout) informed my parser's integrity checks: button in the low nibble
      of b2, an additive-to-zero nibble checksum in its high nibble, and
      `byte_sum(b1..b13) & 0xFF == 0` over the frame. No 14-byte-PWM GM capture
-     is available; the library's GM captures are KeeLoq/HCS.
+     is available; my library's GM captures are KeeLoq/HCS.
    - Additional checksum/CRC-gated PWM framings were added as second paths to
      existing make decoders:
      - Mazda V1 Siemens-VDO (72-bit PWM, 4-bit XOR checksum)
@@ -117,62 +117,62 @@ separate from external references at the end.
      - Hyundai Santa Fe / Solaris TRW (80-bit PWM, CRC-8 poly 0x31 / init 0xFF)
      - Kia V7 (64-bit Manchester, one's-complement wire, 0x4C header + CRC-8
        poly 0x7F / init 0x4C over 7 bytes, plaintext serial/counter/button).
-       Validate its counter against a real V7 capture before relying on it for
+       I advise validation of its counter against a real V7 capture before relying on it for
        rollback.
      - VAG ID48 pre-2004 (64-bit PWM, inverted 8-bit byte-sum checksum)
      - Hyundai/Kia RIO early (64-bit fixed-code PWM, 16-bit inverted checksum)
 
-3. **Flipper-Zero-SUB-Analyzer** (@RocketGod-git) — Signal analysis utilities.
+3. **Flipper-Zero-SUB-Analyzer** — Signal analysis utilities.
    - Provides a Shannon entropy calculator, an NRZ/Manchester/PWM/PPM
      encoding classifier, an FSPL (Free Space Path Loss) calculator, TX
      timing analysis, and a symbol-rate estimator.
 
-4. **Flipper-Zero-SubGHz-Signal-Generator** (@RocketGod-git) — Radio-device management.
+4. **Flipper-Zero-SubGHz-Signal-Generator** — Radio-device management.
    - Covers internal or external CC1101 selection, region-unlock implementation,
      and OTG power management for external radios.
 
-5. **flipper-zero-carjacker** (@RocketGod-git) — RollJam and code-grabbing research.
+5. **flipper-zero-carjacker** — RollJam and code-grabbing research.
    - Describes a RollJam implementation and code-grabbing techniques.
 
-6. **RocketGods-SubGHz-Toolkit** (@RocketGod-git) — SubGHz utilities.
+6. **RocketGods-SubGHz-Toolkit** — SubGHz utilities.
    - Includes signal-generation patterns and frequency-sweep techniques.
 
-7. **HiennNek/non-flipper-rolling-code-support** (@HiennNek) — KeeLoq manufacturer-key
+7. **non-flipper-rolling-code-support** — KeeLoq manufacturer-key
    database.
    - Lists 73 real-world KeeLoq manufacturer keys, including gate, garage, and
      barrier (EU) keys; automotive and alarm (RU/CIS) keys; and factory-default
      patterns.
 
-8. **DarkFlippers/unleashed-firmware** (@DarkFlippers) — Custom Flipper firmware.
+8. **unleashed-firmware** — Custom Flipper firmware.
    - Consulted for build-integration patterns, the `SubGhzEnvironment`
      protocol registry, and HAL compatibility notes.
 
-9. **subarufobrob** (@tomwimmenhove) — Subaru RKE reverse-engineering.
+9. **subarufobrob** — Subaru RKE reverse-engineering.
    - Canonical Subaru 80-bit OOK Manchester frame: ~1013 µs half-symbol,
      `[0x55 sync][serial 24][cmd|cmd][counter 20|checksum 4]`, nibble-XOR
      checksum, sequential (rollback-able) counter, command map
      (1=Lock 2=Unlock 0xA=Panic 0xB=Trunk).
    - Cross-checked against the PortaPack **Mayhem** `ui_keyfob` Subaru encoder
-     for field order and checksum. The project reimplements it as a calibrated,
+     for field order and checksum. I reimplemented it as a calibrated,
      Auto-safe decoder for FOBback's rollback profiles.
 
-10. **Pandora DXL (alarm firmware)** (@ArtGudvin, pandora-DXL3910) — automotive RKE framing reference.
+10. **Pandora DXL (alarm firmware)** (pandora-DXL3910) — automotive RKE framing reference.
    - Provides upstream field-layout and checksum/CRC background for several
      OOK-PWM RKE framings (Mazda Siemens-VDO, VAG ID48, Hyundai/Kia RIO, Santa
-     Fe TRW). These references were cross-checked against the ProtoPirate
-     implementations above and reimplemented here as checksum-gated decoders.
+     Fe TRW). I cross-checked these against the ProtoPirate
+     implementations above and reimplemented them as checksum-gated decoders.
 
-11. **rtl_433** (@merbanan, Benjamin Larsson) — ISM-band device decoder collection
+11. **rtl_433** (Benjamin Larsson) — ISM-band device decoder collection
    - Documents the Honda KR5V2X/KR5V1X keyfob frame: 2-FSK Manchester at
      ~60/120 µs, an `EC 0F 62` manufacturer preamble,
      `[idx][deviceID32][event][counter24][rolling32]` payload, and OpenSafety
-     CRC-8 (poly 0x2F, init 0x00) over the payload. This was reimplemented here
+     CRC-8 (poly 0x2F, init 0x00) over the payload. I reimplemented this
      as a calibrated, Auto-safe decoder.
    - Also provides broader context on automotive remotes, including GM
      ABO1502T, Chrysler, Ford, Continental, Siemens, and HCS361/HCS362 KeeLoq
      framings.
 
-12. **secplus** (@argilo, Clayton Smith) — Security+ 1.0 / 2.0 encode and decode.
+12. **secplus** (Clayton Smith) — Security+ 1.0 / 2.0 encode and decode.
    - `encode()` / `decode()` recover the 40 payload trits; `encode_ook()` emits
      2000-baud OOK with symbols 0001/0011/0111 and a 0000 inter-packet blank.
    - Cross-checked against Flipper `lib/subghz/protocols/secplus_v1.c` and
@@ -180,9 +180,9 @@ separate from external references at the end.
      Security+1.0 decode.
    - Security+2.0: Manchester half-bits with `_ORDER` / `_INVERT` scramble
      (`encode_v2_manchester` / Flipper `secplus_v2`). FOBworks force-decodes
-     that layout; Auto stays off until live false positives are measured.
+     that layout; Auto stays off until I measure live false positives.
 
-13. **ProtoPirate plugin packaging** (@RocketGod-git) — FlipperAppType.PLUGIN
+13. **ProtoPirate plugin packaging** — FlipperAppType.PLUGIN
    FALs loaded on demand (AM/FM registry swap pattern).
    - Informed this tree's slim EXTERNAL host plus `fw_catalog.fal` /
      `fw_force.fal` split (`fal_embedded`, `/assets/plugins/`). Official SDK
@@ -205,7 +205,7 @@ separate from external references at the end.
 
 3a. **Microchip HCS362 Datasheet (DS40189)** — KeeLoq Code Hopping Encoder
    - Describes a 69-bit stream (32-bit hopping + 37-bit fixed: 28/32-bit serial, function,
-     status, 2-bit CRC, 2-bit queue); TE 100/200/400/800 µs; used to scope the
+     status, 2-bit CRC, 2-bit queue); TE 100/200/400/800 µs; I used this to scope the
      modern-Toyota (HCS362) framing variant.
 
 4. **ISO/IEC 14443/15693/18092** — RFID/NFC standards.
@@ -244,8 +244,8 @@ separate from external references at the end.
 ## Key databases
 
 1. **KeeLoq Manufacturer Keys** — 73 entries drawn from:
-   - HiennNek/non-flipper-rolling-code-support (@HiennNek)
-   - Unleashed firmware key tables (@DarkFlippers)
+   - non-flipper-rolling-code-support 
+   - Unleashed firmware key tables 
    - Mayhem firmware databases
    - ARF firmware key collections
    - Field research and leaked databases
@@ -286,10 +286,9 @@ separate from external references at the end.
 
 ---
 
-## In-house measurements (not an external source)
+## In-house measurements
 
-The measurements below come from this project, not from the papers or
-repositories listed above.
+The measurements below come from this project.
 
 1. **Corpus honesty report** — `source/fobworks_flipper/CORPUS_HONESTY.md`
    - I ran `tools/sub_check --report` on the private 162-file `.sub` set on
@@ -297,26 +296,20 @@ repositories listed above.
    - Auto decoded 11 (6.8%): Fiat-V2 (4), BMW-CAS3-PPM (2), KeeLoq-HCS300 (2),
      KIA/Hyundai (2), and Suzuki (1). Force-only decoded 144 (88.9%); 7 (4.3%)
      did not decode.
-   - The report contains protocol names and counts, not filenames, serials,
-     hopping codes, or keys.
 
 2. **BMW CAS3/CAS4 PPM gate** — structural read in `protocol/flipper_oem_wire.c`
    - The structural gate accepts constant-mark PPM (~250 µs HI, ~500/1500 µs
      LO) only after a ≥10 ms sync pair and a ≥64-bit run. The payload is treated
-     as opaque (AES). I calibrated this path against in-house X5 captures; it
-     does not copy an external decoder.
+     as opaque (AES). I calibrated this path against in-house X5 captures.
 
 3. **Verdict card and `.sub` tags** — `protocol/flipper_verdict.c`
    - The verdict records confidence (`Auto` / `Force` / `None`) and one next
      action in `FT_Confidence` and `FT_Action` on a stock-RAW `.sub`.
-   - It also suggests a preset (`try OOK` / `try 2FSK`) based on edge ratios in
-     the same capture.
 
 4. **Host FAP size baseline** — `SIZE_BASELINE.md`
-   - Current host (v1.4, after lab scenes + OEM FAL move): `.text` 60648 /
-     61352, `.rodata` 15349 / 17645, `.bss` 5189 / 5924. Catalog and force
-     extras (Sec+/Scher-Khan/Hitag2/Mazda/Honda/Toyota) sit in embedded FALs,
-     not in host RAM until mapped.
+   - I record the current host sizes and budgets in SIZE_BASELINE.md.
+     Catalog and force extras (Sec+/Scher-Khan/Hitag2/Mazda/Honda/Toyota)
+     sit in embedded FALs and occupy RAM only while mapped.
 
 — OurLadyOfTheRevolution-droid
 

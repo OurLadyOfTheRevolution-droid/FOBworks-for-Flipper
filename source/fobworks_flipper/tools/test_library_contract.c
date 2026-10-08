@@ -1,10 +1,4 @@
-/*
- * Host contract tests for the FAP library boundary.
- *
- * These tests cover the library rules and JSON emitters without emulating
- * Flipper Storage. They do not test production filesystem access. Build with
- * the tools/Makefile.
- */
+/* Host contract tests for the FAP library boundary. These tests cover the library rules and JSON emitters without emulating Flipper Storage. They do not test production filesystem access. I reported that the app-thread timer candidate seems to work, but full hardware qualification and the exact fault remain unconfirmed. Build with the tools/Makefile. */
 #include "../link/flipper_link_proto.h"
 #include "../protocol/flipper_library_rules.h"
 #include <stdio.h>

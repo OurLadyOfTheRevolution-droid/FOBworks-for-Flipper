@@ -2,15 +2,7 @@
 #include <string.h>
 #include <stdio.h>
 
-/* Suzuki's frame is 64-bit PWM rolling code (see the header for its layout).
-   Each bit has a HIGH pulse followed by a short LOW: about 2×TE for 1 and 1×TE
-   for 0. A run of short/short pairs precedes the data. The 8-bit payload CRC
-   (polynomial 0x7F) is the gate used by the Auto path; it is a frame check,
-   not proof of receiver acceptance.
-
-   A short preamble HIGH looks like a data 0, so the preamble alone cannot fix
-   the data start. Try a bounded set of alignments after at least six pairs and
-   accept the first one whose CRC matches. */
+/* Suzuki's frame is 64-bit PWM rolling code (see the header for its layout). Each bit has a HIGH pulse followed by a short LOW: about 2×TE for 1 and 1×TE for 0. A run of short/short pairs precedes the data. The 8-bit payload CRC (polynomial 0x7F) is the gate I use for the Auto path; it is a frame check, not proof of receiver acceptance. A short preamble HIGH looks like a data 0, so the preamble alone cannot fix the data start. I try a bounded set of alignments after at least six pairs and accept the first one whose CRC matches. */
 
 #define SZ_TE_MIN 170
 #define SZ_TE_MAX 340
@@ -25,7 +17,7 @@ static uint8_t sz_crc8(const uint8_t* d, int n) {
     return c;
 }
 
-/* Calculate the CRC-8 over the six payload bytes in frame bits [59:12]. */
+/* I calculate the CRC-8 over the six payload bytes in frame bits [59:12]. */
 static uint8_t sz_calc_crc(uint64_t data) {
     uint8_t cd[6];
     cd[0] = (uint8_t)((data >> 52) & 0xFF);
@@ -51,9 +43,7 @@ bool flipper_decode_suzuki(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
     const uint32_t sh = te, lo = te * 2;
     const uint32_t tol = te * 44 / 100;              /* ~te_delta, scales with TE */
 
-        /* Find a short/short preamble, then test a limited number of nearby data
-           starts. Trying the CRC at every edge creates too many accidental
-           matches; a window of at most eight pairs still covers leading zero bits. */
+        /* I find a short/short preamble, then test a limited number of nearby data starts. Trying the CRC at every edge creates too many accidental matches; a window of at most eight pairs still covers leading zero bits. */
     for(int i = 0; i + 140 <= buf->len; i += 2) {
         int pp = 0;
         int j = i;
@@ -65,8 +55,7 @@ bool flipper_decode_suzuki(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
         }
         if(pp < 8) continue;
 
-        /* Leading zero bits can look like more preamble pairs. Check up to eight
-           pairs back from the first non-short pair and validate each alignment. */
+        /* Leading zero bits can look like more preamble pairs. I check up to eight pairs back from the first non-short pair and validate each alignment. */
         for(int back = 0; back <= 8 && back <= pp - 8; back++) {
             int ds = j - back * 2;
             if(ds + 128 > buf->len) continue;
@@ -110,7 +99,7 @@ bool flipper_decode_suzuki(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
                      "CRC OK  btn=%u cnt=%lu", (unsigned)btn, (unsigned long)cnt);
             return true;
         }
-        i = j; /* advance past this preamble run */
+        i = j; /* I advance past this preamble run */
     }
     return false;
 }

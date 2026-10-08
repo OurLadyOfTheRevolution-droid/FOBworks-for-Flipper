@@ -2,13 +2,7 @@
 #include <string.h>
 #include <stdio.h>
 
-/* Provisional generic vehicle-RKE extractor; see the header for its limits.
-   Assumed frame: at least eight equal-width preamble pairs (each half no more
-   than about 1.5T), followed by 64 bits. A HIGH half above 1.5T represents 1.
-   The guessed fields are [serial 32][counter 16][command 8][checksum 8].
-   The checksum can reject some noise, but it does not validate these field
-   positions or identify a real protocol. Keep callers force-only.
- */
+/* Provisional generic vehicle-RKE extractor; see the header for its limits. Assumed frame: at least eight equal-width preamble pairs (each half no more than about 1.5T), followed by 64 bits. A HIGH half above 1.5T represents 1. The guessed fields are [serial 32][counter 16][command 8][checksum 8]. The checksum can reject some noise, but it does not validate these field positions or identify a real protocol. I keep callers force-only. */
 bool vehrke_decode(const FlipperPulseBuf* buf, FlipperDecodeResult* r,
                    const VehRkeSpec* s) {
     if(!buf || !r || !s) return false;
@@ -18,7 +12,7 @@ bool vehrke_decode(const FlipperPulseBuf* buf, FlipperDecodeResult* r,
 
     const uint32_t thr = te + (te >> 1);   /* ~1.5T */
 
-    /* Find a preamble run with at least eight pairs. */
+    /* I find a preamble run with at least eight pairs. */
     int ds = -1;
     for(int i = 0; i + 1 < buf->len; i += 2) {
         int run = 0;

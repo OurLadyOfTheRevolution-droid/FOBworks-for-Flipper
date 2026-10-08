@@ -1,17 +1,10 @@
 #include "../flipper_fobscan_app.h"
+#include "flipper_fobscan_display.h"
 #include <notification/notification_messages.h>
 #include <stdio.h>
 #include <string.h>
 
-/* FOBSCAN_FREQS[] is shared with Advanced Settings so both screens use the
-   same channel table.
-
-   Scanning starts when this screen opens and runs until you leave it; OK does
-   not pause. Set modulation in Advanced Settings. Up/Down tune the frequency,
-   Right opens the last saved capture, and Left opens range setup. In RangeSet,
-   use Up/Down to position the cursor, OK to set MAX then MIN, and Left to start
-   the sweep. The sweep pauses briefly on a signal; OK returns to Scan at the
-   current frequency. */
+/* I share FOBSCAN_FREQS[] with Advanced Settings so both screens use the same channel table. Scanning starts when I open this screen and runs until I leave it; OK does not pause. I set modulation in Advanced Settings. I use Up/Down to tune the frequency, Right to open the last saved capture, and Left to open range setup. In RangeSet, I use Up/Down to position the cursor, OK to set MAX then MIN, and Left to start the sweep. The sweep pauses briefly on a signal; OK returns to Scan at the current frequency. */
 
 /* Ticks (500 ms each) to dwell on a frequency after a hit during a sweep. */
 #define FOBSCAN_SWEEP_LINGER 4
@@ -19,24 +12,40 @@
 /* Ticks (500 ms each) to hold the on-screen "SIGNAL CAPTURED" banner. */
 #define FOBSCAN_FLASH_TICKS 4
 
-/* A raw view_alloc() view only repaints when its model is committed.  Our model
-   just carries the FlipperApp*; input handlers mutate app state directly, so we
-   must commit-with-update after any visible change or the screen stays frozen
-   until the view is switched (the "nothing changes until I exit and re-enter"
-   bug). */
-static void fobscan_redraw(FlipperApp* app) {
-    view_get_model(app->fobscan_view);
-    view_commit_model(app->fobscan_view, true);
+void flipper_fobscan_view_init(FlipperApp* app) {
+    view_allocate_model(
+        app->fobscan_view, ViewModelTypeLocking, sizeof(FlipperFobscanDisplay));
+    FlipperFobscanDisplay* model = view_get_model(app->fobscan_view);
+    memset(model, 0, sizeof(*model));
+    view_commit_model(app->fobscan_view, false);
 }
 
-static const char* fobscan_preset_name(FlipperPreset p) {
-    switch(p) {
-    case FlipperPresetOOK650:     return "OOK 650k";
-    case FlipperPresetOOK270:     return "OOK 270k";
-    case FlipperPreset2FSKDev238: return "2FSK 24k";
-    case FlipperPreset2FSKDev476: return "2FSK 48k";
-    default:                      return "?";
-    }
+static float fobscan_display_freq(int index) {
+    return index >= 0 && index < FOBSCAN_FREQ_COUNT ? FOBSCAN_FREQS[index] : -1.0f;
+}
+
+/* App-thread publication only. SDK view_draw holds the same model lock while the GUI consumes owned text; it never dereferences live app/decode state. */
+static void fobscan_redraw(FlipperApp* app) {
+    const FlipperFobscanState* s = &app->fobscan;
+    FlipperFobscanDisplayInput input = {
+        .mode = s->ui_mode,
+        .range_step = s->range_step,
+        .preset = s->preset,
+        .squelch = app->adv.squelch_dbm,
+        .freq_mhz = s->freq_mhz,
+        .cursor_mhz = fobscan_display_freq(s->cursor_idx),
+        .range_min_mhz = fobscan_display_freq(s->range_min_idx),
+        .range_max_mhz = fobscan_display_freq(s->range_max_idx),
+        .rssi_dbm = s->rssi_dbm,
+        .capture_count = s->cap_count,
+        .decode_valid = s->last_decode_valid,
+        .flash = s->flash_ticks > 0,
+        .flash_decoded = s->flash_decoded,
+        .decode = &s->last_decode,
+    };
+    FlipperFobscanDisplay* model = view_get_model(app->fobscan_view);
+    flipper_fobscan_display_build(model, &input);
+    view_commit_model(app->fobscan_view, true);
 }
 
 static int fobscan_clamp_idx(int i) {
@@ -45,9 +54,7 @@ static int fobscan_clamp_idx(int i) {
     return i;
 }
 
-/* Stop the radio, apply the current frequency and preset, then optionally
-   restart it. Read squelch and force-protocol from Advanced Settings each time
-   so changes take effect immediately. */
+/* Stop the radio, apply the current frequency and preset, then optionally restart it. Read squelch and force-protocol from Advanced Settings each time so changes take effect immediately. */
 static void fobscan_retune(FlipperApp* app, bool arm) {
     FlipperFobscanState* s = &app->fobscan;
     flipper_capture_stop(app->capture);
@@ -60,107 +67,32 @@ static void fobscan_retune(FlipperApp* app, bool arm) {
 }
 
 /* ── Canvas draw ─────────────────────────────────────────────────────────── */
+#ifdef FOBSCAN_STARTUP_PROBE
+static void fobscan_probe_ignore(void* ctx, uint32_t index) {
+    UNUSED(ctx);
+    UNUSED(index);
+}
+#endif
+
 void flipper_fobscan_draw_cb(Canvas* canvas, void* model) {
-    /* Draw callbacks receive the view model, which holds FlipperApp*. */
-    FlipperApp* app = *(FlipperApp**)model;
-    FlipperFobscanState* s = &app->fobscan;
+    const FlipperFobscanDisplay* display = model;
 
     canvas_clear(canvas);
     canvas_set_font(canvas, FontPrimary);
-
-    /* ── Custom-range setup screen ───────────────────────────────────────── */
-    if(s->ui_mode == FobscanModeRangeSet) {
-        canvas_draw_str(canvas, 0, 10, "Set Range");
-        canvas_set_font(canvas, FontSecondary);
-
-        char line[48];
-        snprintf(line, sizeof(line), "Cursor %.2f MHz",
-                 (double)FOBSCAN_FREQS[s->cursor_idx]);
-        canvas_draw_str(canvas, 0, 24, line);
-
-        if(s->range_step == 0) {
-            canvas_draw_str(canvas, 0, 36, "Up/Dn: move   OK: set MAX");
-        } else if(s->range_step == 1) {
-            snprintf(line, sizeof(line), "MAX %.2f", (double)FOBSCAN_FREQS[s->range_max_idx]);
-            canvas_draw_str(canvas, 0, 36, line);
-            canvas_draw_str(canvas, 0, 46, "Up/Dn: move   OK: set MIN");
-        } else {
-            snprintf(line, sizeof(line), "MIN %.2f  MAX %.2f",
-                     (double)FOBSCAN_FREQS[s->range_min_idx],
-                     (double)FOBSCAN_FREQS[s->range_max_idx]);
-            canvas_draw_str(canvas, 0, 36, line);
-            canvas_draw_str(canvas, 0, 46, "Left: confirm & sweep");
-        }
-        canvas_draw_str(canvas, 0, 62, "Back: cancel");
-        return;
-    }
-
-    /* ── Scan / Sweep header ─────────────────────────────────────────────── */
-    canvas_draw_str(canvas, 0, 10, s->ui_mode == FobscanModeSweep ? "FOBscan Sweep" : "FOBscan");
-
-    /* Capture count badge (top-right) */
-    char badge[12];
-    snprintf(badge, sizeof(badge), "#%lu", (unsigned long)s->cap_count);
+    canvas_draw_str(canvas, 0, 10, display->header);
     canvas_set_font(canvas, FontSecondary);
-    canvas_draw_str_aligned(canvas, 127, 10, AlignRight, AlignBottom, badge);
-
-    /* Frequency + modulation */
-    char freq_str[48];
-    snprintf(freq_str, sizeof(freq_str), "%.2f MHz  %s",
-             (double)s->freq_mhz, fobscan_preset_name(s->preset));
-    canvas_draw_str(canvas, 0, 22, freq_str);
-
-    /* Show RSSI alongside the squelch setting. */
-    char rssi_str[40];
-    snprintf(rssi_str, sizeof(rssi_str), "RSSI %.0f  Sq %d",
-             (double)s->rssi_dbm, (int)app->adv.squelch_dbm);
-    canvas_draw_str(canvas, 0, 32, rssi_str);
-
-    /* Divider */
-    canvas_draw_line(canvas, 0, 35, 127, 35);
-
-    if(s->last_decode_valid) {
-        const FlipperDecodeResult* r = &s->last_decode;
-        char line[48];
-
-        snprintf(line, sizeof(line), "%s", r->proto);
-        canvas_draw_str(canvas, 0, 45, line);
-
-        snprintf(line, sizeof(line), "Addr %08lX  Cnt %lu",
-                 (unsigned long)r->addr, (unsigned long)r->cnt);
-        canvas_draw_str(canvas, 0, 55, line);
-
-        if(r->mfr_name[0]) {
-            snprintf(line, sizeof(line), "Key: %s", r->mfr_name);
-            canvas_draw_str(canvas, 0, 63, line);
-        } else if(r->predict_window > 0) {
-            snprintf(line, sizeof(line), "Next: %lu-%lu",
-                     (unsigned long)r->predict_lo, (unsigned long)r->predict_hi);
-            canvas_draw_str(canvas, 0, 63, line);
-        }
-    } else if(s->flash_ticks > 0) {
-        /* Distinguish a saved raw burst from an undecoded capture. */
-        canvas_draw_str(canvas, 0, 46, "Undecoded burst saved");
-        canvas_draw_str(canvas, 0, 55, "R=view in library");
-    } else if(s->ui_mode == FobscanModeSweep) {
-        canvas_draw_str(canvas, 0, 46, "Sweeping range...");
-        canvas_draw_str(canvas, 0, 55, "R=library");
-        canvas_draw_str(canvas, 0, 63, "[OK]=stop here");
-    } else {
-        canvas_draw_str(canvas, 0, 46, "Waiting for signal...");
-        canvas_draw_str(canvas, 0, 55, "Up/Dn=freq  R=library");
-        canvas_draw_str(canvas, 0, 63, "L=set range");
-    }
-
-    /* Briefly invert the header after a capture. The notification also blinks
-       the LED and vibrates. */
-    if(s->flash_ticks > 0) {
+    if(display->badge_visible)
+        canvas_draw_str_aligned(canvas, 127, 10, AlignRight, AlignBottom, display->badge);
+    if(display->divider) canvas_draw_line(canvas, 0, 35, 127, 35);
+    for(unsigned i = 0; i < 5; ++i)
+        if(display->rows[i][0]) canvas_draw_str(canvas, 0, display->y[i], display->rows[i]);
+    if(display->highlight) {
         canvas_set_color(canvas, ColorBlack);
         canvas_draw_box(canvas, 0, 0, 128, 13);
         canvas_set_color(canvas, ColorWhite);
         canvas_set_font(canvas, FontPrimary);
         canvas_draw_str(canvas, 2, 10,
-                        s->flash_decoded ? "SIGNAL CAPTURED" : "BURST CAPTURED");
+                        display->decoded_highlight ? "SIGNAL CAPTURED" : "BURST CAPTURED");
         /* Restore normal draw color for anything after this. */
         canvas_set_color(canvas, ColorBlack);
     }
@@ -169,6 +101,12 @@ void flipper_fobscan_draw_cb(Canvas* canvas, void* model) {
 /* ── Input ───────────────────────────────────────────────────────────────── */
 bool flipper_fobscan_input_cb(InputEvent* e, void* ctx) {
     FlipperApp* app = (FlipperApp*)ctx;
+#ifdef FOBSCAN_STARTUP_PROBE
+    /* Back is handled by the dispatcher. Do not tune, save, sweep or jump to other utilities during an isolation test. */
+    UNUSED(e);
+    UNUSED(app);
+    return false;
+#endif
     FlipperFobscanState* s = &app->fobscan;
 
     if(e->type != InputTypeShort && e->type != InputTypeRepeat) return false;
@@ -256,13 +194,7 @@ bool flipper_fobscan_input_cb(InputEvent* e, void* ctx) {
 }
 
 /* ── Capture edge callback (ISR — must be minimal) ──────────────────────── */
-/*
-  * Send a status tick for each RF edge, but keep the ISR away from radio or HAL
-  * state changes. It can fire more than 100 times per press; changing modes
-  * here could call the SubGHz state machine repeatedly and trigger a furi_check.
-  * The FOBscan handler flushes the capture ring on every event, so the screen
-  * still updates promptly.
- */
+/* Send a status tick for each RF edge, but keep the ISR away from radio or HAL state changes. It can fire more than 100 times per press; changing modes here could call the SubGHz state machine repeatedly and trigger a furi_check. The FOBscan handler flushes the capture ring on every event, so the screen still updates promptly. */
 static void fobscan_edge_cb(void* ctx) {
     FlipperApp* app = (FlipperApp*)ctx;
     view_dispatcher_send_custom_event(app->view_dispatcher, FlipperEventStatusTick);
@@ -275,9 +207,7 @@ static bool fobscan_consume_flush(FlipperApp* app) {
 
     FlipperCaptureResult* cr = &app->capture->result;
 
-    /* RSSI squelch gate (the Advanced Settings "Squelch" value).  The plain
-       flush path does not gate on RSSI, so we enforce it here — this is what
-       makes the setting actually take effect in FOBscan. */
+    /* RSSI squelch gate (the Advanced Settings "Squelch" value).  The plain flush path does not gate on RSSI, so I enforce it here — this is what makes the setting actually take effect in FOBscan. */
     s->rssi_dbm = flipper_capture_rssi(app->capture);
     if(s->rssi_dbm <= app->adv.squelch_dbm) return false;
 
@@ -303,8 +233,7 @@ static bool fobscan_consume_flush(FlipperApp* app) {
             sbuf, sizeof(sbuf), &cr->decode, s->rssi_dbm);
         flipper_app_broadcast(app, sbuf, slen);
 
-        /* Auto-save the decoded capture (with pulses) to the SD library,
-           remembering its name so Right/OK-long can jump straight to it. */
+        /* Auto-save the decoded capture (with pulses) to the SD library, remembering its name so Right/OK-long can jump straight to it. */
         if(app->adv.autosave_decoded) {
             if(flipper_lib_save(app->storage, cr, s->preset, true,
                                 app->adv.lib_evict_oldest, app->fobscan_last_saved)) {
@@ -356,22 +285,45 @@ void flipper_scene_fobscan_on_enter(void* ctx) {
     s->range_max_idx     = FOBSCAN_FREQ_COUNT - 1;
     s->sweep_idx         = 0;
     s->linger            = 0;
+    /* Publish initialized state before the first draw, not at the first tick. */
+    fobscan_redraw(app);
 
-    /* Switch to our view FIRST, before touching the radio.  Starting subghz
-       async RX (HW timer + DMA + high-rate ISR) before the view is active is
-       the suspected cause of the switch fault — do the GUI switch while the
-       hardware is still idle, the conventional Flipper ordering. */
+#ifdef FOBSCAN_STARTUP_PROBE
+    /* Runtime only: a probe must not create captures or write settings. No persistent setting is changed, including on scene exit. */
+    app->adv.autosave_decoded = false;
+    app->adv.autosave_raw = false;
+    if(s->probe_mode == FobscanProbeDisplayOnly) {
+        s->scanning = false;
+        app->capture->on_edge = NULL;
+        app->capture->on_edge_ctx = NULL;
+        view_dispatcher_switch_to_view(app->view_dispatcher, FlipperViewFobscan);
+        return;
+    }
+#endif
+
+    /* Switch to my view FIRST, before touching the radio.  Starting subghz async RX (HW timer + DMA + high-rate ISR) before the view is active is my suspected cause of the switch fault — I do the GUI switch while the hardware is still idle, following the conventional Flipper ordering. */
     app->capture->on_edge      = fobscan_edge_cb;
     app->capture->on_edge_ctx  = app;
 
-    view_dispatcher_switch_to_view(app->view_dispatcher, FlipperViewFobscan);
+#ifdef FOBSCAN_STARTUP_PROBE
+    if(s->probe_mode == FobscanProbeRxOnly) {
+        /* The same receive/decoder event path, with the SDK's standard Submenu instead of the custom FOBscan draw/input callbacks. */
+        submenu_reset(app->submenu);
+        submenu_set_header(app->submenu, "RX-only probe active");
+        submenu_add_item(app->submenu, "Listening. Back exits.", 0,
+                         fobscan_probe_ignore, app);
+        view_dispatcher_switch_to_view(app->view_dispatcher, FlipperViewMenu);
+    } else
+#endif
+    {
+        view_dispatcher_switch_to_view(app->view_dispatcher, FlipperViewFobscan);
+    }
 
     app->capture->freq_mhz     = s->freq_mhz;
     app->capture->preset       = s->preset;
     app->capture->squelch_dbm  = app->adv.squelch_dbm;
     app->capture->force_proto  = app->adv.force_proto;
-    /* Claim the radio (stops any remote scan, publishes ownership) BEFORE we
-       touch the subghz HAL, so the RX thread can't drive it concurrently. */
+    /* Claim the radio (stops any remote scan, publishes ownership) BEFORE I touch the subghz HAL, so the RX thread can't drive it concurrently. */
     flipper_app_gui_radio_acquire(app);
 
     flipper_capture_start(app->capture);
@@ -384,6 +336,9 @@ bool flipper_scene_fobscan_on_event(void* ctx, SceneManagerEvent e) {
     FlipperFobscanState* s = &app->fobscan;
     bool consumed = false;
 
+#ifdef FOBSCAN_STARTUP_PROBE
+    if(s->probe_mode == FobscanProbeDisplayOnly) return false;
+#endif
     if(e.type != SceneManagerEventTypeCustom) return false;
 
     /* ── Enter custom-range setup ────────────────────────────────────────── */
@@ -504,6 +459,8 @@ void flipper_scene_fobscan_on_exit(void* ctx) {
     app->capture->on_edge     = NULL;
     app->capture->on_edge_ctx = NULL;
     app->fobscan.scanning = false;
+#ifndef FOBSCAN_STARTUP_PROBE
     flipper_adv_settings_save(app);       /* persist on-device tuning changes */
+#endif
     flipper_app_gui_radio_release(app);   /* release the CC1101 for remote control */
 }

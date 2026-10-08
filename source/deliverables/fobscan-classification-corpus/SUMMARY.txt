@@ -1,8 +1,8 @@
 FOBscan decode and classification accuracy — synthetic test corpus
 ================================================================
-All signals are synthetic and use fabricated serials and keys. No real
-vehicle, gate, or third-party captures were used. Ground truth comes from
-the generator's label.
+I generated every signal with fabricated serials and keys. I used no real
+vehicle, gate, or third-party captures. I use the generator's label as
+ground truth.
 
 Sets: 500   Presses/set: 3   Total signals: 1500
 
@@ -25,7 +25,7 @@ TPMS               114 |     0.0%     0.0% |   100.0%   100.0%
 OVERALL           1500 |    11.1%     7.7% |   100.0%   100.0%
 (Decoders marked known-broken, listed below, are excluded from these totals.)
 
-AUTO uses `flipper_decode()` and only the `auto_safe` decoders; this is the
-default path. FRC uses `flipper_decode_ex()` after the protocol has been
-selected. A force-only protocol's 0% AUTO score reflects the registry policy,
-not a decoder failure; see the `auto_safe` field in `FLIPPER_DECODERS`.
+I test the default AUTO path with `flipper_decode()` and only the
+`auto_safe` decoders. I test FRC with `flipper_decode_ex()` after selecting
+the protocol. A force-only protocol's 0% AUTO score reflects my registry
+policy, not a decoder failure; see `auto_safe` in `FLIPPER_DECODERS`.

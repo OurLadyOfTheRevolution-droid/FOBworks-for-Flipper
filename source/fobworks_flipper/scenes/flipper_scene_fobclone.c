@@ -1,33 +1,19 @@
 #include "../flipper_fobscan_app.h"
+#include "../protocol/flipper_plugin.h"
 #include <notification/notification_messages.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 /* ─────────────────────────────────────────────────────────────────────────── */
-/* FOBclone guides make/model/year selection, then captures two presses before
-   offering prediction and replay. All pickers reuse FlipperViewMenu. */
+/* FOBclone guides make/model/year selection, then captures two presses before offering prediction and replay. All pickers reuse FlipperViewMenu. */
 /* ─────────────────────────────────────────────────────────────────────────── */
 
-/* ── Shared make list builder ─────────────────────────────────────────────── */
-static void build_unique_makes(const char** out, int* count, int max) {
-    *count = 0;
-    int n = flipper_fc_vehicle_count();
-    for(int i = 0; i < n && *count < max; i++) {
-        const FlipperFcVehicle* v = flipper_fc_vehicle_at(i);
-        if(!v || !v->make) continue;
-        bool found = false;
-        for(int m = 0; m < *count; m++)
-            if(strcmp(out[m], v->make) == 0) { found = true; break; }
-        if(!found) out[(*count)++] = v->make;
-    }
-}
-
-/* Full catalog has ~30 unique makes; keep a little headroom. */
+/* Full catalog has ~30 unique makes; I keep a little headroom. */
 static const char* s_makes[32];
 static int         s_make_count = 0;
 
-/* Keep the large pulse buffers lazy. Release old buffers before clearing state. */
+/* I keep the large pulse buffers lazy. I release old buffers before clearing state. */
 static void fobclone_caps_free(FlipperFobcloneState* fc) {
     for(int i = 0; i < 2; i++) {
         if(fc->cap[i]) {
@@ -52,8 +38,7 @@ static void fobclone_make_cb(void* ctx, uint32_t idx) {
 
 void flipper_scene_fobclone_make_on_enter(void* ctx) {
     FlipperApp* app = (FlipperApp*)ctx;
-    /* Allocate full capture buffers only after the pickers close and a decoded
-       press arrives. */
+    /* Allocate full capture buffers only after the pickers close and a decoded press arrives. */
     if(!flipper_guided_ensure(app, sizeof(FlipperFobcloneState))) {
         submenu_reset(app->submenu);
         submenu_set_header(app->submenu, "FOBclone: OOM");
@@ -63,9 +48,10 @@ void flipper_scene_fobclone_make_on_enter(void* ctx) {
     }
     fobclone_caps_free(&app->guided->fobclone);
     memset(&app->guided->fobclone, 0, sizeof(app->guided->fobclone));
-    build_unique_makes(s_makes, &s_make_count, 32);
+    s_make_count = flipper_catalog_makes(s_makes, 32);
     submenu_reset(app->submenu);
-    submenu_set_header(app->submenu, "FOBclone: Make");
+    submenu_set_header(app->submenu, s_make_count ?
+        "FOBclone: Make" : flipper_catalog_error());
     for(int i = 0; i < s_make_count; i++)
         submenu_add_item(app->submenu, s_makes[i], (uint32_t)i, fobclone_make_cb, app);
     view_dispatcher_switch_to_view(app->view_dispatcher, FlipperViewMenu);
@@ -128,8 +114,7 @@ static void fobclone_year_change_cb(VariableItem* item) {
         variable_item_set_current_value_text(item, yv->years[idx]);
 }
 
-/* Forward OK as custom event 0 so the year-selection scene can continue to
- * capture. Without this callback, the selector cannot advance. */
+/* Forward OK as custom event 0 so the year-selection scene can continue to capture. Without this callback, the selector cannot advance. */
 static void fobclone_year_enter_cb(void* ctx, uint32_t index) {
     FlipperApp* app = (FlipperApp*)ctx;
     UNUSED(index);
@@ -157,7 +142,7 @@ void flipper_scene_fobclone_year_on_enter(void* ctx) {
 
 bool flipper_scene_fobclone_year_on_event(void* ctx, SceneManagerEvent e) {
     FlipperApp* app = (FlipperApp*)ctx;
-    /* Event 0 signals that the user confirmed the year. */
+    /* Event 0 signals that I confirmed the year. */
     if(e.type == SceneManagerEventTypeCustom && e.event == 0) {
         scene_manager_next_scene(app->scene_manager, FlipperSceneFobcloneCapture);
         return true;
@@ -170,8 +155,7 @@ void flipper_scene_fobclone_year_on_exit(void* ctx) {
 }
 
 /* ── Capture / replay screen ─────────────────────────────────────────────── */
-/* Input handlers change state directly, so commit the model after visible
-   updates or the screen will not repaint until it is switched. */
+/* Input handlers change state directly, so I commit the model after visible updates or the screen will not repaint until it is switched. */
 static void fobclone_redraw(FlipperApp* app) {
     view_get_model(app->fobclone_view);
     view_commit_model(app->fobclone_view, true);
@@ -243,8 +227,7 @@ static void fobclone_arm(FlipperApp* app) {
     const FlipperFcVehicle* av = flipper_fc_vehicle_at(vidx);
     if(av) {
         const char* model = av->model;
-        /* Check longer frequency strings first to avoid substring collisions
-           such as "315" inside "312-315". */
+        /* Check longer frequency strings first to avoid substring collisions such as "315" inside "312-315". */
         if     (strstr(model, "915"))                          { freq = 915.00f; }
         else if(strstr(model, "868"))                          { freq = 868.00f; }
         else if(strstr(model, "315"))                          { freq = 315.00f; }

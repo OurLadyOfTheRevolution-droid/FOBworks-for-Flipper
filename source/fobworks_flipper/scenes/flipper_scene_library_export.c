@@ -4,8 +4,7 @@
 #include <stdio.h>
 
 /* ─────────────────────────────────────────────────────────────────────────── */
-/* Export decoded signals as CSV or JSON, raw signals as CSV, or only
-   favorites as CSV. */
+/* Export decoded signals as CSV or JSON, raw signals as CSV, or only favorites as CSV. */
 /* ─────────────────────────────────────────────────────────────────────────── */
 
 enum { ExportActCsvDecoded = 0, ExportActJsonDecoded, ExportActCsvRaw, ExportActCsvFavorites, ExportActDone };

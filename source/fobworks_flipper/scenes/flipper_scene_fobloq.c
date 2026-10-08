@@ -2,8 +2,7 @@
 #include "../protocol/flipper_keeloq.h"
 #include <stdio.h>
 
-/* FOBLoq — KeeLoq manufacturer key store.  Paged to 8 names per screen so
- * the Flipper heap doesn't OOM on launch (73 items at once is too many). */
+/* FOBLoq — KeeLoq manufacturer key store.  Paged to 8 names per screen so the Flipper heap doesn't OOM on launch (73 items at once is too many). */
 
 #define FOBLOQ_PAGE 8
 #define FOBLOQ_MORE 0xF000
@@ -28,9 +27,7 @@ static void fobloq_cb(void* ctx, uint32_t idx) {
     if((int)idx >= N_MFR_KEYS) return;
     const MfrKey* k = &FLIPPER_MFR_KEYS[idx];
     snprintf(app->info_title, sizeof(app->info_title), "%s", k->name);
-    /* The table stores each key masked, so this panel shows the STORED value, not the key
-       itself. Labelled as such: an unqualified "HEX:" would read as the real key and invite
-       someone to copy it down, which is exactly what masking is meant to stop. */
+    /* The table stores each key masked, so this panel shows the STORED value, not the key itself. Labelled as such: an unqualified "HEX:" would read as the real key and invite someone to copy it down, which is exactly what masking is meant to stop. */
     snprintf(app->info_body, sizeof(app->info_body),
              "Manufacturer key\n\nSTORED (masked):\n%08lX%08lX\n\nUsed by KeeLoq decode\n+ key recovery.",
              (unsigned long)(uint32_t)(k->key >> 32),
