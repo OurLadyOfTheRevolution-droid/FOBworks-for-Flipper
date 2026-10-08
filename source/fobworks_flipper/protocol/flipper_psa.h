@@ -1,9 +1,11 @@
 #pragma once
 #include <stdint.h>
 #include <stdbool.h>
+#include "flipper_decoders.h"
 
 /* This build supports PSA Mode 0x23, which uses XOR and a checksum. Mode 0x36
-   is not implemented here. Captures use Manchester timing near 250/500 µs. */
+   is not implemented here. Captures use Manchester timing near 250/500 µs.
+   The pulse decoder is force-only and lives in fw_force.fal on the device. */
 
 typedef struct {
     uint32_t     serial;    /* 32-bit serial number */
@@ -18,3 +20,5 @@ bool psa_decrypt_mode23(const uint8_t* encrypted, int enc_len, PsaFrame* out);
 
 /* I build a frame using the Mode 0x23 layout. */
 bool psa_build_mode23(const PsaFrame* f, uint8_t* out, int* out_len);
+
+/* flipper_decode_psa is declared in flipper_decoders.h (force-only on device). */

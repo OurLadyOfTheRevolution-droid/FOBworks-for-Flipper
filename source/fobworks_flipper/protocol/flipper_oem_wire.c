@@ -5,17 +5,17 @@
 #include "flipper_chrysler.h"
 #include "flipper_kia.h"
 #include "flipper_vag.h"
-#include "flipper_psa.h"
 #include <string.h>
 #include <stdio.h>
 
 /* ─────────────────────────────────────────────────────────────────────────── */
 /* These adapters turn raw pulse timings into MSB-first bytes for the existing
    protocol parsers: gm_parse, ford_v0_parse, chrysler_parse, kia_v0_parse,
-   vag_parse_frame, and psa_decrypt_mode23. The parsers apply their own preamble,
-   checksum, or CRC checks. That lets a recovered bitstream enter the Auto path;
-   the gate can reject a bad timing estimate or alignment, but is not proof that
-   the transmitter was authentic or that a receiver would accept its frame.
+   and vag_parse_frame. PSA Mode 0x23 lives in flipper_psa.c (force FAL). The
+   parsers apply their own preamble, checksum, or CRC checks. That lets a
+   recovered bitstream enter the Auto path; the gate can reject a bad timing
+   estimate or alignment, but is not proof that the transmitter was authentic
+   or that a receiver would accept its frame.
 
    For PWM, each bit uses a HIGH+LOW cell; HIGH above about 1.5T means 1.
    Manchester uses two half-bit levels: HIGH then LOW is 1, LOW then HIGH is 0. */
@@ -856,33 +856,3 @@ bool flipper_decode_bmw(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
     return true;
 }
 
-/* ── PSA (Peugeot/Citroen) — Manchester, XOR mode 0x23 + checksum ─────────── */
-bool flipper_decode_psa(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
-    if(!buf || !r || buf->len < 128) return false;
-    uint32_t tes[3];
-    int ntes = oem_te_candidates(buf, tes, 3);
-    uint8_t raw[OEM_MAX_BYTES];
-    for(int t = 0; t < ntes; t++) {
-        uint32_t te = tes[t];
-        if(te < 120 || te > 900) continue;
-        for(int phase = 0; phase < 2; phase++) {
-            if(oem_manch_extract(buf, te, 0, phase, 128, raw) < 128) continue;
-            PsaFrame f;
-            /* I decode Mode 0x23 only: its XOR and checksum are fast enough for
-               this path. Mode 0x36 requires a 2^24 TEA search, too expensive
-               for a per-capture callback. */
-            if(!psa_decrypt_mode23(raw, 16, &f)) continue;
-            if(f.serial == 0 && f.counter == 0) continue;
-            r->addr = f.serial;  r->cnt = f.counter;  r->hop = f.counter;
-            r->btn = f.button;  r->rolling = true;  r->te_us = te;  r->bits = 128;
-            r->freq_mhz = buf->freq_mhz;  r->predict_window = 256;
-            r->predict_lo = (f.counter + 1) & 0xFFFF;
-            r->predict_hi = (f.counter + 8) & 0xFFFF;
-            strncpy(r->proto, "PSA", sizeof(r->proto) - 1);
-            snprintf(r->predict_note, sizeof(r->predict_note),
-                     "%s", f.function ? f.function : "PSA");
-            return true;
-        }
-    }
-    return false;
-}

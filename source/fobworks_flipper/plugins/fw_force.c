@@ -1,5 +1,7 @@
 #include "fobworks_plugin_api.h"
 #include "../protocol/flipper_hitag2.h"
+#include "../protocol/flipper_vehrke.h"
+#include "../protocol/flipper_psa.h"
 
 #include <flipper_application/flipper_application.h>
 
@@ -12,6 +14,18 @@ static bool force_decode(
     if(force == FlipperForceHonda) return flipper_decode_honda(buf, r);
     if(force == FlipperForceHondaKr5) return flipper_decode_honda_kr5(buf, r);
     if(force == FlipperForceToyota) return flipper_decode_toyota(buf, r);
+    if(force == FlipperForceNissan) return flipper_decode_nissan(buf, r);
+    if(force == FlipperForcePsa) return flipper_decode_psa(buf, r);
+    if(force == FlipperForceCame12) return flipper_decode_came12(buf, r);
+    if(force == FlipperForceNiceFlo) return flipper_decode_nice_flo(buf, r);
+    if(force == FlipperForceFaacSlh) return flipper_decode_faac_slh(buf, r);
+    if(force == FlipperForceDoorhan) return flipper_decode_doorhan(buf, r);
+    if(force == FlipperForceAnsonic) return flipper_decode_ansonic(buf, r);
+    if(force == FlipperForceLinear10) return flipper_decode_linear10(buf, r);
+    if(force == FlipperForceHoltek) return flipper_decode_holtek(buf, r);
+    if(force == FlipperForcePt2262) return flipper_decode_pt2262(buf, r);
+    if(force == FlipperForceEv1527) return flipper_decode_ev1527(buf, r);
+    if(force == FlipperForceTpms) return flipper_decode_tpms(buf, r);
     return false;
 }
 

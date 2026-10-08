@@ -55,13 +55,13 @@ The dashboard link requires a random 6-digit access code on the Flipper and `AUT
 
 Architecture
 ------------
-The host FAP is slim EXTERNAL. Vehicle/year tables live in `fw_catalog.fal`. Sec+ 1.0/2.0, Scher-Khan, Hitag2, Mazda, Honda (incl. KR5), and Toyota live in `fw_force.fal`. Both are `fal_embedded` under `/assets/plugins/`, mapped when FOBclone / FOBcatch / FOBback / Force need them, and unmapped on the main menu. Advanced Settings picks the built-in or an OTG CC1101; external presence is confirmed with `subghz_devices_is_connect` on `cc1101_ext` after OTG, not OTG power alone.
+The host FAP is slim EXTERNAL. Vehicle/year tables live in `fw_catalog.fal`. Sec+ 1.0/2.0, Scher-Khan, Hitag2, Mazda, Honda (incl. KR5), Toyota, Nissan, PSA Mode 0x23, and the force-only fixed-code family (CAME, Nice FLO, FAAC SLH, DoorHan, Ansonic, Linear-10, Holtek, PT2262, EV1527, TPMS) live in `fw_force.fal`. Both are `fal_embedded` under `/assets/plugins/`, mapped when FOBclone / FOBcatch / FOBback / Force need them, and unmapped on the main menu. Advanced Settings picks the built-in or an OTG CC1101; external presence is confirmed with `subghz_devices_is_connect` on `cc1101_ext` after OTG, not OTG power alone.
 
 Loader sizes for this host image (limits 61864 / 16621 / 5924):
-  .text 61852, .rodata 15480, .bss 5199.
+  .text 58840, .rodata 15197, .bss 5200.
 
 SHA-256 of the copy in this repository:
-039d75e9d37c83237d295b7503a9fe43e28b6448650196dd9be7e8803ae96ce5
+6d207a0d4629f8859d653ea4d752a81075e5adb6c9bfcebd4682365333919a5b
 
 The binary attached to a GitHub release is built by the "Build FAP" workflow from this source. The build is not byte-reproducible, so digests drift between runs. Target/API alone is NOT proof of equivalent contents. The workflow also uploads SHA256SUMS and BUILD_MANIFEST.json with the exact built FAP. After any local build, I run:
   python3 tools/sync_release.py --sync

@@ -23,7 +23,8 @@ OEM_DECODERS = ../protocol/flipper_oem_wire.c ../protocol/flipper_vehrke.c \
 		../protocol/flipper_suzuki.c ../protocol/flipper_subaru.c \
 		../protocol/flipper_kia.c ../protocol/flipper_gm.c \
 		../protocol/flipper_ford.c ../protocol/flipper_chrysler.c \
-		../protocol/flipper_scher_khan.c ../protocol/flipper_secplus.c
+		../protocol/flipper_scher_khan.c ../protocol/flipper_secplus.c \
+		../protocol/flipper_fixed_force.c
 
 test_vehicle_decoder: test_vehicle_decoder.c ../protocol/flipper_decoders.c \
 		../protocol/flipper_keeloq.c ../protocol/flipper_scratch.c \
@@ -117,8 +118,18 @@ corpus: test_classify
 	./test_classify $(or $(SETS),500)
 
 # Live Security+ honesty report against owned-hardware .sub captures.
+# Empty drop folder is a soft success: print how to fill it, do not fail the run.
 secplus-live: sub_check
-	./sub_check --report $(or $(LIVE),../../deliverables/secplus-live-captures)
+	@dir="$(or $(LIVE),../../deliverables/secplus-live-captures)"; \
+	mkdir -p "$$dir"; \
+	n=$$(find "$$dir" -type f -name '*.sub' 2>/dev/null | wc -l | tr -d ' '); \
+	if [ "$$n" = "0" ]; then \
+	  echo "secplus-live: no .sub files in $$dir yet."; \
+	  echo "Drop owned-hardware Security+ 1.0 / 2.0 captures there, then re-run."; \
+	  echo "Synthetic SynGate_* corpus rows do not count for Auto promotion."; \
+	  exit 0; \
+	fi; \
+	./sub_check --report "$$dir"
 
 clean:
 	rm -f test_fobscan_display test_link test_library_contract test_tx_session test_vehicle_decoder \
