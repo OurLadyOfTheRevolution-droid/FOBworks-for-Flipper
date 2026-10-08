@@ -258,8 +258,9 @@ New capabilities:
    CORPUS_HONESTY.md before any Auto debate.
 2. I will use real CC1101 FREQEST measurements in FOBfreq when the device API
    exposes them.
-3. I will peel further host-side families into FALs when `.text` tightens
-   again.
+3. I will re-check FOBscan on the device with this FAP (stack frames below
+   budget; MPU fault still needs a crash-screen thread/PC before I call it
+   closed).
 
 KeeLoq decrypt in this tree already follows AN1064 (NLF 0x3A5C742E, 528
 rounds) and passes the three published vectors. Clone synthesis now uses
