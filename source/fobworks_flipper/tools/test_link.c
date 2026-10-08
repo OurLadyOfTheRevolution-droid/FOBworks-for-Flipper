@@ -1,7 +1,7 @@
 /*
  * Host conformance checks for the dashboard control protocol.
  *
- * Checks that outbound frames use the event/proto/cmd keys expected by the
+ * I verify that outbound frames use the event/proto/cmd keys expected by the
  * dashboard, and that inbound command names map to the right kinds. In
  * particular, the dashboard sends "setfreq", not "set_freq".
  *
@@ -20,7 +20,7 @@ static void expect(int cond, const char* what) {
     if(!cond) { printf("  FAIL: %s\n", what); fails++; }
 }
 
-/* Check whether hay contains needle. */
+/* I check whether hay contains needle. */
 static void contains(const char* hay, const char* needle, const char* what) {
     checks++;
     if(!strstr(hay, needle)) {
@@ -51,7 +51,7 @@ static void test_parse(void) {
         {"{\"cmd\":\"squelch\",\"val\":-55}",    FlipperCmdSquelch},
         {"{\"cmd\":\"save\"}",                   FlipperCmdSave},
         {"{\"cmd\":\"fbk_arm\"}",                FlipperCmdFbkArm},
-        /* single-radio hardware can't honor these — recognized as unsupported */
+        /* Single-radio hardware cannot honor these; I recognize them as unsupported. */
         {"{\"cmd\":\"dual_band_replay\"}",       FlipperCmdUnsupported},
         {"{\"cmd\":\"toy_softid\"}",             FlipperCmdUnsupported},
         {"{\"cmd\":\"key_add\",\"name\":\"x\"}", FlipperCmdUnsupported},
@@ -65,14 +65,14 @@ static void test_parse(void) {
         expect(c.kind == cases[i].kind, cases[i].json);
     }
 
-    /* numeric params extracted */
+    /* I extracted numeric params. */
     FlipperCmd c;
     flipper_proto_parse_cmd("{\"cmd\":\"setfreq\",\"freq\":315.00}", &c);
     expect(c.has_freq && c.freq_mhz > 314.9f && c.freq_mhz < 315.1f, "setfreq freq value");
     flipper_proto_parse_cmd("{\"cmd\":\"squelch\",\"val\":-55}", &c);
     expect(c.has_val && c.val < -54.9f && c.val > -55.1f, "squelch val value");
 
-    /* the regression guard: dashboard sends "setfreq", not "set_freq" */
+    /* The regression guard: dashboard sends "setfreq", not "set_freq". */
     flipper_proto_parse_cmd("{\"cmd\":\"set_freq\"}", &c);
     expect(c.kind != FlipperCmdSetFreq, "set_freq must NOT be treated as setfreq");
 }
@@ -141,7 +141,7 @@ static void test_emit(void) {
     flipper_proto_emit_replay_done(b, sizeof(b));
     contains(b, "\"event\":\"replay_done\"", "replay_done event");
 
-    /* overflow safety: a tiny buffer must not overrun and returns 0 */
+    /* Overflow safety: I ensure a tiny buffer does not overrun and returns 0. */
     char tiny[8];
     size_t n = flipper_proto_emit_heartbeat(tiny, sizeof(tiny), 433.92f, true, 100, 1, true, 0);
     expect(n == 0, "overflow returns 0");

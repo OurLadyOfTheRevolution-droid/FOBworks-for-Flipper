@@ -13,7 +13,7 @@ static void norm_name(const char* s, char* d, size_t n) {
     d[j] = '\0';
 }
 
-/* Allow a protocol label such as "KeeLoq" to match "KeeLoq-HCS300". Labels
+/* I allow a protocol label such as "KeeLoq" to match "KeeLoq-HCS300". Labels
    shorter than three characters must match exactly. */
 static bool names_agree(const char* claimed, const char* found) {
     char a[32], b[32];
@@ -77,7 +77,7 @@ void flipper_saved_judge(
         out->kind = FlipperSavedAuto;
         copy_trim(found, sizeof(found), r.proto);
     } else {
-        /* Mirror the dispatcher's forced-only coverage here. Toyota and Honda
+        /* I mirror the dispatcher's forced-only coverage here. Toyota and Honda
            have no Auto gate, and Fiat's forced path tries V2/V0 in addition to
            the checksummed V1 decoder used by Auto. */
         static const FlipperForceProto force_only[] = {

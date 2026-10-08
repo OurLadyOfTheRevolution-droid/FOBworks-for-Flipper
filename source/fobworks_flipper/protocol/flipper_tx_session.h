@@ -3,11 +3,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-/*
- * TX session and safety rules, kept independent of Furi and radio code so host
- * tests can exercise ownership, deadlines, and cancellation. The CC1101 adapter
- * uses the same contract on device.
- */
+/* TX session and safety rules, kept independent of Furi and radio code so host tests can exercise ownership, deadlines, and cancellation. The CC1101 adapter uses the same contract on device. */
 typedef enum {
     FlipperTxKindNone = 0,
     FlipperTxKindReplay,
@@ -57,7 +53,7 @@ typedef struct {
     FlipperTxCancelReason cancel_reason;
     FlipperTxPolicy policy;
     uint32_t operation_id;
-    uint32_t request_id; /* correlates external requests; ownership uses owner_id */
+    uint32_t request_id; /* I correlate external requests; ownership uses owner_id */
     uint32_t owner_id;
     uint32_t started_ms;
     uint32_t deadline_ms;

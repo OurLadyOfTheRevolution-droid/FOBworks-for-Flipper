@@ -3,9 +3,7 @@
 #include <string.h>
 #include <stdio.h>
 
-/* This Honda RKE layout comes from the uploaded source and has not been
-   independently verified. Keep the decoder force-only and prediction disabled
-   until the layout and checksum are confirmed. */
+/* This Honda RKE layout comes from the uploaded source and I have not independently verified it. I keep the decoder force-only and prediction disabled until I confirm the layout and checksum. */
 bool flipper_decode_honda(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
     if(!buf || !r || buf->len < 128 || buf->len > FLIPPER_PULSE_MAX) return false;
     uint32_t te = buf->te_us;
@@ -82,9 +80,7 @@ bool flipper_decode_honda_kr5(const FlipperPulseBuf* buf, FlipperDecodeResult* r
     }
     if(te < 40 || te > 140) return false;
 
-    /* Stay within the shared 2.5 KiB scratch arena. Truncate oversized
-       expansions; accept a KR5 frame only when its preamble, payload, and CRC
-       all fit in the available data. */
+    /* I stay within the shared 2.5 KiB scratch arena. I truncate oversized expansions; I accept a KR5 frame only when its preamble, payload, and CRC all fit in the available data. */
     enum { HK_LVL = FLIPPER_SCRATCH_A / 2, HK_BITS = FLIPPER_SCRATCH_A / 2 };
     uint8_t* lvl = flipper_scratch_a(0, HK_LVL);
     if(!lvl) return false;

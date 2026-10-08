@@ -3,10 +3,7 @@
 #include <stdbool.h>
 #include "flipper_decoders.h"
 
-/* Summarize one capture session. Auto means a decoder's built-in gate accepted
-   the frame; Force means it matched a user-selected or weaker decoder; None
-   means no decoder matched. These labels describe the parser path, not vehicle
-   receiver acceptance. The action is the next step supported by this capture. */
+/* I summarize one capture session. Auto means a decoder's built-in gate accepted the frame; Force means it matched a user-selected or weaker decoder; None means no decoder matched. These labels describe the parser path, not vehicle receiver acceptance. The action is the next step supported by this capture. */
 
 typedef enum {
     FlipperConfNone = 0,
@@ -16,7 +13,7 @@ typedef enum {
 
 typedef enum {
     FlipperActNone = 0,     /* no decoder match */
-    FlipperActSave,         /* save the decoded capture */
+    FlipperActSave,         /* I save the decoded capture */
     FlipperActPredict,      /* a KeeLoq device key is available */
     FlipperActResync,       /* same serial, 3+ counters step by 1–4 */
     FlipperActReplay,       /* fixed or unencrypted code */
@@ -47,8 +44,7 @@ typedef struct {
 void flipper_session_reset(FlipperSession* s);
 void flipper_session_push(FlipperSession* s, const FlipperDecodeResult* r);
 
-/* Build the verdict from the decoder result and session. was_auto is true only
-   when the automatic decoder chain accepted the frame. */
+/* I build the verdict from the decoder result and session. was_auto is true only when the automatic decoder chain accepted the frame. */
 void flipper_verdict_build(FlipperVerdict* v, const FlipperDecodeResult* r,
                            bool decoded, bool was_auto, const FlipperSession* s,
                            const FlipperPulseBuf* pulses);

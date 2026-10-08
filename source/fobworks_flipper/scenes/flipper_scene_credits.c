@@ -1,7 +1,6 @@
 #include "../flipper_fobscan_app.h"
 
-/* The main menu opens this screen on Back instead of exiting immediately.
- * A key press stops the dispatcher and closes the app. */
+/* The main menu opens this screen on Back instead of exiting immediately. A key press stops the dispatcher and closes the app. */
 
 void flipper_credits_draw_cb(Canvas* canvas, void* model) {
     UNUSED(model);
@@ -24,8 +23,7 @@ void flipper_credits_draw_cb(Canvas* canvas, void* model) {
 
 bool flipper_credits_input_cb(InputEvent* e, void* ctx) {
     FlipperApp* app = (FlipperApp*)ctx;
-    /* Stop the dispatcher to exit; scene exit handlers still run during
-       teardown. */
+    /* I stop the dispatcher to exit; scene exit handlers still run during teardown. */
     if(e->type == InputTypeShort) {
         view_dispatcher_stop(app->view_dispatcher);
         return true;

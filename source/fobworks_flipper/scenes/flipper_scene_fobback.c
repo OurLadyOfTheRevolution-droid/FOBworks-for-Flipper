@@ -6,8 +6,7 @@
 #include <stdio.h>
 
 /* ─────────────────────────────────────────────────────────────────────────── */
-/* FOBback guides make and vehicle selection, then captures frames for ordered
-   RollBack replay. */
+/* FOBback guides make and vehicle selection, then captures frames for ordered RollBack replay. */
 /* ─────────────────────────────────────────────────────────────────────────── */
 
 static void fobback_caps_free(FlipperFobbackState* fb) {
@@ -33,10 +32,9 @@ void flipper_scene_fobback_make_on_enter(void* ctx) {
     FlipperApp* app = (FlipperApp*)ctx;
     submenu_reset(app->submenu);
 
-    /* Map the catalog before the guided alloc so the Make list is not empty
-       when heap headroom is tight. */
+    /* I map the catalog before the guided alloc so the Make list is not empty when heap headroom is tight. */
     if(!flipper_catalog_ensure()) {
-        submenu_set_header(app->submenu, "FOBback: no catalog");
+        submenu_set_header(app->submenu, flipper_catalog_error());
         submenu_add_item(app->submenu, "Back", 0, NULL, app);
         view_dispatcher_switch_to_view(app->view_dispatcher, FlipperViewMenu);
         return;
@@ -52,7 +50,8 @@ void flipper_scene_fobback_make_on_enter(void* ctx) {
     memset(&app->guided->fobback, 0, sizeof(app->guided->fobback));
 
     int n = flipper_fbk_make_count();
-    submenu_set_header(app->submenu, "FOBback: Make");
+    submenu_set_header(app->submenu, n > 0 ?
+        "FOBback: Make" : flipper_catalog_error());
     if(n <= 0) {
         submenu_add_item(app->submenu, "(empty catalog)", 0, NULL, app);
     } else {
@@ -111,8 +110,7 @@ void flipper_scene_fobback_model_on_exit(void* ctx) {
 }
 
 /* ── Listen / replay screen ──────────────────────────────────────────────── */
-/* Input handlers change state directly, so commit the model after visible
-   updates or the screen will not repaint until it is switched. */
+/* Input handlers change state directly, so I commit the model after visible updates or the screen will not repaint until it is switched. */
 static void fobback_redraw(FlipperApp* app) {
     view_get_model(app->fobback_view);
     view_commit_model(app->fobback_view, true);
@@ -237,7 +235,7 @@ bool flipper_scene_fobback_listen_on_event(void* ctx, SceneManagerEvent e) {
             FlipperCaptureResult* cr = &app->capture->result;
             const FlipperFbkProfile* p = fb->profile;
             if(cr->decode_ok && p) {
-                /* Accept captures within ±1.2 MHz of a profile frequency. */
+                /* I accept captures within ±1.2 MHz of a profile frequency. */
                 bool freq_ok = false;
                 for(int f = 0; f < p->freq_count && !freq_ok; f++) {
                     float diff = cr->decode.freq_mhz - p->freqs[f];
@@ -246,7 +244,7 @@ bool flipper_scene_fobback_listen_on_event(void* ctx, SceneManagerEvent e) {
                 }
 
                 if(freq_ok && fb->cap_count < FLIPPER_FBK_CAPS_MAX) {
-                    /* In strict mode, restart on a duplicate or large jump. */
+                    /* In strict mode, I restart on a duplicate or large jump. */
                     if(p->seq == FbkSeqStrict && fb->cap_count > 0 &&
                        cr->decode.device_key_hex[0]) {
                         uint32_t delta = (cr->decode.cnt -

@@ -2,8 +2,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-/* Pulse-timing profiles only. These are NOT RF carrier-offset measurements
-   and cannot establish oscillator, transmitter, or clone identity. */
+/* Pulse-timing profiles only. These are NOT RF carrier-offset measurements and cannot establish oscillator, transmitter, or clone identity. */
 #define FOBFREQ_SAMPLES_MAX 16
 #define FOBFREQ_SAMPLES_MIN 4
 #define FOBFREQ_TIMING_TOL_US 32.0f /* resolution of the current TE histogram */

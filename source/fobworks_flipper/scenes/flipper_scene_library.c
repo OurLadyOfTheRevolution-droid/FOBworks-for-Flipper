@@ -4,8 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
-/* Browse captures stored as .sub files on the SD card. Choose Decoded or Raw,
- * then select a capture to send, inspect, predict from, export, or delete. */
+/* Browse captures stored as .sub files on the SD card. Choose Decoded or Raw, then select a capture to send, inspect, predict from, export, or delete. */
 
 /* ── Category select (Decoded / Raw) ──────────────────────────────────────── */
 enum { LibCatDecoded = 0, LibCatRaw = 1 };
@@ -138,8 +137,7 @@ static void library_item_cb(void* ctx, uint32_t idx) {
         scene_manager_next_scene(app->scene_manager, FlipperSceneLibraryInfo);
         break;
     case LibActExport: {
-        /* Copy the capture to the stock SubGHz Saved browser for access outside
-           this app. */
+        /* Copy the capture to the stock SubGHz Saved browser for access outside this app. */
         bool ok = flipper_lib_export_subghz(app->storage, app->lib_sel_decoded,
                                             app->lib_sel_name);
         notification_message(app->notifications, ok ? &sequence_success : &sequence_error);

@@ -1,30 +1,17 @@
 #include "../flipper_fobscan_app.h"
+#include "../protocol/flipper_plugin.h"
 #include <notification/notification_messages.h>
 #include <string.h>
 #include <stdio.h>
 
 /* ─────────────────────────────────────────────────────────────────────────── */
-/* FOBcatch guides make/model/year selection, then listens and jams on a
-   matching capture. All pickers reuse FlipperViewMenu. */
+/* FOBcatch guides make/model/year selection, then listens and jams on a matching capture. All pickers reuse FlipperViewMenu. */
 /* ─────────────────────────────────────────────────────────────────────────── */
 
 /* ── Shared make list ─────────────────────────────────────────────────────── */
 static const char* fcc_makes[32];
 static int         fcc_make_count = 0;
 static uint32_t    s_catch_ready;
-
-static void build_fcc_makes(void) {
-    fcc_make_count = 0;
-    int n = flipper_fc_vehicle_count();
-    for(int i = 0; i < n && fcc_make_count < 32; i++) {
-        const FlipperFcVehicle* v = flipper_fc_vehicle_at(i);
-        if(!v || !v->make) continue;
-        bool found = false;
-        for(int m = 0; m < fcc_make_count; m++)
-            if(strcmp(fcc_makes[m], v->make) == 0) { found = true; break; }
-        if(!found) fcc_makes[fcc_make_count++] = v->make;
-    }
-}
 
 /* ── Make picker ─────────────────────────────────────────────────────────── */
 static void fobcatch_make_cb(void* ctx, uint32_t idx) {
@@ -38,19 +25,27 @@ static void fobcatch_make_cb(void* ctx, uint32_t idx) {
 
 void flipper_scene_fobcatch_make_on_enter(void* ctx) {
     FlipperApp* app = (FlipperApp*)ctx;
-    /* Allocate guided state on entry; the main menu releases it. Clear any
-       state left from an earlier mode. */
+    /* I clear borrowed labels and map the catalog before allocating capture state. */
+    submenu_reset(app->submenu);
+    fcc_make_count = 0;
+    if(!flipper_catalog_ensure()) {
+        submenu_set_header(app->submenu, flipper_catalog_error());
+        submenu_add_item(app->submenu, "M4: Back", 0, NULL, app);
+        view_dispatcher_switch_to_view(app->view_dispatcher, FlipperViewMenu);
+        return;
+    }
+    /* I allocate guided state on entry; the main menu releases it. I clear any state left from an earlier mode. */
     if(!flipper_guided_ensure(app, sizeof(FlipperFobcatchState))) {
-        submenu_reset(app->submenu);
         submenu_set_header(app->submenu, "FOBcatch: OOM");
-        submenu_add_item(app->submenu, "Back", 0, NULL, app);
+        submenu_add_item(app->submenu, "M4: Back", 0, NULL, app);
         view_dispatcher_switch_to_view(app->view_dispatcher, FlipperViewMenu);
         return;
     }
     memset(&app->guided->fobcatch, 0, sizeof(app->guided->fobcatch));
-    build_fcc_makes();
-    submenu_reset(app->submenu);
-    submenu_set_header(app->submenu, "FOBcatch: Make");
+    fcc_make_count = flipper_catalog_makes(fcc_makes, 32);
+    submenu_set_header(app->submenu, fcc_make_count ?
+        "Catch M4: Make" : flipper_catalog_error());
+    if(!fcc_make_count) submenu_add_item(app->submenu, "M4: Back", 0, NULL, app);
     for(int i = 0; i < fcc_make_count; i++)
         submenu_add_item(app->submenu, fcc_makes[i], (uint32_t)i, fobcatch_make_cb, app);
     view_dispatcher_switch_to_view(app->view_dispatcher, FlipperViewMenu);
@@ -130,8 +125,7 @@ void flipper_scene_fobcatch_year_on_exit(void* ctx) {
 }
 
 /* ── Active screen draw ─────────────────────────────────────────────────────*/
-/* Input handlers change state directly, so commit the model after visible
-   updates or the screen will not repaint until it is switched. */
+/* Input handlers change state directly, so I commit the model after visible updates or the screen will not repaint until it is switched. */
 static void fobcatch_redraw(FlipperApp* app) {
     view_get_model(app->fobcatch_view);
     view_commit_model(app->fobcatch_view, true);
@@ -177,8 +171,7 @@ void flipper_fobcatch_draw_cb(Canvas* canvas, void* model) {
 
 bool flipper_fobcatch_input_cb(InputEvent* e, void* ctx) {
     FlipperApp* app = (FlipperApp*)ctx;
-    /* Require a deliberate hold before transmitting. FOBclone and FOBback
-       replay remain short-press actions. */
+    /* I require a deliberate hold before transmitting. FOBclone and FOBback replay remain short-press actions. */
     if(e->type == InputTypeLong && e->key == InputKeyOk &&
        app->guided->fobcatch.jamming &&
        app->guided->fobcatch.jam_completed &&
@@ -194,7 +187,7 @@ static void fobcatch_start_jam(FlipperApp* app) {
     FlipperFobcatchState* fc = &app->guided->fobcatch;
     flipper_capture_stop(app->capture);
 
-    /* Transmit a long OOK carrier for about 400 ms. */
+    /* I transmit a long OOK carrier for about 400 ms. */
     FlipperPulseBuf jam_buf;
     memset(&jam_buf, 0, sizeof(jam_buf));
     jam_buf.len         = 2;
@@ -233,14 +226,14 @@ void flipper_scene_fobcatch_active_on_enter(void* ctx) {
     fc->jam_completed = false;
     fc->jam_freq_mhz = 433.92f;
 
-    /* Choose frequency and modulation from the selected model name. */
+    /* I choose frequency and modulation from the selected model name. */
     int vidx = fc->model_idx;
     float freq = 433.92f;
     FlipperPreset preset = FlipperPresetOOK650;
     const FlipperFcVehicle* av = flipper_fc_vehicle_at(vidx);
     if(av) {
         const char* model = av->model;
-        /* Select the model's primary frequency. */
+        /* I select the model's primary frequency. */
         if     (strstr(model, "915"))                          { freq = 915.00f; }
         else if(strstr(model, "868"))                          { freq = 868.00f; }
         else if(strstr(model, "315"))                          { freq = 315.00f; }
@@ -250,7 +243,7 @@ void flipper_scene_fobcatch_active_on_enter(void* ctx) {
         else if(strstr(model, "390"))                          { freq = 390.00f; }
         else if(strstr(model, "418"))                          { freq = 418.00f; }
         else if(strstr(model, "300"))                          { freq = 300.00f; }
-        /* Select its modulation. */
+        /* I select its modulation. */
         if     (strstr(model, "868"))  { preset = FlipperPresetOOK270; }
         else if(strstr(model, "2FSK")) { preset = FlipperPreset2FSKDev238; }
     }
@@ -272,13 +265,10 @@ static bool fobcatch_take(FlipperApp* app) {
     FlipperFobcatchState* fc = &app->guided->fobcatch;
     if(fc->jamming || fc->cap.decode_ok) return false;
     if(!flipper_capture_flush(app->capture)) return false;
-    /* Ignore the noise burst produced when the radio opens. */
+    /* I ignore the noise burst produced when the radio opens. */
     if(furi_get_tick() < s_catch_ready) return false;
     FlipperCaptureResult* cr = &app->capture->result;
-    /* A Ford frame that no decoder actually accepted must NOT be jam-and-
-       replayed: the old TE + length guess marked decode_ok=true from timing
-       alone, then replayed a frame nothing verified. Treat an undecoded
-       capture as undecoded — the caller keeps listening instead. */
+    /* A Ford frame that no decoder actually accepted must NOT be jam-and-replayed: the old TE + length guess marked decode_ok=true from timing alone, then replayed a frame nothing verified. I treat an undecoded capture as undecoded — the caller keeps listening instead. */
     if(!cr->decode_ok) return false;
     fc->cap = *cr;
     fc->jam_freq_mhz = cr->decode.freq_mhz > 0.0f ? cr->decode.freq_mhz : app->capture->freq_mhz;
@@ -316,7 +306,7 @@ bool flipper_scene_fobcatch_active_on_event(void* ctx, SceneManagerEvent e) {
             fobcatch_redraw(app);
             return true;
         }
-        /* Stop jamming, replay the capture, then listen for another press. */
+        /* I stop jamming, replay the capture, then listen for another press. */
         fc->tx_pending = flipper_capture_tx(
             app->capture, &fc->cap.pulses, fc->jam_freq_mhz,
             FlipperPresetOOK650, 2000);

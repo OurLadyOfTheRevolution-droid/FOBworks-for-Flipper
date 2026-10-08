@@ -6,9 +6,9 @@
 #include "flipper_decoders.h"
 
 /* ── On-device signal library ─────────────────────────────────────────────────
- * Persists captures to the SD card as Flipper-compatible SubGHz RAW (.sub)
+ * I persist captures to the SD card as Flipper-compatible SubGHz RAW (.sub)
  * files, so saved signals can also be opened/replayed by the stock SubGHz app
- * and copied off via qFlipper (that IS the "export" function).  Two categories,
+ * and copied off via qFlipper (that IS the "export" function). Two categories,
  * mirroring the web dashboard library split:
  *   - decoded/ : captures that decoded to a known protocol (metadata embedded)
  *   - raw/     : undecoded OOK/FSK bursts (RAW only)
@@ -35,10 +35,10 @@ typedef enum {
     FlipperLibErrorOversized,
 } FlipperLibError;
 
-/* Remote callers must pass a single library entry name, never a path. */
+/* I require that remote callers pass a single library entry name, never a path. */
 bool flipper_lib_valid_name(const char* name);
 
-/* Create the library directory tree.  Safe to call repeatedly. */
+/* I create the library directory tree. It is safe to call repeatedly. */
 void flipper_lib_init(Storage* storage);
 FlipperLibError flipper_lib_last_error(void);
 const char* flipper_lib_error_name(FlipperLibError error);
@@ -46,7 +46,7 @@ const char* flipper_lib_error_name(FlipperLibError error);
 /* Number of saved signals in a category (decoded=true → decoded/, else raw/). */
 int flipper_lib_count(Storage* storage, bool decoded);
 
-/* Save one capture.  When decoded, protocol metadata (proto/serial/counter/…)
+/* I save one capture. When decoded, protocol metadata (proto/serial/counter/…)
  * is embedded so a later load restores the decode without re-parsing.
  * Returns true on success (or when a same-named file already exists / dedup),
  * false on I/O error or when the category is full.
@@ -56,7 +56,7 @@ bool flipper_lib_save(Storage* storage, const FlipperCaptureResult* cap,
                       FlipperPreset preset, bool decoded, bool evict_oldest,
                       char* out_name);
 
-/* Fill out[] with up to max entries (newest listing order is filesystem order).
+/* I fill out[] with up to max entries (newest listing order is filesystem order).
  * Returns the number of entries written. */
 int flipper_lib_list(Storage* storage, bool decoded, FlipperLibEntry* out, int max);
 
@@ -64,22 +64,22 @@ int flipper_lib_list(Storage* storage, bool decoded, FlipperLibEntry* out, int m
 int flipper_lib_list_page(
     Storage* storage, bool decoded, FlipperLibEntry* out, int max, int offset);
 
-/* Load a saved signal by name (without .sub) into cap + preset.
+/* I load a saved signal by name (without .sub) into cap + preset.
  * Reconstructs pulses (for replay) and, for decoded files, the decode result. */
 bool flipper_lib_load(Storage* storage, bool decoded, const char* name,
                       FlipperCaptureResult* cap, FlipperPreset* preset);
 
-/* Load a saved signal and return its on-disk Protocol: label (bounded).
+/* I load a saved signal and return its on-disk Protocol: label (bounded).
  * Existing callers that do not need the label can use flipper_lib_load(). */
 bool flipper_lib_load_with_protocol(
     Storage* storage, bool decoded, const char* name, FlipperCaptureResult* cap,
     FlipperPreset* preset, char* protocol, size_t protocol_size);
 
-/* Delete a saved signal by name (without .sub). */
+/* I delete a saved signal by name (without .sub). */
 bool flipper_lib_delete(Storage* storage, bool decoded, const char* name);
 
-/* Copy a saved signal into the stock SubGHz app's Saved folder (/ext/subghz)
+/* I copy a saved signal into the stock SubGHz app's Saved folder (/ext/subghz)
  * so it shows up in the native SubGHz "Saved" browser (and survives trimming
- * this app's small library).  Non-destructive: the source .sub is left in place.
+ * this app's small library). Non-destructive: the source .sub is left in place.
  * Returns true on success or when the file is already present there. */
 bool flipper_lib_export_subghz(Storage* storage, bool decoded, const char* name);

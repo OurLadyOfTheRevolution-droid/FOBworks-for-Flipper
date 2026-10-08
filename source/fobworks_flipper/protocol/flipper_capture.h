@@ -66,13 +66,7 @@ typedef struct {
     bool      capture_done;
     uint32_t  start_ms;
 
-    /*
-     * Burst-level debounce flag — set by flipper_capture_rx_cb the first time
-     * it fires on_edge for a new burst; cleared by flipper_capture_flush() so
-     * the next burst edge will fire again.  Without this, a 100-edge fob burst
-     * queues 100 events into the ViewDispatcher before the first one is
-     * processed, flooding the event queue.
-     */
+    /*     * Burst-level debounce flag — set by flipper_capture_rx_cb the first time * it fires on_edge for a new burst; cleared by flipper_capture_flush() so * the next burst edge will fire again. Without this, I found a 100-edge fob burst * queues 100 events into the ViewDispatcher before the first one is * processed, flooding the event queue. */
     volatile bool edge_pending;
     volatile int edge_mark;
     volatile uint8_t edge_quiet;
@@ -82,12 +76,7 @@ typedef struct {
     /* Latest result */
     FlipperCaptureResult result;
 
-    /* Callback invoked when a new burst begins.  IMPORTANT: it is dispatched
-       from a dedicated worker THREAD (flipper_capture_notify_worker), NOT from
-       the async-RX ISR.  The ISR only sets an event flag; the worker calls
-       on_edge in thread context, so on_edge may safely use ViewDispatcher /
-       FuriMessageQueue (FuriWaitForever) APIs.  Calling those from the ISR
-       tripped furi_check() and crashed the instant scanning started. */
+    /* Callback invoked when a new burst begins.  IMPORTANT: it is dispatched from a dedicated worker THREAD (flipper_capture_notify_worker), NOT from the async-RX ISR. The ISR only sets an event flag; the worker calls on_edge in thread context, so on_edge may safely use ViewDispatcher / FuriMessageQueue (FuriWaitForever) APIs. I found calling those from the ISR tripped furi_check() and crashed the instant scanning started. */
     void (*on_edge)(void* ctx);
     void* on_edge_ctx;
 
@@ -96,13 +85,11 @@ typedef struct {
     FuriEventFlag* notify_flag;
     volatile bool  notify_run;
 
-    /* Shared TX lifecycle. All replay/jam/sequence paths use this state
-       machine; the HAL adapter is not an independent TX entry point. */
+    /* Shared TX lifecycle. All replay/jam/sequence paths use this state machine; the HAL adapter is not an independent TX entry point. */
     FlipperTxSession tx_session;
     bool             tx_running;
     FuriMutex*       tx_mutex;
-    /* One bounded private waveform owned by the engine.  TX never retains a
-       caller/library/stack pulse pointer after enqueue returns. */
+    /* One bounded private waveform owned by the engine. TX never retains a caller/library/stack pulse pointer after enqueue returns. */
     FlipperPulseBuf tx_owned;
     FlipperTxWorkState tx_work;
     const FlipperPulseBuf* tx_buf;
@@ -125,28 +112,25 @@ typedef struct {
 
 /* ── API ──────────────────────────────────────────────────────────────────── */
 
-/* Allocates engine, acquires SubGHz device. Must be called from main task. */
+/* I allocate the engine and acquire the SubGHz device. I must call this from the main task. */
 FlipperCaptureEngine* flipper_capture_alloc(void);
 
-/* Stops capture, releases SubGHz device, frees engine. */
+/* I stop capture, release the SubGHz device, and free the engine. */
 void flipper_capture_free(FlipperCaptureEngine* e);
 
-/* Start async RX. Resets and configures CC1101, then begins edge capture. */
+/* I start async RX. I reset and configure the CC1101, then begin edge capture. */
 void flipper_capture_start(FlipperCaptureEngine* e);
 
-/* Stop async RX and put radio to sleep. Safe to call from any context. */
+/* I stop async RX and put the radio to sleep. Safe to call from any context. */
 void flipper_capture_stop(FlipperCaptureEngine* e);
 
-/* Flush the edge ring into a FlipperPulseBuf and attempt decode.
-   Call from main task context (not ISR).
-   Returns true when e->result is freshly populated. */
+/* I flush the edge ring into a FlipperPulseBuf and attempt decode. I call this from the main task context (not ISR). Returns true when e->result is freshly populated. */
 bool flipper_capture_flush(FlipperCaptureEngine* e);
 
-/* Queue a pulse buffer for cooperative TX. Returns once accepted/rejected;
-   completion and HAL teardown occur on the lazy capture owner task. */
+/* I queue a pulse buffer for cooperative TX. I return once accepted/rejected; completion and HAL teardown occur on the lazy capture owner task. */
 bool flipper_capture_tx(FlipperCaptureEngine* e, const FlipperPulseBuf* buf, float freq_mhz, FlipperPreset preset, uint32_t timeout_ms);
 
-/* Explicit operation form used by remote control and diagnostics. */
+/* Explicit operation form I use for remote control and diagnostics. */
 bool flipper_capture_tx_ex(
     FlipperCaptureEngine* e,
     const FlipperPulseBuf* buf,
@@ -194,7 +178,7 @@ void flipper_capture_tx_set_done_cb(
     FlipperCaptureEngine* e, void (*cb)(void*), void* ctx);
 void flipper_capture_tx_wait_stopped(FlipperCaptureEngine* e);
 
-/* Transmit N consecutive captures in order (FOBback RollBack replay). */
+/* I transmit N consecutive captures in order (FOBback RollBack replay). */
 bool flipper_capture_tx_sequence(
     FlipperCaptureEngine* e,
     const FlipperCaptureResult* caps,
@@ -203,8 +187,7 @@ bool flipper_capture_tx_sequence(
     FlipperPreset preset,
     uint32_t delay_ms);
 
-/* Sweep a list of frequencies, spending dwell_ms at each.
-   Returns the frequency index that triggered, or -1 on timeout. */
+/* I sweep a list of frequencies, spending dwell_ms at each. Returns the frequency index that triggered, or -1 on timeout. */
 int flipper_capture_sweep(
     FlipperCaptureEngine* e,
     const float* freqs_mhz,
@@ -214,5 +197,5 @@ int flipper_capture_sweep(
 /* Current RSSI in dBm. Only valid while the radio is scanning. */
 float flipper_capture_rssi(FlipperCaptureEngine* e);
 
-/* Internal async RX callback — do not call directly. */
+/* Internal async RX callback — I do not call directly. */
 void flipper_capture_rx_cb(bool level, uint32_t duration_us, void* ctx);

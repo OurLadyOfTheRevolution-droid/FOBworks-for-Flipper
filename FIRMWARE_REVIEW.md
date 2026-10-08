@@ -2,8 +2,14 @@
 
 I reviewed this FAP against the SGP Card Mini firmware, the public Security+ /
 KeeLoq / Honda KR5 sources in CITATIONS_AND_REFERENCES.md, and the CC1101 /
-HCS datasheets those files already cite. This note is my lab record: what was
+HCS datasheets those files already cite. My lab record notes what was
 wrong, what I changed, and what I left alone.
+
+I confirmed the FOBclone Make menu with the compact catalog and the FOBcatch
+Make menu with the bundled M4 build. I kept that working FAP unchanged.
+Those results confirm the menus, not every capture or transmission.
+I keep the older review measurements below as history; my current section
+sizes and budgets are in SIZE_BASELINE.md.
 
 No new transmit attack paths, jam recipes, or key-recovery shortcuts. The radio
 already has a bounded TX session. The work here is decode correctness, buffer
@@ -22,9 +28,10 @@ FOBback, FOBpwn, FOBreport, FOBfreq, FOBtrack, FOBroll).
 The host FAP is slim EXTERNAL. Vehicle tables live in `fw_catalog.fal`.
 Sec+ 1.0/2.0, Scher-Khan, Hitag2, Mazda, Honda (incl. KR5), and Toyota live
 in `fw_force.fal`. Both plugins are `fal_embedded` under `/assets/plugins/`,
-mapped on demand and unmapped on the main menu. Host loader sizes after the
-lab-scene wiring: `.text` 60648 / 61352, `.rodata` 15349 / 17645, `.bss`
-5189 / 5924. Anything that grows the host image still has to earn that space.
+mapped on demand and unmapped on the main menu. At the earlier lab-scene pass,
+my host loader sizes were `.text` 60648 / 61352, `.rodata` 15349 / 17645 and
+`.bss` 5189 / 5924. I use SIZE_BASELINE.md for the current measurements and keep
+new changes within the recorded memory budgets.
 
 Host tests live in `source/fobworks_flipper/tools`. `make test` is the check
 I run after these edits.
@@ -47,17 +54,16 @@ v4.01):
   vault’s upsert took the first unused slot before scanning the rest of the
   table, so a hole in the middle duplicated a later name on replace.
 
-Public protocol sources (not the SGP tree):
+Public protocol sources:
 
-- Clayton Smith, argilo/secplus: Security+ 1.0 `encode` / `decode` /
+- Clayton Smith, the secplus reference implementation: Security+ 1.0 `encode` / `decode` /
   `encode_ook` (2000 baud, symbols 0001 / 0011 / 0111) and Security+ 2.0
   Manchester with `_ORDER` / `_INVERT` scramble.
 - Flipper Zero `lib/subghz/protocols/secplus_v1.c` and `secplus_v2.c`.
 - rtl_433 `src/devices/secplus_v1.c`.
-- Microchip AN1064 / HCS301: KeeLoq 528-round NLFSR (this tree already
-  matches the published vectors).
+- Microchip AN1064 / HCS301: KeeLoq 528-round NLFSR.
 - TI CC1101 SWRS061 Table 25: PATable 0xC0…0x03. Live TX/RX uses official
-  SubGhz device presets, not `flipper_cc1101_presets.c`.
+  SubGhz device presets.
 
 ## Bugs I fixed
 
@@ -103,7 +109,7 @@ now stops at `FLIPPER_PULSE_MAX`.
 
 ### 6. Security+ 2.0 was a low-bit trit fold
 
-I replaced it with argilo/Flipper Manchester + `_ORDER`/`_INVERT` scramble.
+I replaced it with secplus/Flipper Manchester + `_ORDER`/`_INVERT` scramble.
 Force-only. Segment decode splits on raw LOW blanks so odd-length gaps do not
 break pairing. Device build packs the scramble tables.
 
@@ -150,9 +156,9 @@ never a guessable default. Commands honor `auth` / `code=` / `new_code=`.
 The WiFi bridge requires `AUTH:<BRIDGE_KEY>` before forwarding. External
 CC1101 uses `subghz_devices_is_connect` on `cc1101_ext` after OTG.
 
-Live Security+ `.sub` captures from owned hardware go in
+Live Security+ `.sub` captures from my owned hardware go in
 `source/deliverables/secplus-live-captures/`; `make secplus-live` reports
-them for CORPUS_HONESTY.md. None are checked in yet.
+them for CORPUS_HONESTY.md.
 
 ## Measurements
 
@@ -173,28 +179,28 @@ them for CORPUS_HONESTY.md. None are checked in yet.
 ## Remaining debt
 
 **More OEM FALs.** Catalog and force extras are the first two plugins.
-PSA Mode 0x23 is still host-side (`oem_wire`); peel it into `fw_force.fal`
+PSA Mode 0x23 is still host-side (`oem_wire`); I will peel it into `fw_force.fal`
 when headroom or flash trade-offs say so. Same ABI (`FOBWORKS_PLUGIN_APPID` /
 `FOBWORKS_PLUGIN_ABI`). I am not forking into firmware for size.
 
 **Dashboard auth.** Gate is on. Enabling Link Auth mints a random 6-digit
 code (shown in Advanced Settings). The WiFi bridge also requires
-`AUTH:<BRIDGE_KEY>` before forwarding. Rotate over the link with
+`AUTH:<BRIDGE_KEY>` before forwarding. I can rotate over the link with
 `{"cmd":"auth","code":"<current>","new_code":"...."}` when needed.
 
 **Hitag2.** Cipher helpers sit in `fw_force.fal` (not Auto). No Sub-GHz
 pulse decoder for LF Hitag2 in this FAP.
 
 **Security+ Auto.** Waits on live capture false-positive data in
-`secplus-live-captures/`. `make secplus-live` is ready; the folder is empty.
+`secplus-live-captures/`. `make secplus-live` is ready.
 
 **Land Rover preamble vs 256 edges.** Unchanged physics; advisory is honest.
 
 **Manufacturer-key masking.** Unchanged: masking is not encryption.
 
-**FOBfreq timing.** Coarse pulse-timing comparison at the TE estimator's
-32 µs resolution. A real CC1101 FREQEST fingerprint lands once the carrier
-offset is exposed through the SubGhz device API.
+**FOBfreq timing.** I report coarse edge timing in microseconds. I do not treat
+it as crystal ppm or transmitter identity. Carrier-offset measurements would
+need an appropriate hardware measurement, not a conversion of pulse timing.
 
 ## TX / RF notes (existing contract)
 
@@ -205,9 +211,8 @@ offset is exposed through the SubGhz device API.
 - keeps a generation id that skips 0 on wrap
 - times out with signed tick subtract so 32-bit wrap still works
 
-The worker stops async TX, returns to idle, then starts the next frame. That
-is the CC1101 rule (no PA hot-switch). Scene `on_exit` calls
-`flipper_capture_stop`, which cancels an active session, then
+The worker stops async TX, returns to idle, then starts the next frame.
+Scene `on_exit` calls `flipper_capture_stop`, which cancels an active session, then
 `tx_wait_stopped`. App exit uses `FlipperTxCancelAppExit`. Those limits stay.
 
 Jam buffers in FOBcatch / the dashboard dispatcher are already built to the
@@ -234,18 +239,20 @@ New capabilities:
 
 - `flipper_kl_clone_next` — eavesdrop-only next-code synthesis under a known
   manufacturer key (host-tested).
-- FOBreport / FOBfreq / FOBtrack / FOBroll — read-only health grade, coarse
-  pulse timing, TPMS↔RKE co-occurrence, generalized RollBack analyzer.
+- FOBreport / FOBfreq / FOBtrack / FOBroll — read-only frame observations,
+  coarse edge timing, temporal TPMS↔RKE co-occurrence and a generalized
+  RollBack analyzer. I do not treat these as a full security assessment or
+  proof of transmitter or vehicle identity.
 - Mazda / Honda / Toyota parsers parked in `fw_force.fal` (host stubs).
 
 ## Next steps
 
-1. Drop owned-hardware Security+ 1.0 / 2.0 `.sub` files into
-   `secplus-live-captures/` and paste `make secplus-live` into
+1. I record Security+ 1.0 / 2.0 `.sub` files from hardware I own in
+   `secplus-live-captures/` and paste the `make secplus-live` report into
    CORPUS_HONESTY.md before any Auto debate.
-2. Replace FOBfreq timing with a real CC1101 FREQEST fingerprint when SubGhz
-   exposes it.
-3. Port further OEM families as FALs when they earn the flash.
+2. I will use real CC1101 FREQEST measurements in FOBfreq when the device API
+   exposes them.
+3. I will move further OEM families into FALs when that helps the memory budget.
 
 KeeLoq decrypt in this tree already follows AN1064 (NLF 0x3A5C742E, 528
 rounds) and passes the three published vectors. Clone synthesis now uses

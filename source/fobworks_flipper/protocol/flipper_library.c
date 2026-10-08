@@ -80,9 +80,7 @@ bool flipper_lib_valid_name(const char* name) {
     return flipper_lib_name_is_safe(name);
 }
 
-/* The Flipper firmware API does not provide atol(), so parse decimal fields
-   locally. Accept leading whitespace and an optional sign; stop at the first
-   non-digit. */
+/* The Flipper firmware API does not provide atol(), so I parse decimal fields locally. I accept leading whitespace and an optional sign, then stop at the first non-digit. */
 static long lib_atol(const char* s) {
     if(!s) return 0;
     while(*s == ' ' || *s == '\t') s++;
@@ -120,9 +118,7 @@ void flipper_lib_init(Storage* storage) {
         s_last_error = FlipperLibErrorSdAbsent;
         return;
     }
-    /* storage_simply_mkdir() creates only the leaf directory. Create each
-       level in order so the /ext parent exists before the library folders;
-       otherwise saves fail when opening their files. */
+    /* storage_simply_mkdir() creates only the leaf directory. I create each level in order so the /ext parent exists before the library folders, as otherwise saves fail when opening their files. */
     storage_simply_mkdir(storage, EXT_PATH("flipper_fobscan"));
     storage_simply_mkdir(storage, FLIPPER_LIB_PATH);
     storage_simply_mkdir(storage, LIB_DECODED_DIR);
@@ -137,9 +133,7 @@ void flipper_lib_init(Storage* storage) {
     }
     s_storage_ready = true;
 
-    /* A reset or power loss may leave a temporary file that was never
-       published. Remove only files matching our generated .tmp names, not
-       saved captures or unrelated files. */
+    /* A reset or power loss may leave a temporary file that was never published. I remove only files matching my generated .tmp names, not saved captures or unrelated files. */
     for(int cat = 0; cat < 2; cat++) {
         File* dir = storage_file_alloc(storage);
         if(!dir) {
@@ -276,11 +270,7 @@ static void build_name(const FlipperCaptureResult* cap, bool decoded, char* out,
 }
 
 /* ── Eviction ─────────────────────────────────────────────────────────────── */
-/* Choose a repeatable eviction victim by exact filename. Firmware storage
-   metadata does not provide stable wall-clock ordering, and capture ticks
-   reset at reboot, so this does not claim to remove the oldest capture. It
-   selects the lexicographically smallest valid generated name and ignores
-   suffixes such as ".sub.bak". */
+/* I choose a repeatable eviction victim by exact filename. Firmware storage metadata does not provide stable wall-clock ordering, and capture ticks reset at reboot, so I do not claim to remove the oldest capture. I select the lexicographically smallest valid generated name and ignore suffixes such as ".sub.bak". */
 static bool lib_evict_deterministic(Storage* storage, bool decoded) {
     File* dir = storage_file_alloc(storage);
     if(!dir) {
@@ -337,18 +327,16 @@ bool flipper_lib_save(Storage* storage, const FlipperCaptureResult* cap,
     char path[128];
     snprintf(path, sizeof(path), "%s/%s.sub", lib_dir(decoded), base);
 
-    /* The saved name is valid whether we write fresh or hit the dedup path. */
+    /* The saved name is valid whether I write fresh or hit the dedup path. */
     if(out_name) {
         strncpy(out_name, base, FLIPPER_LIB_NAME_MAX - 1);
         out_name[FLIPPER_LIB_NAME_MAX - 1] = '\0';
     }
 
-    /* Check for an identical saved frame before capacity. A duplicate needs no
-       new slot and must not trigger eviction. */
+    /* I check for an identical saved frame before capacity. A duplicate needs no new slot and must not trigger eviction. */
     if(storage_file_exists(storage, path)) return true;
 
-    /* This is a new file. If the category is full, either remove the
-       deterministic-name victim when requested or report that storage is full. */
+    /* This is a new file. If the category is full, I either remove the deterministic-name victim when requested or report that storage is full. */
     if(flipper_lib_count(storage, decoded) >= FLIPPER_LIB_LIST_MAX) {
         if(!evict_oldest) {
             s_last_error = FlipperLibErrorSdFull;
@@ -368,9 +356,7 @@ bool flipper_lib_save(Storage* storage, const FlipperCaptureResult* cap,
         }
     }
 
-    /* Write to a temporary path and publish it by rename only after the write
-       completes. An interrupted or SD-full write then cannot leave a partial
-       .sub file that a later dedup check would mistake for a complete capture. */
+    /* I write to a temporary path and publish it by rename only after the write completes. An interrupted or SD-full write then cannot leave a partial .sub file that a later dedup check would mistake for a complete capture. */
     char tmp[136];
     snprintf(tmp, sizeof(tmp), "%s/%s.tmp", lib_dir(decoded), base);
 
@@ -392,8 +378,7 @@ bool flipper_lib_save(Storage* storage, const FlipperCaptureResult* cap,
             (unsigned long)hz, preset_to_str(preset));
         ok = storage_file_write(f, hdr, hn) == (size_t)hn;
 
-        /* Write RAW_Data as signed durations, 32 values per line; index 0
-           starts HIGH and therefore has a positive value. */
+        /* I write RAW_Data as signed durations, 32 values per line; index 0 starts HIGH and therefore has a positive value. */
         const int CHUNK = 32;
         for(int i = 0; ok && i < cap->pulses.len; i += CHUNK) {
             char line[512];
@@ -409,8 +394,7 @@ bool flipper_lib_save(Storage* storage, const FlipperCaptureResult* cap,
             ok = storage_file_write(f, line, p) == (size_t)p;
         }
 
-        /* Store decode details as metadata. The stock SubGHz RAW loader ignores
-           these fields; this library reads them when loading the capture. */
+        /* I store decode details as metadata. The stock SubGHz RAW loader ignores these fields; my library reads them when I load the capture. */
         if(ok && decoded) {
             char meta[256];
             int mn = snprintf(meta, sizeof(meta),
@@ -438,8 +422,7 @@ bool flipper_lib_save(Storage* storage, const FlipperCaptureResult* cap,
     storage_file_free(f);
 
     if(ok) {
-        /* Publish the completed file by rename. Remove the temporary file if
-           that final step fails. */
+        /* I publish the completed file by rename. I remove the temporary file if that final step fails. */
         if(storage_common_rename(storage, tmp, path) != FSE_OK) {
             storage_common_remove(storage, tmp);
             s_last_error = FlipperLibErrorWrite;
@@ -512,9 +495,7 @@ bool flipper_lib_load_with_protocol(
                     protocol[i] = '\0';
                 }
 
-                /* Read all RAW_Data lines as absolute durations. SD contents
-                   are user-controlled, so bound the parser and ensure every
-                   iteration advances; malformed tokens must not stall the UI. */
+                /* I read all RAW_Data lines as absolute durations. SD contents are user-controlled, so I bound the parser and ensure every iteration advances; malformed tokens must not stall the UI. */
                 int len = 0;
                 const char* end_text = text + rd;
                 const char* q = text;
@@ -599,8 +580,7 @@ bool flipper_lib_export_subghz(Storage* storage, bool decoded, const char* name)
         s_last_error = FlipperLibErrorCorrupt;
         return false;
     }
-    /* Create the stock SubGHz folder if needed. These .sub files use the
-       Flipper SubGHz RAW format, so the native browser can open and replay them. */
+    /* I create the stock SubGHz folder if needed. These .sub files use the Flipper SubGHz RAW format, so the native browser can open and replay them. */
     storage_simply_mkdir(storage, EXT_PATH("subghz"));
 
     char src[128], dst[128];

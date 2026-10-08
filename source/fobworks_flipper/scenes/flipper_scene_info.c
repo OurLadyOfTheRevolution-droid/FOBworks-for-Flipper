@@ -1,8 +1,6 @@
 #include "../flipper_fobscan_app.h"
 
-/* Scrollable detail view shared by FOBprotos and FOBLoq. The caller fills
- * app->info_title and app->info_body, with each displayed line separated by
- * '\n', then opens FlipperSceneInfo. */
+/* Scrollable detail view shared by FOBprotos and FOBLoq. I fill app->info_title and app->info_body, with each displayed line separated by '\n', then open FlipperSceneInfo. */
 
 void flipper_info_draw_cb(Canvas* canvas, void* model) {
     FlipperApp* app = *(FlipperApp**)model;

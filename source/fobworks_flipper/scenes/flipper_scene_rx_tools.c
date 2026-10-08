@@ -82,9 +82,7 @@ static bool rx_consume_capture(FlipperApp* app) {
     state->rssi_dbm = flipper_capture_rssi(app->capture);
     rx_update_metrics(state, capture);
 
-    /* FOBreport: feed every decode into the read-only health grade. A press
-       that belongs to a different remote is ignored and the run keeps waiting
-       for FLIPPER_FOBREPORT_MAX_PRESSES of the same fob. */
+    /* FOBreport: feed every decode into the read-only health grade. A press that belongs to a different remote is ignored and the run keeps waiting for FLIPPER_FOBREPORT_MAX_PRESSES of the same fob. */
     if(state->kind == FlipperRxToolReport) {
         if(capture->decode_ok) {
             if(fobreport_add(&state->lab.report, &capture->decode) == false) {
@@ -125,8 +123,7 @@ static bool rx_consume_capture(FlipperApp* app) {
         FlipperRxTrackState* tr = &state->lab.track;
         uint32_t now = furi_get_tick();
         uint32_t ts = now - tr->start_ms;
-        /* Manual receive modes; the structural TPMS parser stays force-only.
-           Co-occurrence is not proof that two identifiers share a vehicle. */
+        /* Manual receive modes; the structural TPMS parser stays force-only. Co-occurrence is not proof that two identifiers share a vehicle. */
         bool is_tpms = (strncmp(capture->decode.proto, "TPMS", 4) == 0);
         if(tr->tpms_mode ? !is_tpms : (is_tpms || !capture->decode.rolling))
             return true;
@@ -216,8 +213,7 @@ static void rx_hunt_enter(FlipperApp* app) {
     memset(state, 0, sizeof(*state));
     state->kind = FlipperRxToolHunt;
     state->rssi_dbm = RX_TOOL_FLOOR_DBM;
-    /* Start in the common 433 MHz range. Bounds come from FOBscan's shared
-       table of CC1101 frequencies. */
+    /* Start in the common 433 MHz range. Bounds come from FOBscan's shared table of CC1101 frequencies. */
     state->low_idx = rx_clamp_index(8);
     state->high_idx = rx_clamp_index(10);
     state->cursor_idx = state->low_idx;

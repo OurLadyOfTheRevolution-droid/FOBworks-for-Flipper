@@ -2,8 +2,7 @@
 #include <string.h>
 
 /* ─────────────────────────────────────────────────────────────────────────── */
-/* FOBclone frequency presets (FC_P). Each supplies a primary frequency,
-   nearby offsets, and the CC1101 modulation to use before capture. */
+/* FOBclone frequency presets (FC_P). Each supplies a primary frequency, nearby offsets, and the CC1101 modulation I use before capture. */
 /* ─────────────────────────────────────────────────────────────────────────── */
 const FlipperFcProfile FLIPPER_FC_PROFILES[] = {
     {
@@ -96,60 +95,61 @@ const int FLIPPER_FC_PROFILE_COUNT = (int)(sizeof(FLIPPER_FC_PROFILES) / sizeof(
 /* ─────────────────────────────────────────────────────────────────────────── */
 #define PROFILE(k) flipper_fc_profile_by_key(k)
 
-/* The full year-by-year table is about 8.6 KB of .rodata. The host FAP does
-   not compile this file; fw_catalog.fal ships every row (FLIPPER_FAP_SLIM
-   unset). The slim one-row-per-make table remains only as a fallback if this
-   unit is ever linked into the host image again. */
+/* I keep every year in an exact-length, static list. I separate the record
+   array from the strings so the loader needs smaller contiguous RAM blocks.
+   The host FAP does not compile this file; fw_catalog.fal ships every row. */
+#define YEARS(...) ((const char* const[]){__VA_ARGS__})
 #ifndef FLIPPER_FAP_SLIM
-const FlipperFcVehicle FLIPPER_FC_VEHICLES[] = {
+const FlipperFcVehicle FLIPPER_FC_VEHICLES[]
+    __attribute__((section(".data.catalog_rows"))) = {
     /* ── Hyundai / Kia ──────────────────────────────────────────────────── */
     {
         .make = "Hyundai",
         .model = "Elantra (315 MHz)",
-        .years = { "2013", "2014", "2015" },
+        .years = YEARS("2013", "2014", "2015"),
         .year_count = 3,
     },
     {
         .make = "Hyundai",
         .model = "Elantra (433 MHz)",
-        .years = { "2015", "2016" },
+        .years = YEARS("2015", "2016"),
         .year_count = 2,
     },
     {
         .make = "Hyundai",
         .model = "ix20 EU",
-        .years = { "2010", "2011", "2012", "2013", "2014", "2015", "2016", "2017" },
+        .years = YEARS("2010", "2011", "2012", "2013", "2014", "2015", "2016", "2017"),
         .year_count = 8,
     },
     {
         .make = "Kia",
         .model = "Cerato K3 (315 MHz)",
-        .years = { "2012", "2013", "2014", "2015", "2016" },
+        .years = YEARS("2012", "2013", "2014", "2015", "2016"),
         .year_count = 5,
     },
     {
         .make = "Kia",
         .model = "Cerato K3 (433 MHz)",
-        .years = { "2016", "2017", "2018" },
+        .years = YEARS("2016", "2017", "2018"),
         .year_count = 3,
     },
     /* ── Nissan ──────────────────────────────────────────────────────────── */
     {
         .make = "Nissan",
         .model = "Latio",
-        .years = { "2007", "2008", "2009", "2010", "2011", "2012" },
+        .years = YEARS("2007", "2008", "2009", "2010", "2011", "2012"),
         .year_count = 6,
     },
     {
         .make = "Nissan",
         .model = "Sylphy",
-        .years = { "2012", "2013", "2014", "2015", "2016", "2017", "2018", "2019" },
+        .years = YEARS("2012", "2013", "2014", "2015", "2016", "2017", "2018", "2019"),
         .year_count = 8,
     },
     {
         .make = "Nissan",
         .model = "Navara",
-        .years = { "2010", "2011", "2012" },
+        .years = YEARS("2010", "2011", "2012"),
         .year_count = 3,
     },
     /* ── Toyota ──────────────────────────────────────────────────────────── */
@@ -157,346 +157,344 @@ const FlipperFcVehicle FLIPPER_FC_VEHICLES[] = {
     {
         .make = "Toyota",
         .model = "Rush / Wigo S (Asia, 315 MHz)",
-        .years = { "2017", "2018", "2019" },
+        .years = YEARS("2017", "2018", "2019"),
         .year_count = 3,
     },
-    /* North American/global Camry, Corolla, and Prius entries use the TG
-       single- versus dual-band year split. */
+    /* North American/global Camry, Corolla, and Prius entries use the TG single- versus dual-band year split. */
     {
         .make = "Toyota",
         .model = "Camry / Corolla / Prius (315 MHz)",
-        .years = { "1998-2017 (single-band)", "2018+ (dual-band Ch-B)" },
+        .years = YEARS("1998-2017 (single-band)", "2018+ (dual-band Ch-B)"),
         .year_count = 2,
     },
     /* Larger North American/global SUVs and trucks use the same year split. */
     {
         .make = "Toyota",
         .model = "Highlander / Sienna / 4Runner / Sequoia (315 MHz)",
-        .years = { "1998-2017 (single-band)", "2018+ (dual-band Ch-B)" },
+        .years = YEARS("1998-2017 (single-band)", "2018+ (dual-band Ch-B)"),
         .year_count = 2,
     },
     /* RAV4 and Tacoma switch to the later split in 2019. */
     {
         .make = "Toyota",
         .model = "RAV4 / Tacoma / Tundra (315 MHz)",
-        .years = { "1998-2018 (single-band)", "2019+ (dual-band Ch-B)" },
+        .years = YEARS("1998-2018 (single-band)", "2019+ (dual-band Ch-B)"),
         .year_count = 2,
     },
     /* ── Lexus ───────────────────────────────────────────────────────────── */
     {
         .make = "Lexus",
         .model = "ES / IS / GX (315 MHz)",
-        .years = { "2001-2018 (single-band)", "2019+ (dual-band Ch-B)" },
+        .years = YEARS("2001-2018 (single-band)", "2019+ (dual-band Ch-B)"),
         .year_count = 2,
     },
     {
         .make = "Lexus",
         .model = "RX / NX (315 MHz)",
-        .years = { "1999-2018 (single-band)", "2019+ (dual-band Ch-B)" },
+        .years = YEARS("1999-2018 (single-band)", "2019+ (dual-band Ch-B)"),
         .year_count = 2,
     },
     /* ── Ford / Lincoln (NA) ─────────────────────────────────────────────── */
-    /* The North American Ford/Lincoln entries below use 315 MHz OOK rolling
-       code profiles. */
+    /* The North American Ford/Lincoln entries below use 315 MHz OOK rolling code profiles. */
     {
         .make = "Ford / Lincoln (NA)",
         .model = "F-150 / F-250 / F-350 / Expedition (315 MHz)",
-        .years = { "1999+" },
+        .years = YEARS("1999+"),
         .year_count = 1,
     },
     {
         .make = "Ford / Lincoln (NA)",
         .model = "Mustang / Explorer / Escape / Edge / Bronco (315 MHz)",
-        .years = { "2001+" },
+        .years = YEARS("2001+"),
         .year_count = 1,
     },
     {
         .make = "Ford / Lincoln (NA)",
         .model = "Fusion / Taurus / Ranger / Focus NA (315 MHz)",
-        .years = { "2000+" },
+        .years = YEARS("2000+"),
         .year_count = 1,
     },
     {
         .make = "Ford / Lincoln (NA)",
         .model = "Lincoln Navigator / MKZ / Corsair (315 MHz)",
-        .years = { "2003+" },
+        .years = YEARS("2003+"),
         .year_count = 1,
     },
     /* ── Ford EU ─────────────────────────────────────────────────────────── */
     {
         .make = "Ford EU",
         .model = "Focus / Fiesta / Mondeo / C-Max (433 MHz)",
-        .years = { "1998+" },
+        .years = YEARS("1998+"),
         .year_count = 1,
     },
     {
         .make = "Ford EU",
         .model = "Kuga / Galaxy / S-Max / Puma / EcoSport (433 MHz)",
-        .years = { "2006+" },
+        .years = YEARS("2006+"),
         .year_count = 1,
     },
     /* ── Mazda ───────────────────────────────────────────────────────────── */
     {
         .make = "Mazda",
         .model = "Mazda3 / CX-3 / CX-5 (315 MHz)",
-        .years = { "2017", "2018", "2019", "2020" },
+        .years = YEARS("2017", "2018", "2019", "2020"),
         .year_count = 4,
     },
     {
         .make = "Mazda",
         .model = "Mazda2 Sedan (433 MHz)",
-        .years = { "2017", "2018", "2019", "2020" },
+        .years = YEARS("2017", "2018", "2019", "2020"),
         .year_count = 4,
     },
     /* ── Honda / Acura ───────────────────────────────────────────────────── */
     {
         .make = "Honda",
         .model = "Fit / City / Vezel (310-313 MHz)",
-        .years = { "2016", "2017", "2018", "2019", "2020", "2021", "2022" },
+        .years = YEARS("2016", "2017", "2018", "2019", "2020", "2021", "2022"),
         .year_count = 7,
     },
     {
         .make = "Honda",
         .model = "Brio EU (433 MHz)",
-        .years = { "2016", "2017", "2018" },
+        .years = YEARS("2016", "2017", "2018"),
         .year_count = 3,
     },
     /* ── Chrysler / Dodge / Jeep / RAM ──────────────────────────────────── */
     {
         .make = "Chrysler/Dodge/Jeep/RAM",
         .model = "Jeep / Dodge / RAM (older fixed, ~300 MHz)",
-        .years = { "1997-2008" },
+        .years = YEARS("1997-2008"),
         .year_count = 1,
     },
     {
         .make = "Chrysler/Dodge/Jeep/RAM",
         .model = "RAM / Grand Cherokee / Charger (KeeLoq, 315 MHz)",
-        .years = { "2009-2018" },
+        .years = YEARS("2009-2018"),
         .year_count = 1,
     },
     {
         .make = "Chrysler/Dodge/Jeep/RAM",
         .model = "Stellantis — RAM / Jeep / Dodge (KeeLoq, 433 MHz)",
-        .years = { "2019+" },
+        .years = YEARS("2019+"),
         .year_count = 1,
     },
     /* ── GM (Chevrolet / GMC / Buick / Cadillac) ─────────────────────────── */
     {
         .make = "GM (Chevy/GMC/Buick/Cadillac)",
         .model = "Silverado / Sierra / Tahoe / Suburban (fixed, 318 MHz)",
-        .years = { "1999-2006" },
+        .years = YEARS("1999-2006"),
         .year_count = 1,
     },
     {
         .make = "GM (Chevy/GMC/Buick/Cadillac)",
         .model = "Silverado / Equinox / Malibu / Tahoe (KeeLoq, 315 MHz)",
-        .years = { "2007-2018" },
+        .years = YEARS("2007-2018"),
         .year_count = 1,
     },
     {
         .make = "GM (Chevy/GMC/Buick/Cadillac)",
         .model = "Malibu / Equinox / Trailblazer / Cadillac XT5 (KeeLoq, 433 MHz)",
-        .years = { "2014+" },
+        .years = YEARS("2014+"),
         .year_count = 1,
     },
     /* ── Subaru (NA) ──────────────────────────────────────────────────────── */
     {
         .make = "Subaru (NA)",
         .model = "Outback / Forester / Impreza / Legacy / Crosstrek (312 MHz)",
-        .years = { "2000-2014" },
+        .years = YEARS("2000-2014"),
         .year_count = 1,
     },
     {
         .make = "Subaru (NA)",
         .model = "Outback / Forester / Impreza / Crosstrek (915 MHz)",
-        .years = { "2015+" },
+        .years = YEARS("2015+"),
         .year_count = 1,
     },
     /* ── Genesis ──────────────────────────────────────────────────────────── */
     {
         .make = "Genesis",
         .model = "G70 / G80 / G90 / GV70 / GV80 (433 MHz, 2FSK)",
-        .years = { "2017+" },
+        .years = YEARS("2017+"),
         .year_count = 1,
     },
     /* ── VW / Audi / Skoda / SEAT (EU) ───────────────────────────────────── */
     {
         .make = "VW/Audi/Skoda/SEAT (EU)",
         .model = "Golf / Passat / Tiguan / A3 / A4 / Octavia / Ateca (433 MHz)",
-        .years = { "1999-2019" },
+        .years = YEARS("1999-2019"),
         .year_count = 1,
     },
     {
         .make = "VW/Audi/Skoda/SEAT (EU)",
         .model = "Golf / Passat / Tiguan / A3 / A4 / Octavia / Ateca (868 MHz)",
-        .years = { "2020+" },
+        .years = YEARS("2020+"),
         .year_count = 1,
     },
     /* ── Volkswagen (NA) ──────────────────────────────────────────────────── */
     {
         .make = "Volkswagen (NA)",
         .model = "Atlas / Jetta / Tiguan / Passat / Taos (315 MHz)",
-        .years = { "2005+" },
+        .years = YEARS("2005+"),
         .year_count = 1,
     },
     /* ── BMW / Mercedes-Benz (EU) ─────────────────────────────────────────── */
     {
         .make = "BMW / Mercedes (EU)",
         .model = "BMW 3/5-Series / X3 / X5 / Mercedes C/E-Class (433 MHz)",
-        .years = { "1998-2012" },
+        .years = YEARS("1998-2012"),
         .year_count = 1,
     },
     {
         .make = "BMW / Mercedes (EU)",
         .model = "BMW 3/5-Series / X3 / X5 / Mercedes C/E/A-Class (868 MHz)",
-        .years = { "2012+" },
+        .years = YEARS("2012+"),
         .year_count = 1,
     },
     /* ── Peugeot / Citroen (EU) ───────────────────────────────────────────── */
     {
         .make = "Peugeot / Citroen (EU)",
         .model = "206/207/208/307/308 / C3/C4/C5 (433 MHz)",
-        .years = { "2000-2019" },
+        .years = YEARS("2000-2019"),
         .year_count = 1,
     },
     {
         .make = "Peugeot / Citroen (EU)",
         .model = "208/308/3008 / C3/C4 Aircross (868 MHz)",
-        .years = { "2020+" },
+        .years = YEARS("2020+"),
         .year_count = 1,
     },
     /* ── Renault (EU) ─────────────────────────────────────────────────────── */
     {
         .make = "Renault (EU)",
         .model = "Clio / Megane / Laguna / Captur / Kadjar / Zoe (433 MHz)",
-        .years = { "1998+" },
+        .years = YEARS("1998+"),
         .year_count = 1,
     },
     /* ── Opel / Vauxhall (EU) ─────────────────────────────────────────────── */
     {
         .make = "Opel / Vauxhall (EU)",
         .model = "Astra / Corsa / Insignia / Mokka (433 MHz)",
-        .years = { "1998-2019" },
+        .years = YEARS("1998-2019"),
         .year_count = 1,
     },
     {
         .make = "Opel / Vauxhall (EU)",
         .model = "Astra / Corsa / Insignia / Mokka (868 MHz)",
-        .years = { "2020+" },
+        .years = YEARS("2020+"),
         .year_count = 1,
     },
     /* ── Fiat / Alfa Romeo (EU) ───────────────────────────────────────────── */
     {
         .make = "Fiat / Alfa Romeo (EU)",
         .model = "Fiat 500 / Punto / Bravo / Alfa Giulia / Stelvio / 159 (433 MHz)",
-        .years = { "2000+" },
+        .years = YEARS("2000+"),
         .year_count = 1,
     },
     /* ── Volvo (EU) ───────────────────────────────────────────────────────── */
     {
         .make = "Volvo (EU)",
         .model = "S60 / V70 / XC60 / XC70 / XC90 / XC40 (433 MHz)",
-        .years = { "2001-2019" },
+        .years = YEARS("2001-2019"),
         .year_count = 1,
     },
     {
         .make = "Volvo (EU)",
         .model = "S60 / V70 / XC60 / XC70 / XC90 / XC40 (868 MHz)",
-        .years = { "2020+" },
+        .years = YEARS("2020+"),
         .year_count = 1,
     },
     /* ── Honda EU ─────────────────────────────────────────────────────────── */
     {
         .make = "Honda EU",
         .model = "Civic / CR-V / HR-V / Jazz / Accord EU (433 MHz)",
-        .years = { "2001+" },
+        .years = YEARS("2001+"),
         .year_count = 1,
     },
     /* ── Nissan EU ────────────────────────────────────────────────────────── */
     {
         .make = "Nissan EU",
         .model = "Qashqai / Micra / X-Trail / Juke / Note (433 MHz)",
-        .years = { "2003+" },
+        .years = YEARS("2003+"),
         .year_count = 1,
     },
     /* ── Subaru EU ────────────────────────────────────────────────────────── */
     {
         .make = "Subaru EU",
         .model = "Impreza / WRX / Forester / Legacy / Outback / Crosstrek (433 MHz)",
-        .years = { "1998+" },
+        .years = YEARS("1998+"),
         .year_count = 1,
     },
     /* ── Mazda EU ─────────────────────────────────────────────────────────── */
     {
         .make = "Mazda EU",
         .model = "RX-8 / Mazda3 / Mazda6 / CX-5 / MX-5 (433 MHz)",
-        .years = { "2003+" },
+        .years = YEARS("2003+"),
         .year_count = 1,
     },
     /* ── EU Gate & Garage (additional brands) ────────────────────────────── */
     {
         .make = "EU Gate & Garage",
         .model = "DoorHan / Hormann / Sommer / FAAC / BFT / Beninca (433 MHz)",
-        .years = { "2000+" },
+        .years = YEARS("2000+"),
         .year_count = 1,
     },
     /* ── Security+ / LiftMaster ──────────────────────────────────────────── */
     {
         .make = "LiftMaster",
         .model = "Security+ 1.0 Garage (390 MHz)",
-        .years = { "1995", "1996", "1997", "1998", "1999", "2000", "2001", "2002" },
+        .years = YEARS("1995", "1996", "1997", "1998", "1999", "2000", "2001", "2002"),
         .year_count = 8,
     },
     {
         .make = "LiftMaster",
         .model = "Security+ 2.0 Garage / myQ (315 MHz)",
-        .years = { "2010", "2011", "2012", "2013", "2014", "2015", "2016", "2017" },
+        .years = YEARS("2010", "2011", "2012", "2013", "2014", "2015", "2016", "2017"),
         .year_count = 8,
     },
     /* ── CAME / Nice ─────────────────────────────────────────────────────── */
     {
         .make = "CAME",
         .model = "12-bit Gate Fob (EU 433)",
-        .years = { "2005", "2008", "2010", "2012", "2015" },
+        .years = YEARS("2005", "2008", "2010", "2012", "2015"),
         .year_count = 5,
     },
     {
         .make = "Nice",
         .model = "FLO / FloR Gate Fob (EU 433)",
-        .years = { "2005", "2008", "2010", "2013", "2016" },
+        .years = YEARS("2005", "2008", "2010", "2013", "2016"),
         .year_count = 5,
     },
     /* ── Generic KeeLoq ──────────────────────────────────────────────────── */
     {
         .make = "Generic",
         .model = "KeeLoq 315 MHz",
-        .years = { "any" },
+        .years = YEARS("any"),
         .year_count = 1,
     },
     {
         .make = "Generic",
         .model = "KeeLoq 433 MHz",
-        .years = { "any" },
+        .years = YEARS("any"),
         .year_count = 1,
     },
 };
 #else
 const FlipperFcVehicle FLIPPER_FC_VEHICLES[] = {
-    { .make = "Chrysler/Dodge/Jeep/RAM", .model = "315 MHz", .years = { "any" }, .year_count = 1 },
-    { .make = "Chrysler/Dodge/Jeep/RAM", .model = "433 MHz", .years = { "any" }, .year_count = 1 },
-    { .make = "GM (Chevy/GMC/Buick/Cadillac)", .model = "315 MHz", .years = { "any" }, .year_count = 1 },
-    { .make = "Ford / Lincoln (NA)", .model = "315 MHz", .years = { "any" }, .year_count = 1 },
-    { .make = "Fiat / Alfa Romeo (EU)", .model = "433 MHz", .years = { "any" }, .year_count = 1 },
-    { .make = "Honda", .model = "315 MHz", .years = { "any" }, .year_count = 1 },
-    { .make = "Toyota", .model = "312 / 315 MHz", .years = { "any" }, .year_count = 1 },
-    { .make = "Lexus", .model = "315 MHz", .years = { "any" }, .year_count = 1 },
-    { .make = "Nissan", .model = "315 MHz", .years = { "any" }, .year_count = 1 },
-    { .make = "Hyundai", .model = "315 / 433 MHz", .years = { "any" }, .year_count = 1 },
-    { .make = "Kia", .model = "315 / 433 MHz", .years = { "any" }, .year_count = 1 },
-    { .make = "Subaru (NA)", .model = "315 MHz", .years = { "any" }, .year_count = 1 },
-    { .make = "Mazda", .model = "315 / 433 MHz", .years = { "any" }, .year_count = 1 },
-    { .make = "Generic", .model = "KeeLoq 315 MHz", .years = { "any" }, .year_count = 1 },
-    { .make = "Generic", .model = "KeeLoq 433 MHz", .years = { "any" }, .year_count = 1 },
+    { .make = "Chrysler/Dodge/Jeep/RAM", .model = "315 MHz", .years = YEARS("any"), .year_count = 1 },
+    { .make = "Chrysler/Dodge/Jeep/RAM", .model = "433 MHz", .years = YEARS("any"), .year_count = 1 },
+    { .make = "GM (Chevy/GMC/Buick/Cadillac)", .model = "315 MHz", .years = YEARS("any"), .year_count = 1 },
+    { .make = "Ford / Lincoln (NA)", .model = "315 MHz", .years = YEARS("any"), .year_count = 1 },
+    { .make = "Fiat / Alfa Romeo (EU)", .model = "433 MHz", .years = YEARS("any"), .year_count = 1 },
+    { .make = "Honda", .model = "315 MHz", .years = YEARS("any"), .year_count = 1 },
+    { .make = "Toyota", .model = "312 / 315 MHz", .years = YEARS("any"), .year_count = 1 },
+    { .make = "Lexus", .model = "315 MHz", .years = YEARS("any"), .year_count = 1 },
+    { .make = "Nissan", .model = "315 MHz", .years = YEARS("any"), .year_count = 1 },
+    { .make = "Hyundai", .model = "315 / 433 MHz", .years = YEARS("any"), .year_count = 1 },
+    { .make = "Kia", .model = "315 / 433 MHz", .years = YEARS("any"), .year_count = 1 },
+    { .make = "Subaru (NA)", .model = "315 MHz", .years = YEARS("any"), .year_count = 1 },
+    { .make = "Mazda", .model = "315 / 433 MHz", .years = YEARS("any"), .year_count = 1 },
+    { .make = "Generic", .model = "KeeLoq 315 MHz", .years = YEARS("any"), .year_count = 1 },
+    { .make = "Generic", .model = "KeeLoq 433 MHz", .years = YEARS("any"), .year_count = 1 },
 };
 #endif
 
@@ -646,8 +644,7 @@ const int FLIPPER_FBK_PROFILE_COUNT = (int)(sizeof(FLIPPER_FBK_PROFILES) / sizeo
 /* FOBback vehicle makes (FBK_V)                                              */
 /* ─────────────────────────────────────────────────────────────────────────── */
 
-/* Resolve profile keys at first use; this avoids a forward reference in the
-   static model table. */
+/* I resolve profile keys at first use; this avoids a forward reference in the static model table. */
 static inline const FlipperFbkProfile* FP(const char* k) {
     return flipper_fbk_profile_by_key(k);
 }
@@ -694,12 +691,12 @@ static const char* mazda_pkeys[]   = { "maz_315", "maz_315", "maz_315", "maz_315
 static const char* honda_pkeys[]   = { "hon_310", "hon_310", "hon_310", "hon_310", "hon_433" };
 
 const FlipperFbkMake FLIPPER_FBK_MAKES[] = {
-    { "Hyundai",      "Asia/EU", {}, 3 },
-    { "Kia",          "Asia",    {}, 2 },
-    { "Nissan",       "Asia",    {}, 3 },
-    { "Toyota",       "Asia",    {}, 2 },
-    { "Mazda",        "Asia",    {}, 5 },
-    { "Honda/Acura",  "Asia",    {}, 5 },
+    { "Hyundai",      "Asia/EU", hyundai_models, 3 },
+    { "Kia",          "Asia",    kia_models, 2 },
+    { "Nissan",       "Asia",    nissan_models, 3 },
+    { "Toyota",       "Asia",    toyota_models, 2 },
+    { "Mazda",        "Asia",    mazda_models, 5 },
+    { "Honda/Acura",  "Asia",    honda_models, 5 },
 };
 
 const int FLIPPER_FBK_MAKE_COUNT = (int)(sizeof(FLIPPER_FBK_MAKES) / sizeof(FLIPPER_FBK_MAKES[0]));
@@ -722,7 +719,7 @@ const FlipperFbkMake* flipper_fbk_make_at(int i) {
     return &FLIPPER_FBK_MAKES[i];
 }
 
-/* Look up a frequency or rollback profile by key. */
+/* I look up a frequency or rollback profile by key. */
 const FlipperFcProfile* flipper_fc_profile_by_key(const char* key) {
     for(int i = 0; i < FLIPPER_FC_PROFILE_COUNT; i++)
         if(strcmp(FLIPPER_FC_PROFILES[i].key, key) == 0)
@@ -737,7 +734,7 @@ const FlipperFbkProfile* flipper_fbk_profile_by_key(const char* key) {
     return NULL;
 }
 
-/* Return the profile associated with a make/model pair, or NULL if invalid. */
+/* I return the profile associated with a make/model pair, or NULL if invalid. */
 const FlipperFbkProfile* flipper_fbk_model_profile(int make_idx, int model_idx) {
     static const char** pkey_table[] = {
         hyundai_pkeys, kia_pkeys, nissan_pkeys,
@@ -748,7 +745,7 @@ const FlipperFbkProfile* flipper_fbk_model_profile(int make_idx, int model_idx) 
     return flipper_fbk_profile_by_key(pkey_table[make_idx][model_idx]);
 }
 
-/* Return the model name for a make/model pair, or NULL if invalid. */
+/* I return the model name for a make/model pair, or NULL if invalid. */
 const char* flipper_fbk_model_name(int make_idx, int model_idx) {
     static const FlipperFbkModel* model_table[] = {
         hyundai_models, kia_models, nissan_models,

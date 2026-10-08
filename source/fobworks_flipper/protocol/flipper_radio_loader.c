@@ -5,7 +5,7 @@
 #include <applications/drivers/subghz/cc1101_ext/cc1101_ext_interconnect.h>
 #include <string.h>
 
-/* Selects the internal or OTG-powered external CC1101. Version acceptance
+/* I select the internal or OTG-powered external CC1101. Version acceptance
    matches the SGP Card Mini probe (CC1101 VERSION status 0x04 or 0x14).
    External presence uses the official cc1101_ext interconnect's is_connect
    path (SPI VERSION under the hood) after OTG is up. */
@@ -46,7 +46,7 @@ bool radio_loader_is_external(void) {
 }
 
 static bool radio_loader_probe_external(void) {
-    /* OTG rail alone is not proof — ask the external CC1101 driver whether
+    /* OTG rail alone is not proof — I ask the external CC1101 driver whether
        SPI VERSION looks like a live chip (0x04 / 0x14). */
     subghz_devices_init();
     const SubGhzDevice* dev = subghz_devices_get_by_name(SUBGHZ_DEVICE_CC1101_EXT_NAME);

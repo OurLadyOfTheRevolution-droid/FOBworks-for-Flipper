@@ -66,8 +66,7 @@ void grollback_analyze(const GrollbackFrame* frames, int n,
     out->base_counter = frames[0].counter;
     out->top_counter = frames[n - 1].counter;
     out->span = (out->top_counter - out->base_counter) & counter_mask;
-    /* Enciphered when the frames did not expose a forgeable plaintext counter;
-       the caller sets this from the decode result, so keep it as reported. */
+    /* Enciphered when the frames did not expose a forgeable plaintext counter; the caller sets this from the decode result, so I keep it as reported. */
 
     if(n < min_seq) {
         snprintf(out->note, sizeof(out->note), "need %d frames; have %d", min_seq, n);

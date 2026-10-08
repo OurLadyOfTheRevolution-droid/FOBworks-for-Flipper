@@ -1,20 +1,7 @@
 #pragma once
 #include <stdint.h>
 
-/*
- * DO NOT LOAD THESE TABLES ONTO A LIVE CC1101.
- *
- * Historical register pairs borrowed from third-party lists. Several address
- * labels in the old comments do not match the CC1101 map (SWRS061):
- *   0x04 = SYNC1, not MDMCFG4 (MDMCFG4 is 0x10)
- *   0x05 = SYNC0, not MDMCFG3 (MDMCFG3 is 0x11)
- *   0x29 = FSTEST, not PATABLE (PATABLE is burst access at 0x3E)
- *
- * The FAP does not compile this file (absent from application.fam). Live TX/RX
- * uses subghz_devices_load_preset() with the official Ook650 / Ook270 / 2FSK
- * presets. Keep this header only as a quarantine marker so the tables are not
- * mistaken for a ready-to-write register dump.
- */
+/* * DO NOT LOAD THESE TABLES ONTO A LIVE CC1101. * * Historical register pairs I borrowed from third-party lists. Several address * labels in the old comments do not match the CC1101 map (SWRS061): *   0x04 = SYNC1, not MDMCFG4 (MDMCFG4 is 0x10) *   0x05 = SYNC0, not MDMCFG3 (MDMCFG3 is 0x11) *   0x29 = FSTEST, not PATABLE (PATABLE is burst access at 0x3E) * * The FAP does not compile this file (absent from application.fam). Live TX/RX * uses subghz_devices_load_preset() with the official Ook650 / Ook270 / 2FSK * presets. I keep this header only as a quarantine marker so the tables are not * mistaken for a ready-to-write register dump. */
 
 typedef struct {
     uint8_t addr;

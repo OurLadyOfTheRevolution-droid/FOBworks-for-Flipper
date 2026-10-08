@@ -39,8 +39,7 @@ int fobtrack_correlate(const FobtrackLog* log, FobtrackLink* out, int max_out) {
     if(!pairs) return 0;
     int np = 0;
 
-    /* For every TPMS sighting, find RKE sightings within the window and bump
-       the (tpms, rke) co-occurrence score. */
+    /* For every TPMS sighting, I find RKE sightings within the window and bump the (tpms, rke) co-occurrence score. */
     for(int i = 0; i < log->count; i++) {
         if(log->events[i].kind != FobtrackTpms) continue;
         for(int j = 0; j < log->count; j++) {
@@ -64,7 +63,7 @@ int fobtrack_correlate(const FobtrackLog* log, FobtrackLink* out, int max_out) {
         }
     }
 
-    /* Sort descending by score (simple insertion sort; np is small). */
+    /* I sort descending by score (simple insertion sort; np is small). */
     for(int i = 1; i < np; i++) {
         _Pair key = pairs[i];
         int k = i - 1;

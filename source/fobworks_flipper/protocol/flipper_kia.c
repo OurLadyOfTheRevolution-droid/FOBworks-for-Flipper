@@ -2,8 +2,8 @@
 #include <string.h>
 
 /* ─────────────────────────────────────────────────────────────────────────── */
-/* KIA/Hyundai protocol parsers, versions V0 through V7.                      */
-/*   Versions use CRC checks, a custom mixer, or AES-128.                     */
+/* KIA/Hyundai protocol parsers, versions V0 through V7. */
+/* Versions use CRC checks, a custom mixer, or AES-128. */
 /* ─────────────────────────────────────────────────────────────────────────── */
 
 /* ── KIA V0: PWM 250/500μs, CRC8 (also Suzuki/Honda/Mitsubishi) ─────────── */
@@ -103,8 +103,7 @@ bool kia_v2_parse(const uint8_t* raw, int raw_bits, KiaV2Frame* out) {
 }
 
 /* ── KIA V3/V4: Manchester 400/800μs, KeeLoq + 2-bit check ──────────────── */
-/* V3/V4 use standard KeeLoq encryption with manufacturer-specific keys.
-   Key recovery and decryption are handled by the KeeLoq module. */
+/* V3/V4 use standard KeeLoq encryption with manufacturer-specific keys. Key recovery and decryption are handled by the KeeLoq module. */
 bool kia_v3_v4_parse(const uint8_t* raw, int raw_bits, KiaV3V4Frame* out) {
     if(!raw || !out || raw_bits < 66) return false;
 
@@ -125,8 +124,7 @@ bool kia_v3_v4_parse(const uint8_t* raw, int raw_bits, KiaV3V4Frame* out) {
 }
 
 /* ── KIA V5: Manchester 400/800μs, Custom Mixer + Kia V5 key ────────────── */
-/* These frames use a custom mixer and a per-vehicle key from the keystore.
-   Source: FOBworks protocol database. */
+/* These frames use a custom mixer and a per-vehicle key from the keystore. Source: FOBworks protocol database. */
 
 static uint8_t kia_v5_mixer_byte(uint8_t input, uint8_t key_byte, int position) {
     /* Mixer: XOR with key, rotate based on position */
@@ -244,8 +242,7 @@ bool kia_v6_parse(const uint8_t* raw, int raw_bits, const uint8_t* key, KiaV6Fra
     aes_key_expansion(key, round_keys);
 
     __attribute__((unused)) uint8_t decrypted[16];
-    /* AES decryption is not implemented here: it needs the inverse S-box and
-       inverse round operations. Preserve the ciphertext for offline handling. */
+    /* AES decryption is not implemented here: it needs the inverse S-box and inverse round operations. I preserve the ciphertext for offline handling. */
     memcpy(out->encrypted, encrypted, 16);
     out->crc = (raw[16] << 8) | raw[17];
     out->key_index = -1;  /* Needs brute-force or known key */

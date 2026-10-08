@@ -4,7 +4,7 @@
 #include <stddef.h>
 
 /* ─────────────────────────────────────────────────────────────────────────── */
-/* Timing, encoding, entropy, and RF link-budget helpers used by the app. */
+/* Timing, encoding, entropy, and RF link-budget helpers used by my app. */
 /* ─────────────────────────────────────────────────────────────────────────── */
 
 /* Entropy buckets describe sample variation only; they do not assess cipher
@@ -19,7 +19,7 @@ float rf_analysis_shannon_entropy(const uint8_t* data, size_t len);
 RfEntropyClass rf_analysis_entropy_class(float entropy);
 const char* rf_analysis_entropy_label(RfEntropyClass cls);
 
-/* Classify a likely encoding from the estimated symbols-per-bit ratio. */
+/* I classify a likely encoding from the estimated symbols-per-bit ratio. */
 typedef enum {
     RfEncodingUnknown,
     RfEncodingNRZ,         /* symbols_per_bit == 1 */

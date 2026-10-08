@@ -1,16 +1,4 @@
-/* sub_check — inspect decoder results for Flipper .sub RAW captures.
- *
- * Pass one or more files or directories. Directories are scanned recursively;
- * each RAW_Data stream is split into bursts at long gaps or noise. The tool
- * decodes every burst through Auto and, when Auto declines, the force-only
- * decoders. It prints the first decode for each file and a protocol histogram.
- *
- * This host-side analysis tool takes capture paths as arguments.
- *
- *   cc -std=c99 -I.. -o sub_check sub_check.c (protocol sources ...)
- *   ./sub_check /path/to/captures       # directory, recursive
- *   ./sub_check a.sub b.sub             # explicit files
- */
+/* sub_check — inspect decoder results for Flipper .sub RAW captures. Pass one or more files or directories. Directories are scanned recursively; each RAW_Data stream is split into bursts at long gaps or noise. The tool decodes every burst through Auto and, when Auto declines, the force-only decoders. It prints the first decode for each file and a protocol histogram. This host-side analysis tool takes capture paths as arguments. cc -std=c99 -I.. -o sub_check sub_check.c (protocol sources ...) ./sub_check /path/to/captures # directory, recursive ./sub_check a.sub b.sub # explicit files */
 #include "../protocol/flipper_decoders.h"
 
 #include <ctype.h>
@@ -20,9 +8,8 @@
 #include <string.h>
 #include <sys/stat.h>
 
-#define SUB_GAP_US  16000  /* keep ~12 ms Santa Fe / VAG syncs inside a burst;
-                              * true inter-press gaps are usually >> 16 ms       */
-#define SUB_MIN_EDGES 32   /* bursts shorter than this are ignored               */
+#define SUB_GAP_US  16000  /* keep ~12 ms Santa Fe / VAG syncs inside a burst; true inter-press gaps are usually >> 16 ms */
+#define SUB_MIN_EDGES 32   /* bursts shorter than this are ignored */
 
 /* ── protocol histogram ──────────────────────────────────────────────────── */
 #define HIST_MAX 64
@@ -120,9 +107,7 @@ static float parse_sub(const char* path) {
     return freq_mhz;
 }
 
-/* Try to decode a single burst.  Returns a static protocol label or NULL.
-   Auto wins; otherwise the first force-only decoder that claims it.  *is_force
-   is set to 1 when only a force-only decoder claimed it (Auto declined). */
+/* Try to decode a single burst.  Returns a static protocol label or NULL. Auto wins; otherwise the first force-only decoder that claims it. *is_force is set to 1 when only a force-only decoder claimed it (Auto declined). */
 static const char* decode_burst(FlipperPulseBuf* buf, int* is_force) {
     static char label[48];
     FlipperDecodeResult r;
@@ -143,8 +128,7 @@ static const char* decode_burst(FlipperPulseBuf* buf, int* is_force) {
     return NULL;
 }
 
-/* Segment g_raw into bursts and try to decode each.  Returns the label of the
-   first burst that decodes (or NULL), and reports the burst count via *bursts. */
+/* Segment g_raw into bursts and try to decode each.  Returns the label of the first burst that decodes (or NULL), and reports the burst count via *bursts. */
 static const char* check_file(float freq_mhz, int* bursts_out, int* best_edges,
                               int* is_force_out) {
     static char result[48];
@@ -156,9 +140,7 @@ static const char* check_file(float freq_mhz, int* bursts_out, int* best_edges,
 
     size_t i = 0;
     while(i < g_raw_len) {
-        /* Gather one burst.  Pulses in [10 ms, 50 ms) are treated as OEM sync
-           (BMW CAS / similar) and prepended to the following data edges.
-           Only |dur| ≥ 50 ms ends the previous press / starts a new gather. */
+        /* Gather one burst.  Pulses in [10 ms, 50 ms) are treated as OEM sync (BMW CAS / similar) and prepended to the following data edges. Only |dur| ≥ 50 ms ends the previous press / starts a new gather. */
         uint32_t edges[FLIPPER_PULSE_MAX];
         int8_t   levels[FLIPPER_PULSE_MAX];
         int n = 0;
@@ -173,9 +155,7 @@ static const char* check_file(float freq_mhz, int* bursts_out, int* best_edges,
                 break; /* inter-press silence */
             }
             if(mag >= 10000) {
-                /* Leading OEM sync (BMW CAS etc.): stash and prepend once data
-                   starts.  Mid-burst longs (Santa Fe ~12 ms frame sync, etc.)
-                   stay in the edge stream so CRC parsers can see them. */
+                /* Leading OEM sync (BMW CAS etc.): stash and prepend once data starts. Mid-burst longs (Santa Fe ~12 ms frame sync, etc.) stay in the edge stream so CRC parsers can see them. */
                 if(n == 0) {
                     if(ns < 4) sync[ns++] = (uint32_t)mag;
                     i++;

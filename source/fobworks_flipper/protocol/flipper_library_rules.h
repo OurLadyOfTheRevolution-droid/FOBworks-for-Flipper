@@ -6,8 +6,8 @@
 #define FLIPPER_LIBRARY_PAGE_LIMIT 16
 #define FLIPPER_LIBRARY_PULSE_LIMIT 512
 
-/* Pure, transport-independent validation used by both the SD library and
-   host contract tests.  These helpers do not open files or know a filesystem
+/* Pure, transport-independent validation I use for both the SD library and
+   host contract tests. These helpers do not open files or know a filesystem
    implementation. */
 bool flipper_lib_name_is_safe(const char* name);
 int flipper_lib_page_offset(int offset);

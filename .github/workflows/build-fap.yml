@@ -1,8 +1,8 @@
 name: Build FAP
 
-# Manual by design. This builds the application from the public source on a
+# Manual by design. I build this application from the public source on a
 # clean machine, using the same SDK the bundled FAP was built against, so anyone
-# can reproduce a working binary without trusting the committed one.
+# can reproduce a working binary without trusting my committed one.
 on:
   workflow_dispatch:
     inputs:
@@ -16,7 +16,7 @@ permissions:
 
 env:
   # Pinned to the release the bundled FAP was built against. A FAP loads only on
-  # an exact API match, so this must stay in step with the firmware you target:
+  # an exact API match, so I keep this in step with the firmware I target:
   # the binary reports Target 7 / API 87.1, which is 1.4.2 and 1.4.3. It will
   # not load on 1.3.x, whose API is 86.0.
   SDK_URL: https://update.flipperzero.one/builds/firmware/1.4.3/flipper-z-f7-sdk-1.4.3.zip

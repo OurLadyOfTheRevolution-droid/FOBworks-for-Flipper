@@ -20,12 +20,29 @@ typedef enum {
     MainMenuLibrary,
     MainMenuAdvSettings,
     MainMenuFobpwn,
+#ifdef FOBSCAN_STARTUP_PROBE
+    MainMenuProbeDisplayOnly,
+    MainMenuProbeRxOnly,
+#endif
 } MainMenuItem;
 
 static void main_menu_cb(void* ctx, uint32_t idx) {
     FlipperApp* app = (FlipperApp*)ctx;
     switch((MainMenuItem)idx) {
+#ifdef FOBSCAN_STARTUP_PROBE
+    case MainMenuProbeDisplayOnly:
+        app->fobscan.probe_mode = FobscanProbeDisplayOnly;
+        scene_manager_next_scene(app->scene_manager, FlipperSceneFobscan);
+        break;
+    case MainMenuProbeRxOnly:
+        app->fobscan.probe_mode = FobscanProbeRxOnly;
+        scene_manager_next_scene(app->scene_manager, FlipperSceneFobscan);
+        break;
+#endif
     case MainMenuFobscan:
+#ifdef FOBSCAN_STARTUP_PROBE
+        app->fobscan.probe_mode = FobscanProbeFull;
+#endif
         scene_manager_next_scene(app->scene_manager, FlipperSceneFobscan);
         break;
     case MainMenuFobclone:
@@ -91,6 +108,18 @@ void flipper_scene_main_menu_on_enter(void* ctx) {
     /* Release guided-flow memory and unmap catalog/force FALs when idle. */
     flipper_guided_release(app);
     flipper_plugin_unload_all();
+#ifdef FOBSCAN_STARTUP_PROBE
+    /* A receive-only probe build: no links/settings or transmit-mode menu. Keep normal production navigation unchanged when the define is absent. */
+    submenu_set_header(app->submenu, "FOBscan startup probe");
+    submenu_add_item(app->submenu, "1. Display only (no RX)",
+                     MainMenuProbeDisplayOnly, main_menu_cb, app);
+    submenu_add_item(app->submenu, "2. RX only (standard UI)",
+                     MainMenuProbeRxOnly, main_menu_cb, app);
+    submenu_add_item(app->submenu, "3. Normal FOBscan",
+                     MainMenuFobscan, main_menu_cb, app);
+    view_dispatcher_switch_to_view(app->view_dispatcher, FlipperViewMenu);
+    return;
+#endif
     submenu_set_header(app->submenu, "FOBworks  v" FLIPPER_VERSION);
     submenu_add_item(app->submenu, "FOBscan   — Live capture",    MainMenuFobscan,   main_menu_cb, app);
     submenu_add_item(app->submenu, "FOBclone  — Guided clone",    MainMenuFobclone,  main_menu_cb, app);
@@ -104,7 +133,7 @@ void flipper_scene_main_menu_on_enter(void* ctx) {
     submenu_add_item(app->submenu, "FOBhunt  — RSSI range sweep", MainMenuFobhunt, main_menu_cb, app);
     submenu_add_item(app->submenu, "FOBcrack  — KeeLoq search", MainMenuFobcrack, main_menu_cb, app);
     submenu_add_item(app->submenu, "FOBreport — Health grade",  MainMenuFobreport, main_menu_cb, app);
-    submenu_add_item(app->submenu, "FOBfreq  — Timing compare", MainMenuFobfreq, main_menu_cb, app);
+    submenu_add_item(app->submenu, "FOBfreq  — Crystal fingerprint", MainMenuFobfreq, main_menu_cb, app);
     submenu_add_item(app->submenu, "FOBtrack — TPMS↔RKE link", MainMenuFobtrack, main_menu_cb, app);
     submenu_add_item(app->submenu, "FOBroll  — RollBack analyzer", MainMenuGrollback, main_menu_cb, app);
     submenu_add_item(app->submenu, "Library",                     MainMenuLibrary,   main_menu_cb, app);

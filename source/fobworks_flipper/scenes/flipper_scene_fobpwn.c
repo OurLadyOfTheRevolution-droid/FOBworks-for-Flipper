@@ -4,8 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
-/* These are regional receive settings, not vehicle profiles. The experimental
-   decoder has not been validated. */
+/* These are regional receive settings, not vehicle profiles. The experimental decoder has not been validated. */
 static const struct {
     const char* name;
     float frequency_mhz;
@@ -229,9 +228,7 @@ static void fobpwn_accept_frame(
     state->caps[state->cap_count] = *result;
     state->frames[state->cap_count++] = current;
     fobpwn_analyze(state);
-    /* Serial/button bits from a structural KeeLoq read wobble between presses,
-       and the analyzer then discarded the new press so the count stayed at 1.
-       Three stored presses are the sequence. */
+    /* Serial/button bits from a structural KeeLoq read wobble between presses, and the analyzer then discarded the new press so the count stayed at 1. Three stored presses are the sequence. */
     if(!state->candidate && state->min_seq > 0 && state->cap_count >= state->min_seq)
         state->candidate = true;
 

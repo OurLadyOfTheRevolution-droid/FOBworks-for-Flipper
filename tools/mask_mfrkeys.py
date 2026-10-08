@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Mask or unmask the FLIPPER_MFR_KEYS table used by the Flipper app.
+"""I mask or unmask the FLIPPER_MFR_KEYS table used by the Flipper app.
 
 The decoder needs these keys to derive and decrypt KeeLoq frames, so they must
 remain in the app. This transform makes the values less readable in source and
@@ -9,14 +9,13 @@ in the built FAP; the app reverses it before use.
     unmask(v) = ROTR(v ^ B, N) ^ A
 
 This is obfuscation, not a security boundary. The transform and its constants
-are visible in the source and can be reversed. Use --unmask to restore the
+are visible in the source and can be reversed. I use --unmask to restore the
 plaintext table.
 
 Usage:
     python3 tools/mask_mfrkeys.py            # plaintext -> masked
     python3 tools/mask_mfrkeys.py --unmask   # masked -> plaintext
-    python3 tools/mask_mfrkeys.py --check    # report state, change nothing
-"""
+    python3 tools/mask_mfrkeys.py --check    # report state, change nothing"""
 
 import argparse
 import re
@@ -26,7 +25,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent.parent
 TABLE = HERE / "source/fobworks_flipper/protocol/flipper_keeloq.c"
 
-# Keep these values in sync with the MFR_KEY_* definitions in C.
+# I keep these values in sync with the MFR_KEY_* definitions in C.
 A = 0x5A5A5A5A5A5A5A5A
 B = 0x3C3C3C3C3C3C3C3C
 N = 13

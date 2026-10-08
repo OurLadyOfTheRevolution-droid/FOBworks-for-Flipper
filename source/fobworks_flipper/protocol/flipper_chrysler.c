@@ -13,7 +13,7 @@ static const uint8_t chrysler_xor_table[16] = {
     0x10, 0x0A, 0x50, 0xF4, 0x2F, 0xF6, 0x6F, 0xF0
 };
 
-/* Map the XOR of Plain_A byte 1 and Plain_B byte 1 to a button. */
+/* I map the XOR of Plain_A byte 1 and Plain_B byte 1 to a button. */
 static const char* chrysler_button_from_xor(uint8_t xor_val) {
     switch(xor_val) {
     case 0x01: return "Lock";
@@ -27,7 +27,7 @@ static const char* chrysler_button_from_xor(uint8_t xor_val) {
 bool chrysler_parse(const uint8_t* raw, int raw_bits, ChryslerFrame* out) {
     if(!raw || !out || raw_bits < 80) return false;
 
-    /* Extract Plain_A (first 40 bits) and Plain_B (next 40 bits) */
+    /* I extract Plain_A (first 40 bits) and Plain_B (next 40 bits) */
     uint64_t plain_a = 0, plain_b = 0;
     for(int i = 0; i < 40 && i < raw_bits; i++) {
         plain_a = (plain_a << 1) | ((raw[i / 8] >> (7 - (i % 8))) & 1);
@@ -36,26 +36,24 @@ bool chrysler_parse(const uint8_t* raw, int raw_bits, ChryslerFrame* out) {
         plain_b = (plain_b << 1) | ((raw[i / 8] >> (7 - (i % 8))) & 1);
     }
 
-    /* Apply XOR transform to recover original data */
+    /* I apply XOR transform to recover original data */
     out->plain_a = plain_a;
     out->plain_b = plain_b;
 
-    /* Extract serial (28 bits from Plain_A) */
+    /* I extract serial (28 bits from Plain_A) */
     out->serial = (plain_a >> 12) & 0xFFFFFFF;
 
-    /* Extract counter (6 bits) */
+    /* I extract counter (6 bits) */
     out->counter = plain_a & 0x3F;
 
-    /* Extract button via XOR of b1 and b6 */
+    /* I extract button via XOR of b1 and b6 */
     uint8_t b1 = (plain_a >> 8) & 0xFF;
     uint8_t b6 = (plain_b >> 8) & 0xFF;
     uint8_t btn_xor = b1 ^ b6;
     out->button = btn_xor & 0x0F;
     out->function = chrysler_button_from_xor(out->button);
 
-    /* Check all five payload bytes against the transform used by the builder.
-       This rejects unrelated 80-bit patterns that would otherwise pass based
-       only on frame length and could preempt a later OEM decoder in Auto mode. */
+    /* I check all five payload bytes against the transform I used in the builder. This rejects unrelated 80-bit patterns that would otherwise pass based only on frame length and could preempt a later OEM decoder in Auto mode. */
     for(int k = 0; k < 5; k++) {
         uint8_t a = (uint8_t)((plain_a >> (8 * (4 - k))) & 0xFF);
         uint8_t b = (uint8_t)((plain_b >> (8 * (4 - k))) & 0xFF);
@@ -67,12 +65,12 @@ bool chrysler_parse(const uint8_t* raw, int raw_bits, ChryslerFrame* out) {
 bool chrysler_build(const ChryslerFrame* f, uint8_t* out, int* out_bits) {
     if(!f || !out || !out_bits) return false;
 
-    /* Pack Plain_A */
+    /* I pack Plain_A */
     uint64_t plain_a = 0;
     plain_a |= ((uint64_t)f->serial & 0xFFFFFFF) << 12;
     plain_a |= (uint64_t)f->counter & 0x3F;
 
-    /* Build Plain_B using XOR table transform */
+    /* I build Plain_B using XOR table transform */
     uint64_t plain_b = 0;
     for(int i = 0; i < 8; i++) {
         uint8_t byte_a = (plain_a >> (8 * (7 - i))) & 0xFF;
@@ -80,7 +78,7 @@ bool chrysler_build(const ChryslerFrame* f, uint8_t* out, int* out_bits) {
         plain_b |= ((uint64_t)byte_b << (8 * (7 - i)));
     }
 
-    /* Pack both into output buffer */
+    /* I pack both into the output buffer */
     for(int i = 0; i < 5; i++) {
         out[i] = (plain_a >> (8 * (4 - i))) & 0xFF;
         out[i + 5] = (plain_b >> (8 * (4 - i))) & 0xFF;

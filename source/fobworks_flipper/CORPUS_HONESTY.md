@@ -1,10 +1,8 @@
 # Corpus honesty
 
-This report records a `tools/sub_check --report` run on 24 Sep 2026 using the
-private capture folder. The tool counts `.sub` files only.
+I recorded these results with `tools/sub_check --report` on 24 Sep 2026 using my private capture folder. The tool counts `.sub` files only.
 
-It reports folder totals and protocol names, not filenames, serials, hopping
-codes, or keys.
+I report folder totals and protocol names, not filenames, serials, hopping codes, or keys.
 
 | Outcome | Count | Share | What it means on the Flipper |
 |---------|------:|------:|------------------------------|
@@ -22,8 +20,7 @@ Auto protocols in that run:
 | KIA/Hyundai | 2 |
 | Suzuki | 1 |
 
-The table below gives the full histogram from the same run. A trailing `*`
-marks a force-only result.
+The table below gives the full histogram from the same run. A trailing `*` marks a force-only result.
 
 | Protocol | Files |
 |----------|------:|
@@ -47,34 +44,22 @@ Folder bucket (one directory):
 |--------|-----:|------:|-----:|
 | keeloq_test_subs | 11 | 144 | 7 |
 
-The seven files with no decode remain in that category. They need a cleaner
-capture or a stronger checksum before they can be considered for Auto; a
-structural guess is not enough to promote them.
+The seven files with no decode remain in that category. They need a cleaner capture or a stronger checksum before they can be considered for Auto; a structural guess is not enough to promote them.
 
 ## Why this number is the product
 
-Auto labeling is a stricter bar than recognizing a frame after the user
-selects a protocol. In this set, 6.8% of files decoded on the Auto path. Other
-decoders remain available behind an explicit force selection for research;
-they are not used during normal Auto decoding.
+Auto labeling is a stricter bar than recognizing a frame after I select a protocol. In this set, 6.8% of files decoded on the Auto path. Other decoders remain available behind an explicit force selection for research; they are not used during normal Auto decoding.
 
-On the device, FOBscan presents the result as `Auto`, `Force`, or `None`, with
-one next action. The saved `.sub` files remain openable in the stock Sub-GHz
-app and include `FT_Confidence` and `FT_Action` fields for the result.
+On the device, FOBscan presents the result as `Auto`, `Force`, or `None`, with one next action. The saved `.sub` files remain openable in the stock Sub-GHz app and include `FT_Confidence` and `FT_Action` fields for the result.
 
 ## Live Security+ captures
 
-No owned-hardware Security+ 1.0 / 2.0 `.sub` files are checked in yet. The
-drop folder is `source/deliverables/secplus-live-captures/`. After I record
-real bursts:
+No owned-hardware Security+ 1.0 / 2.0 `.sub` files are checked in yet. The drop folder is `source/deliverables/secplus-live-captures/`. After I record real bursts:
 
 ```
 cd source/fobworks_flipper/tools && make secplus-live
 ```
 
-I will paste the Auto / Force / None histogram here. Synthetic SynGate
-corpus rows stay force-only evidence only; they are not a live false-
-positive study.
+I will paste the Auto / Force / None histogram here. Synthetic SynGate corpus rows stay force-only evidence only; they are not a live false-positive study.
 
 — OurLadyOfTheRevolution-droid
-

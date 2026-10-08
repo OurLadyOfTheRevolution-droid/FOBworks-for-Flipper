@@ -1,4 +1,4 @@
-/* Host tests for FOBreport, the generalized rollback analyzer, the oscillator
+/* I conduct host tests for FOBreport, the generalized rollback analyzer, the oscillator
    fingerprint comparator, and the TPMS/RKE correlator. Pure modules only — no
    Furi, no radio, no transmit. */
 #include "../protocol/flipper_fobreport.h"
@@ -39,7 +39,7 @@ static FlipperDecodeResult rke(uint32_t addr, uint32_t cnt, uint32_t hop,
 static void test_fobreport(void) {
     FobReportReport rep;
 
-    /* Fixed code: identical presses. */
+    /* Fixed code: I identify identical presses. */
     fobreport_reset(&rep);
     FlipperDecodeResult f = rke(0x12345678, 0, 0x1111, false, false);
     expect(fobreport_add(&rep, &f), "fixed press 1 accepted");
@@ -74,7 +74,7 @@ static void test_fobreport(void) {
 static void test_grollback(void) {
     GrollbackPlan plan;
 
-    /* A clean 3-step run decodes as a candidate. */
+    /* I decode a clean 3-step run as a candidate. */
     FlipperDecodeResult rs[3] = {
         rke(0x12345678, 10, 0, true, false),
         rke(0x12345678, 11, 0, true, false),
@@ -85,7 +85,7 @@ static void test_grollback(void) {
     expect(plan.span == 2, "span base->top is 2");
     expect(strstr(plan.note, "candidate") != NULL, "note names it a candidate");
 
-    /* A gap larger than max_delta is rejected. */
+    /* I reject a gap larger than max_delta. */
     rs[2].cnt = 20;
     grollback_analyze_results(rs, 3, 0xFFFF, 3, 4, 0.1f, &plan);
     expect(!plan.candidate, "over-limit gap rejected");
@@ -128,13 +128,13 @@ static void test_fobfreq(void) {
 static void test_fobtrack(void) {
     FobtrackLog log;
     fobtrack_reset(&log);
-    /* TPMS 0xAAAA co-occurs with RKE 0x1111 repeatedly within the window. */
+    /* TPMS 0xAAAA co-occurs with RKE 0x1111 repeatedly within the window in my observation. */
     fobtrack_record(&log, FobtrackTpms, 0xAAAA, 1000);
     fobtrack_record(&log, FobtrackRke,  0x1111, 1200);
     fobtrack_record(&log, FobtrackTpms, 0xAAAA, 6000);
     fobtrack_record(&log, FobtrackRke,  0x1111, 6200);
-    fobtrack_record(&log, FobtrackTpms, 0xBBBB, 10000); /* unrelated wheel */
-    fobtrack_record(&log, FobtrackRke,  0x2222, 10200); /* different car */
+    fobtrack_record(&log, FobtrackTpms, 0xBBBB, 10000); /* Unrelated wheel. */
+    fobtrack_record(&log, FobtrackRke,  0x2222, 10200); /* Different car. */
 
     FobtrackLink links[4];
     int n = fobtrack_correlate(&log, links, 4);

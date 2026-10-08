@@ -28,16 +28,10 @@ typedef struct {
 } FlipperDecodeResult;
 
 /* ── Pulse buffer ─────────────────────────────────────────────────────────── */
-/* Max edges per capture.  512 alternating edges = 256 bit-pairs, well beyond
-   any supported fob (KeeLoq is 66 bits; long rolling codes are a few hundred
-   edges).  Kept small on purpose: FlipperPulseBuf is embedded many times over
-   in FlipperApp (fobback.caps[5], fobclone.cap[2], ...), so this size is the
-   dominant term in the app's single contiguous allocation on the Flipper. */
+/* Max edges per capture. 512 alternating edges = 256 bit-pairs, well beyond any supported fob (KeeLoq is 66 bits; long rolling codes are a few hundred edges). I keep it small on purpose: FlipperPulseBuf is embedded many times over in FlipperApp (fobback.caps[5], fobclone.cap[2], ...), so this size is the dominant term in the app's single contiguous allocation on the Flipper. */
 #define FLIPPER_PULSE_MAX 256
 
-/* Drop only sub-chip noise. Honda KR5 Manchester marks sit near 60 µs and the
-   Renault 66 µs family is in the same band; a 75 µs floor erased those edges
-   before any decoder ran. */
+/* I drop only sub-chip noise. Honda KR5 Manchester marks sit near 60 µs and the Renault 66 µs family is in the same band; a 75 µs floor erased those edges before any decoder ran. */
 #define FLIPPER_MIN_PULSE_US 40u
 
 typedef struct {
@@ -49,21 +43,16 @@ typedef struct {
 
 /* ── TE estimation ────────────────────────────────────────────────────────── */
 
-/* Estimate TE from a raw pulse buffer using a k=2 coherence pass.
-   Returns 0 if the buffer is too noisy/short to produce a reliable estimate. */
+/* I estimate TE from a raw pulse buffer using a k=2 coherence pass. I return 0 if the buffer is too noisy/short to produce a reliable estimate. */
 uint32_t flipper_estimate_te(const uint32_t* buf, int n);
 
 /* ── Signal decoder entry point ───────────────────────────────────────────── */
 
-/* Try every known protocol decoder against buf.
-   Fills result and returns true if any decoder succeeded.
-   Decoders are tried in priority order (KeeLoq first). */
+/* I try every known protocol decoder against buf. I fill the result and return true if any decoder succeeded. I try decoders in priority order (KeeLoq first). */
 bool flipper_decode(const FlipperPulseBuf* buf, FlipperDecodeResult* result);
 
 /* ── Force-protocol selection (Advanced Settings) ─────────────────────────── */
-/* When force != FlipperForceAuto, only that one decoder is attempted, so a
-   weak/ambiguous signal is parsed as the user-selected protocol instead of
-   being claimed by a higher-priority decoder. */
+/* When force != FlipperForceAuto, I only attempt that one decoder, so a weak/ambiguous signal is parsed as my selected protocol instead of being claimed by a higher-priority decoder. */
 typedef enum {
     FlipperForceAuto = 0,
     FlipperForceKeeloq,
@@ -106,10 +95,7 @@ typedef enum {
 const char* flipper_force_proto_name(FlipperForceProto f);
 
 /* ── Decoder registry ─────────────────────────────────────────────────────── */
-/* Single source of truth for the dispatcher: the force switch, the Auto
-   priority chain, and the menu labels are all derived from this one table so
-   the two lists can never drift.  Array order == Auto priority (KeeLoq first);
-   entries with auto_safe == false are reachable only via a forced selection. */
+/* Single source of truth for the dispatcher: the force switch, the Auto priority chain, and the menu labels are all derived from this one table so the two lists can never drift. Array order == Auto priority (KeeLoq first); entries with auto_safe == false are reachable only via a forced selection. */
 typedef struct {
     FlipperForceProto id;
     const char*       name;
@@ -123,8 +109,7 @@ extern const int               FLIPPER_DECODER_COUNT;
 /* Decode honoring a forced protocol selection (FlipperForceAuto == flipper_decode). */
 bool flipper_decode_ex(const FlipperPulseBuf* buf, FlipperDecodeResult* result,
                        FlipperForceProto force);
-/* True while flipper_decode_ex is serving a forced (non-Auto) selection.
-   Weak/no-checksum fallbacks (e.g. Fiat V0) consult this so Auto stays clean. */
+/* True while flipper_decode_ex is serving a forced (non-Auto) selection. Weak/no-checksum fallbacks (e.g. Fiat V0) consult this so Auto stays clean. */
 bool flipper_decode_forced(void);
 
 /* ── Individual decoders (called internally; exposed for testing) ─────────── */
@@ -146,12 +131,10 @@ bool flipper_decode_tpms      (const FlipperPulseBuf* buf, FlipperDecodeResult* 
 bool flipper_decode_honda     (const FlipperPulseBuf* buf, FlipperDecodeResult* r);
 bool flipper_decode_subaru    (const FlipperPulseBuf* buf, FlipperDecodeResult* r);
 
-/* Honda KR5V2X/1X — documented Manchester layout with an OpenSafety CRC-8 gate.
-   Distinct from the provisional RollingPWN path above, so this one is Auto-safe. */
+/* Honda KR5V2X/1X — documented Manchester layout with an OpenSafety CRC-8 gate. Distinct from the provisional RollingPWN path above, so this one is Auto-safe. */
 bool flipper_decode_honda_kr5 (const FlipperPulseBuf* buf, FlipperDecodeResult* r);
 
-/* OEM frame decoders — pulse front-ends over the real vendor parsers.
-   Auto-safe: each is gated by the vendor's own CRC/checksum/preamble. */
+/* OEM frame decoders — pulse front-ends over the real vendor parsers. Auto-safe: each is gated by the vendor's own CRC/checksum/preamble. */
 bool flipper_decode_gm        (const FlipperPulseBuf* buf, FlipperDecodeResult* r);
 bool flipper_decode_ford      (const FlipperPulseBuf* buf, FlipperDecodeResult* r);
 bool flipper_decode_chrysler  (const FlipperPulseBuf* buf, FlipperDecodeResult* r);
@@ -167,31 +150,23 @@ bool flipper_decode_mazda     (const FlipperPulseBuf* buf, FlipperDecodeResult* 
 /* Suzuki — 64-bit PWM rolling code with an 8-bit CRC (poly 0x7F). Auto-safe. */
 bool flipper_decode_suzuki    (const FlipperPulseBuf* buf, FlipperDecodeResult* r);
 
-/* Real-layout vehicle decoders without a checksum gate — force-only.
-   Structurally strict (shape + entropy) but never joined to Auto.
-   Toyota's serial/button/counter split is a structural read of the enciphered
-   Denso payload (no transmitted checksum exists). */
+/* Real-layout vehicle decoders without a checksum gate — force-only. Structurally strict (shape + entropy) but never joined to Auto. Toyota's serial/button/counter split is a structural read of the enciphered Denso payload (no transmitted checksum exists). */
 bool flipper_decode_fiat      (const FlipperPulseBuf* buf, FlipperDecodeResult* r);
 bool flipper_decode_toyota    (const FlipperPulseBuf* buf, FlipperDecodeResult* r);
 
-/* Scher-Khan / Magicar PWM car-alarm remote — recognized layout, no transmitted
-   checksum, so force-only (never joined to the Auto chain). */
+/* Scher-Khan / Magicar PWM car-alarm remote — recognized layout, no transmitted checksum, so force-only (never joined to the Auto chain). */
 bool flipper_decode_scher_khan(const FlipperPulseBuf* buf, FlipperDecodeResult* r);
 
-/* Provisional vehicle RKE decoder — guessed field layout, force-only.
-   NOT registered in the Auto chain until validated against real captures. */
+/* Provisional vehicle RKE decoder — guessed field layout, force-only. NOT registered in the Auto chain until validated against real captures. */
 bool flipper_decode_nissan    (const FlipperPulseBuf* buf, FlipperDecodeResult* r);
 
 /* ── Prediction (next-code) ───────────────────────────────────────────────── */
 
-/* Fill predict_lo/predict_hi/predict_note from an already-decoded KeeLoq result.
-   Requires a second capture (r2 != NULL) for counter-delta estimation, or uses
-   a single-capture window estimate when r2 is NULL. */
+/* I fill predict_lo/predict_hi/predict_note from an already-decoded KeeLoq result. I require a second capture (r2 != NULL) for counter-delta estimation, or I use a single-capture window estimate when r2 is NULL. */
 void flipper_kl_predict(FlipperDecodeResult* r, const FlipperDecodeResult* r2);
 
 #ifdef FLIPPER_UNLEASHED_INTEGRATION
-/* Register Flipper decoders into a custom firmware SubGhzEnvironment.
-   Call once after subghz_environment_alloc(). */
+/* I register Flipper decoders into a custom firmware SubGhzEnvironment. I call this once after subghz_environment_alloc(). */
 #include <lib/subghz/subghz_environment.h>
 void flipper_register_unleashed_protocols(SubGhzEnvironment* env);
 #endif

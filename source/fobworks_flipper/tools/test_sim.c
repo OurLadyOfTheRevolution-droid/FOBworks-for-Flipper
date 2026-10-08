@@ -1,6 +1,6 @@
 /* test_sim.c — host checks for on-device paths that can trigger furi_check().
  *
- * These tests cannot drive the Flipper GUI. They mirror scene index handling
+ * These tests cannot drive the Flipper GUI. I mirror scene index handling
  * and input parsing against the real vehicle and key tables, then check that
  * every access stays within bounds.
  *
@@ -37,11 +37,11 @@ static int g_checks = 0, g_fail = 0;
     } while(0)
 
 /* ── Sim A: guided make→model→year navigation (FOBclone + FOBcatch) ──────── */
-/* Mirrors the make/model/year selection in the FOBclone and FOBcatch scenes:
+/* I mirror the make/model/year selection in the FOBclone and FOBcatch scenes:
  *   - build unique make list (first-seen order, cap 24)
  *   - per make, collect matching vehicle indices (cap 32)
  *   - per model, the year picker reads v->year_count years[] entries
- * Check each vehicle index and make sure its year_count is valid for
+ * I check each vehicle index and make sure its year_count is valid for
  * VariableItemList (>0 and <=MAX). */
 static void sim_guided_nav(void) {
     printf("== Sim A: guided make/model/year index safety ==\n");
@@ -67,7 +67,7 @@ static void sim_guided_nav(void) {
         CHECK(model_count > 0, "each make has >=1 model");
 
         for(int md = 0; md < model_count; md++) {
-            int vidx = model_veh[md];               /* what model_cb stores */
+            int vidx = model_veh[md];               /* What model_cb stores. */
             CHECK(vidx >= 0 && vidx < FLIPPER_FC_VEHICLE_COUNT,
                   "model global index in bounds");
             const FlipperFcVehicle* v = &FLIPPER_FC_VEHICLES[vidx];
@@ -88,7 +88,7 @@ static void sim_guided_nav(void) {
 }
 
 /* ── Sim B: FOBLoq key-entry parser ("name, hex") ────────────────────────── */
-/* Mirrors the input parser in flipper_scene_fobloq.c. Keep both copies in sync. */
+/* I mirror the input parser in flipper_scene_fobloq.c. I keep both copies in sync. */
 static bool parse_kv(const char* text_buf, char name_out[32], uint64_t* key_out) {
     char name[32]; memset(name, 0, sizeof(name));
     char hex[17];  memset(hex, 0, sizeof(hex));
@@ -141,11 +141,11 @@ static void sim_kv_parser(void) {
     CHECK(parse_kv("NoHexKey", name, &key), "name-only accepted (key=0)");
     CHECK(key == 0ULL, "name-only yields zero key");
 
-    /* Over-long hex: only first 16 nibbles kept. */
+    /* Over-long hex: I only keep the first 16 nibbles. */
     CHECK(parse_kv("big, 0123456789ABCDEF0000", name, &key), "over-long hex accepted");
     CHECK(key == 0x0123456789ABCDEFULL, "hex truncated to 16 nibbles");
 
-    /* Over-long name: truncated to 31 chars, still valid. */
+    /* Over-long name: I truncate to 31 chars, still valid. */
     CHECK(parse_kv("ThisNameIsWayTooLongToFitInThirtyOneChars, AA", name, &key),
           "over-long name accepted");
     CHECK(strlen(name) == 31, "name truncated to 31 chars");
@@ -157,7 +157,7 @@ static void sim_vault_roundtrip(void) {
     FlipperVaultKey keys[FLIPPER_KEYVAULT_MAX];
     memset(keys, 0, sizeof(keys));
 
-    /* Fill to capacity via the parser+upsert, as the scene does. */
+    /* I fill to capacity via the parser+upsert, as the scene does. */
     int accepted = 0;
     for(int i = 0; i < FLIPPER_KEYVAULT_MAX + 4; i++) {
         char line[48]; snprintf(line, sizeof(line), "key_%02d, %016X", i, i * 0x1111);
@@ -174,7 +174,7 @@ static void sim_vault_roundtrip(void) {
     const FlipperVaultKey* k0 = flipper_keyvault_find(keys, "key_00");
     CHECK(k0 && k0->key == 0xCAFEBABEULL, "replacement value wins");
 
-    /* Serialize → parse back → identical count. */
+    /* Serialize → parse back → I confirm identical count. */
     char buf[2048];
     size_t n = flipper_keyvault_to_text(keys, buf, sizeof(buf));
     CHECK(n > 0, "to_text produced output");
@@ -187,7 +187,7 @@ static void sim_vault_roundtrip(void) {
     const FlipperVaultKey* r0 = flipper_keyvault_find(keys2, "key_00");
     CHECK(r0 && r0->key == 0xCAFEBABEULL, "round-trip preserves replaced value");
 
-    /* Invalid names rejected by upsert (charset guard). */
+    /* I reject invalid names by upsert (charset guard). */
     CHECK(!flipper_keyvault_upsert(keys, "bad name!", 1), "invalid charset rejected");
     CHECK(!flipper_keyvault_upsert(keys, "", 1), "empty name rejected by vault");
 }
@@ -217,7 +217,7 @@ static void sim_predict_next(void) {
     CHECK(flipper_predict_keeloq_next(&r, 1, &out, &nd), "synth cnt+1");
     CHECK(out.len > 64, "synth produced pulses");
     CHECK(nd.cnt == ((cnt + 1) & 0xFFFF), "next counter");
-    /* Cipher-level check: encrypt(cnt+1) matches metadata hop. */
+    /* Cipher-level check: I confirm encrypt(cnt+1) matches metadata hop. */
     uint32_t expect = kl_encrypt(((uint32_t)btn << 28) | nd.cnt, key);
     CHECK(nd.hop == expect, "synth hop matches encrypt");
     r.device_key_hex[0] = '\0';
@@ -253,8 +253,8 @@ static void sim_verdict(void) {
 }
 
 /* ── Sim D: RollingPWN consecutive-burst analyzer ────────────────────────── */
-/* Mirrors the FOBpwn run scene: build RollingPwnFrame[] from captured counters,
- * analyze for a resync burst, and assert readiness, ordering, wrap handling and
+/* I mirror the FOBpwn run scene: build RollingPwnFrame[] from captured counters,
+ * analyze for a resync burst, and I assert readiness, ordering, wrap handling and
  * rejection of gaps / duplicates / short runs. */
 static void mk_frames(RollingPwnFrame* f, const uint32_t* ctrs, int n) {
     for(int i = 0; i < n; i++) { f[i].counter = ctrs[i]; f[i].cmd = 1; }
@@ -282,7 +282,7 @@ static void sim_rollingpwn(void) {
       CHECK(!rollingpwn_analyze(f,3,0xFFFF,3,1,&p), "gap → not ready (Δ=1)");
       CHECK(p.seq_len == 2, "best run 2 across gap"); }
 
-    /* Same gap accepted when max_delta widens. */
+    /* Same gap accepted when I widen max_delta. */
     { uint32_t c[] = {100,101,105}; mk_frames(f,c,3);
       CHECK(rollingpwn_analyze(f,3,0xFFFF,3,4,&p), "gap ok when Δ≤4"); }
 
@@ -320,12 +320,12 @@ static void sim_fbk_nav(void) {
             if(pr) {
                 CHECK(pr->freq_count >= 1 && pr->freq_count <= FBK_FREQS_MAX, "freq_count sane");
                 CHECK(pr->n_captures >= 1, "n_captures >= 1");
-                /* The storage-ceiling bug: every profile must fit the caps array. */
+                /* The storage-ceiling bug: I ensure every profile must fit the caps array. */
                 CHECK(pr->n_captures <= FLIPPER_FBK_CAPS_MAX,
                       "n_captures fits FLIPPER_FBK_CAPS_MAX");
             }
         }
-        /* out-of-range indices must return NULL, never crash */
+        /* Out-of-range indices must return NULL, never crash. */
         CHECK(flipper_fbk_model_profile(mi, mc) == NULL, "OOB model → NULL");
         CHECK(flipper_fbk_model_name(mi, -1) == NULL, "negative model → NULL");
     }
@@ -374,7 +374,7 @@ static void emit_bit(FlipperPulseBuf* b, int one, uint32_t te) {
     b->durations[b->len++] = te;                   /* LOW  */
 }
 
-/* Mirror of sub_csum() in flipper_subaru.c: XOR of every nibble B0..B8 and the
+/* Mirror of sub_csum() in flipper_subaru.c: I calculate XOR of every nibble B0..B8 and the
    B9 high nibble, +1, &0xF.  Kept in lockstep with that decoder. */
 static uint8_t test_sub_csum(const uint8_t* p) {
     uint8_t cs = 0;
@@ -383,7 +383,7 @@ static uint8_t test_sub_csum(const uint8_t* p) {
     return (uint8_t)((cs + 1u) & 0x0F);
 }
 
-/* Build the canonical Subaru wire form: 25 alternating preamble halves (starts
+/* I build the canonical Subaru wire form: 25 alternating preamble halves (starts
    HIGH), a ~6×TE LOW sync gap that absorbs the 0x55 start byte's leading LOW
    half, then the 80-bit frame as Manchester ('1'={H,L}, '0'={L,H}), RLE'd. */
 static void emit_subaru2(FlipperPulseBuf* b, const uint8_t pkt[10], uint32_t te) {
@@ -485,14 +485,14 @@ static void sim_oem_decoders(void) {
         CHECK(r.btn == cmd, "Honda command matches");
         CHECK(r.rolling, "Honda flagged rolling");
 
-        /* Corrupt checksum → reject. */
-        b.durations[ (10*2) + 63*2 ] += te; /* flip a high bit in the checksum byte */
+        /* Corrupt checksum → I reject. */
+        b.durations[ (10*2) + 63*2 ] += te; /* I flip a high bit in the checksum byte. */
         CHECK(!flipper_decode_honda(&b,&r), "Honda bad checksum rejected");
     }
 
     /* Subaru: canonical 80-bit Manchester — preamble + sync gap + 10-byte frame
        [0x55][ser24][B4][cmd|cmd][ctr20|chk4].  Command nibble is sent twice and
-       the checksum is a strong gate, so this decoder is Auto-safe. */
+       the checksum is a strong gate, so I consider this decoder Auto-safe. */
     {
         uint32_t te = 1000;
         uint32_t serial = 0x123456, ctr = 0x54321;
@@ -517,7 +517,7 @@ static void sim_oem_decoders(void) {
         CHECK(flipper_decode(&b,&r) && strcmp(r.proto,"Subaru")==0,
               "Subaru found by Auto chain");
 
-        /* Corrupt the checksum nibble → reject. */
+        /* Corrupt the checksum nibble → I reject. */
         pkt[9] ^= 0x0F;
         FlipperPulseBuf b2; memset(&b2,0,sizeof(b2)); b2.te_us=te; b2.freq_mhz=433.92f;
         emit_subaru2(&b2, pkt, te);
@@ -555,7 +555,7 @@ static void sim_oem_decoders(void) {
         CHECK(flipper_decode(&b,&r) && strcmp(r.proto,"Honda-KR5V2X")==0,
               "Honda KR5 found by Auto chain");
 
-        /* Corrupt CRC → reject. */
+        /* Corrupt CRC → I reject. */
         uint8_t Bc[15]; memcpy(Bc, B, 15); Bc[14] ^= 0xFF;
         FlipperPulseBuf bc; memset(&bc,0,sizeof(bc)); bc.te_us=te; bc.freq_mhz=433.6f;
         emit_honda_kr5(&bc, Bc, te);
@@ -584,7 +584,7 @@ static void sim_oem_decoders(void) {
         CHECK(flipper_decode(&b,&r) && strcmp(r.proto,"Suzuki")==0,
               "Suzuki found by Auto chain");
 
-        /* Corrupt the CRC → reject. */
+        /* Corrupt the CRC → I reject. */
         uint64_t bad = data ^ (0xFFULL << 4);
         FlipperPulseBuf bs; memset(&bs,0,sizeof(bs)); bs.te_us=te; bs.freq_mhz=433.92f;
         emit_suzuki(&bs, bad, te);
@@ -594,7 +594,7 @@ static void sim_oem_decoders(void) {
 
 /* ── Sim G: decoder registry consistency ─────────────────────────────────── */
 /* The registry is the single source of truth for the force switch, the Auto
- * chain and the menu labels.  Assert it stays internally consistent so the two
+ * chain and the menu labels.  I assert it stays internally consistent so the two
  * old hand-maintained lists can never silently drift back. */
 static void sim_registry(void) {
     printf("== Sim G: decoder registry consistency ==\n");
@@ -678,7 +678,7 @@ static void emit_manch_msb(FlipperPulseBuf* b, const uint8_t* by, int nbits, uin
     }
 }
 
-/* Land Rover V0 differential Manchester.  raw[10] holds frame bits 0..79
+/* Land Rover V0 differential Manchester. raw[10] holds frame bits 0..79
    (bit0 is the implicit '1' carried by the sync); extra is bit 80.  The data
    region encodes bits 1..80.  Rule (prev,bit): 0,0={SH,SL} 0,1={LH} 1,0={LL}
    1,1={SL,SH}.  Levels land at the right parity because the differential code
@@ -723,7 +723,7 @@ static void sim_oem_wire(void) {
         CHECK(r.btn == 0x2, "GM button (low nibble)");
         CHECK(flipper_decode(&b, &r) && strcmp(r.proto,"GM")==0, "GM found by Auto chain");
 
-        /* Corrupt the full checksum → reject. */
+        /* Corrupt the full checksum → I reject. */
         uint8_t bad[14]; memcpy(bad, raw, 14); bad[13] ^= 0x01;
         FlipperPulseBuf bb; memset(&bb,0,sizeof(bb)); bb.te_us=te; bb.freq_mhz=315.0f;
         emit_pwm_msb(&bb, bad, 112, te, 1);
@@ -758,7 +758,7 @@ static void sim_oem_wire(void) {
         CHECK(r.cnt == f.counter, "Chrysler counter matches");
     }
 
-    /* KIA V0: craft 64-bit frame + CRC-8 (poly 0x07 over first 7 bytes). */
+    /* KIA V0: I craft 64-bit frame + CRC-8 (poly 0x07 over first 7 bytes). */
     {
         uint8_t raw[8];
         uint32_t serial = 0x00C0FFEE & 0xFFFFFF; uint16_t counter = 0x0033; uint8_t btn = 0x04;
@@ -800,7 +800,7 @@ static void sim_oem_wire(void) {
         CHECK(strcmp(r.proto,"Hyundai-SantaFe")==0, "SantaFe proto label");
         CHECK(flipper_decode(&b,&r) && strcmp(r.proto,"Hyundai-SantaFe")==0, "SantaFe via Auto");
 
-        /* Flip the CRC LSB (bit 79 → durations[161]) → reject. */
+        /* Flip the CRC LSB (bit 79 → durations[161]) → I reject. */
         b.durations[161] = (b.durations[161]==125) ? 375 : 125;
         FlipperDecodeResult r2;
         CHECK(!flipper_decode_ex(&b, &r2, FlipperForceKia), "SantaFe bad CRC rejected");
@@ -866,7 +866,7 @@ static void sim_oem_wire(void) {
         CHECK(strcmp(r.proto,"Kia-V7")==0, "Kia-V7 proto label");
         CHECK(flipper_decode(&b,&r) && strcmp(r.proto,"Kia-V7")==0, "Kia-V7 via Auto");
 
-        /* Flip one data bit → CRC fails → reject. */
+        /* Flip one data bit → CRC fails → I reject. */
         uint8_t bad[10]; memcpy(bad,frame,10); bad[5]^=0x08;
         FlipperPulseBuf bb; memset(&bb,0,sizeof(bb)); bb.te_us=mte; bb.freq_mhz=433.92f;
         emit_manch_msb(&bb, bad, 76, mte);
@@ -903,7 +903,7 @@ static void sim_oem_wire(void) {
         CHECK(strcmp(r.proto,"LandRover-V0")==0, "Land Rover V0 proto label");
         CHECK(flipper_decode(&b,&r) && strcmp(r.proto,"LandRover-V0")==0, "Land Rover V0 via Auto");
 
-        /* Flip one tail bit → tail gate fails → reject. */
+        /* Flip one tail bit → tail gate fails → I reject. */
         uint8_t bad[10]; memcpy(bad,raw,10); bad[8]^=0x40;
         FlipperPulseBuf bb; memset(&bb,0,sizeof(bb)); bb.te_us=250; bb.freq_mhz=433.92f;
         emit_land_rover(&bb, bad, 1, 250, 500, 750);
@@ -923,7 +923,7 @@ static void sim_oem_wire(void) {
         CHECK(r.bits >= 64 && strcmp(r.proto,"BMW-CAS3-PPM")==0, "BMW CAS3 label/bits");
         CHECK(flipper_decode(&b, &r) && strcmp(r.proto,"BMW-CAS3-PPM")==0,
               "BMW CAS3 found by Auto chain");
-        /* No sync → reject (avoids VW Polo false positives). */
+        /* No sync → I reject (avoids VW Polo false positives). */
         FlipperPulseBuf b2; memset(&b2,0,sizeof(b2)); b2.te_us=250; b2.freq_mhz=433.92f;
         for(int i = 0; i < 72; i++) {
             b2.durations[b2.len++] = 250;
@@ -932,7 +932,7 @@ static void sim_oem_wire(void) {
         CHECK(!flipper_decode_ex(&b2, &r, FlipperForceBmw), "BMW CAS3 without sync rejected");
     }
 
-    /* VAG: craft 64-bit Manchester frame with 0xAF3F preamble + counter@48-59. */
+    /* VAG: I craft 64-bit Manchester frame with 0xAF3F preamble + counter@48-59. */
     {
         uint8_t raw[8]; memset(raw,0,sizeof(raw));
         raw[0]=0xAF; raw[1]=0x3F;                 /* AUT64 preamble → first bit 1 */
@@ -967,14 +967,14 @@ static void sim_oem_wire(void) {
         CHECK(strcmp(r.proto,"VAG-ID48")==0, "VAG-ID48 proto label");
         CHECK(flipper_decode(&b,&r) && strcmp(r.proto,"VAG-ID48")==0, "VAG-ID48 via Auto");
 
-        /* Flip the checksum LSB (bit 0 → last HIGH at durations[128]) → reject. */
+        /* Flip the checksum LSB (bit 0 → last HIGH at durations[128]) → I reject. */
         b.durations[128] = (b.durations[128]==550) ? 250 : 550;
         b.durations[129] = (b.durations[129]==250) ? 550 : 250;
         FlipperDecodeResult r2;
         CHECK(!flipper_decode_ex(&b, &r2, FlipperForceVag), "VAG-ID48 bad checksum rejected");
     }
 
-    /* PSA: psa_build_mode23 → 128-bit Manchester; pick serial with cipher MSB=1. */
+    /* PSA: psa_build_mode23 → 128-bit Manchester; I pick serial with cipher MSB=1. */
     {
         PsaFrame f; memset(&f,0,sizeof(f));
         uint8_t raw[16]; int len=0; bool ready=false;
@@ -1008,7 +1008,7 @@ static void sim_oem_wire(void) {
         CHECK(r.btn == button, "Mazda button matches");
         CHECK(flipper_decode(&b, &r) && strcmp(r.proto,"Mazda")==0, "Mazda found by Auto chain");
 
-        /* Corrupt the checksum byte's air → reject. */
+        /* Corrupt the checksum byte's air → I reject. */
         frame[10] ^= 0xFF;
         FlipperPulseBuf b2; memset(&b2,0,sizeof(b2)); b2.te_us=mte; b2.freq_mhz=433.92f;
         emit_manch_msb(&b2, frame, 88, mte);
@@ -1042,7 +1042,7 @@ static void sim_oem_wire(void) {
         CHECK(strcmp(r.proto,"Mazda-VDO")==0, "Mazda-VDO proto label");
         CHECK(flipper_decode(&b,&r) && strcmp(r.proto,"Mazda-VDO")==0, "Mazda-VDO via Auto");
 
-        /* Flip the checksum LSB (bit 71 → durations[145]) → reject. */
+        /* Flip the checksum LSB (bit 71 → durations[145]) → I reject. */
         b.durations[145] = (b.durations[145]==1350) ? 450 : 1350;
         FlipperDecodeResult r2;
         CHECK(!flipper_decode_ex(&b, &r2, FlipperForceMazda), "Mazda-VDO bad checksum rejected");
@@ -1082,7 +1082,7 @@ static void sim_oem_wire(void) {
         CHECK(strcmp(r.proto,"Mazda-Infinity")==0, "Mazda-Infinity proto label");
         CHECK(flipper_decode(&b,&r) && strcmp(r.proto,"Mazda-Infinity")==0, "Mazda-Infinity via Auto");
 
-        /* Corrupt a wire byte → checksum fails → reject. */
+        /* Corrupt a wire byte → checksum fails → I reject. */
         uint8_t bad[14]; memcpy(bad,frame,14); bad[6]^=0xFF;
         FlipperPulseBuf bb; memset(&bb,0,sizeof(bb)); bb.te_us=mte; bb.freq_mhz=433.92f;
         emit_manch_msb(&bb, bad, 14*8, mte);
@@ -1140,7 +1140,7 @@ static void sim_vehrke(void) {
         CHECK(flipper_decode_toyota(&b,&r), "Toyota (Denso) structural decode");
         CHECK(r.addr==serial && r.btn==btn && r.cnt==ctr, "Toyota fields match");
         CHECK(r.bits==40 && r.rolling, "Toyota 40-bit rolling");
-        /* No checksum → must never be claimed by the Auto chain. */
+        /* No checksum → it must never be claimed by the Auto chain. */
         CHECK(!(flipper_decode(&b,&r) && strcmp(r.proto,"Toyota")==0),
               "Toyota never claimed by Auto");
     }

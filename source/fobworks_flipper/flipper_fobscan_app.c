@@ -140,7 +140,7 @@ void flipper_links_ensure(FlipperApp* app) {
 
 failed:
     flipper_links_release(app);
-    /* Avoid repeating a failed allocation in this settings session. The user
+    /* Avoid repeating a failed allocation in this settings session. I
        can try again after returning to the menu or freeing heap elsewhere. */
     app->adv.dashboard_link = false;
 }
@@ -150,12 +150,19 @@ void flipper_links_release(FlipperApp* app) {
     if(app->uart_link) { flipper_link_free(app->uart_link); app->uart_link = NULL; }
 }
 
-/* ── Tick timer (500 ms) ─────────────────────────────────────────────────── */
+/* ── App event-loop timer (500 ms) ───────────────────────────────────────── */
 static void flipper_tick_cb(void* ctx) {
     FlipperApp* app = (FlipperApp*)ctx;
-    view_dispatcher_send_custom_event(app->view_dispatcher, FlipperEventStatusTick);
+    /* This callback runs on the app's 4 KiB thread, NOT the firmware's
+       shared 1 KiB TimersSrv. Dispatch directly: posting into my own
+       bounded queue with FuriWaitForever can deadlock on a full queue. */
+    scene_manager_handle_custom_event(app->scene_manager, FlipperEventStatusTick);
 
-    /* During a headless remote scan, flush captured edges and stream every
+    /* No dashboard work (including printf/float conversion) when no links
+       are allocated. Standalone scanning must not pay its stack/heap cost. */
+    if(!app->usb_link && !app->uart_link) return;
+
+    /* During a headless remote scan, I flush captured edges and stream every
        decoded signal to the dashboard. The remote path runs with on_edge
        NULL, so without this the link advertised scan:true while emitting no
        signal events; the dashboard could only poll `capture` blind. */
@@ -281,7 +288,7 @@ static FlipperApp* flipper_app_alloc(void) {
     view_set_input_callback(app->fobscan_view, flipper_fobscan_input_cb);
     view_set_enter_callback(app->fobscan_view, flipper_custom_view_enter_cb);
     view_set_context(app->fobscan_view, app);
-    flipper_custom_view_set_model(app->fobscan_view, app);
+    flipper_fobscan_view_init(app);
     view_dispatcher_add_view(app->view_dispatcher, FlipperViewFobscan, app->fobscan_view);
 
     app->fobclone_view = view_alloc();
@@ -375,8 +382,12 @@ static FlipperApp* flipper_app_alloc(void) {
     view_dispatcher_attach_to_gui(app->view_dispatcher, app->gui,
                                   ViewDispatcherTypeFullscreen);
 
-    /* Tick timer */
-    app->tick_timer = furi_timer_alloc(flipper_tick_cb, FuriTimerTypePeriodic, app);
+    /* A real periodic event-loop timer, not the dispatcher's inactivity
+       tick: a busy receive event stream must not starve sweep/heartbeat
+       updates. All allocation/start/stop/free calls stay on the app thread. */
+    app->tick_timer = furi_event_loop_timer_alloc(
+        view_dispatcher_get_event_loop(app->view_dispatcher),
+        flipper_tick_cb, FuriEventLoopTimerTypePeriodic, app);
 
     flipper_lib_init(app->storage);
     flipper_adv_settings_load(app);
@@ -391,7 +402,7 @@ static FlipperApp* flipper_app_alloc(void) {
     app->usb_link           = NULL;
     app->uart_link          = NULL;
     /* Do not start dashboard workers during launch, even if an older settings
-       file enables them. The user can turn them on after the main menu appears. */
+       file enables them. I can turn them on after the main menu appears. */
 
     return app;
 }
@@ -400,9 +411,9 @@ static FlipperApp* flipper_app_alloc(void) {
 static void flipper_app_free(FlipperApp* app) {
     furi_assert(app);
 
-    /* Stop the heartbeat timer before freeing either link. */
-    furi_timer_stop(app->tick_timer);
-    furi_timer_free(app->tick_timer);
+    /* Stop/free before links and before the dispatcher frees its event loop. */
+    furi_event_loop_timer_stop(app->tick_timer);
+    furi_event_loop_timer_free(app->tick_timer);
 
     /* Finish TX and its callback before freeing links, so broadcasts cannot
        race link teardown. */
@@ -467,7 +478,7 @@ int32_t flipper_fobscan_app(void* p) {
     furi_assert(kl_self_test());
 
     FlipperApp* app = flipper_app_alloc();
-    furi_timer_start(app->tick_timer, furi_ms_to_ticks(500));
+    furi_event_loop_timer_start(app->tick_timer, furi_ms_to_ticks(500));
     scene_manager_next_scene(app->scene_manager, FlipperSceneMainMenu);
     view_dispatcher_run(app->view_dispatcher);
     flipper_app_free(app);

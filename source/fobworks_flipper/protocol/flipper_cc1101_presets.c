@@ -1,9 +1,6 @@
 #include "flipper_cc1101_presets.h"
 
-/*
- * Quarantined. See flipper_cc1101_presets.h. Returns fail-closed stubs so any
- * accidental caller cannot obtain a register dump to write to the radio.
- */
+/* Quarantined. See flipper_cc1101_presets.h. I return fail-closed stubs so any accidental caller cannot obtain a register dump to write to the radio. */
 
 const Cc1101Reg* fbw_preset_regs(FbwPresetId id, int* out_count) {
     (void)id;

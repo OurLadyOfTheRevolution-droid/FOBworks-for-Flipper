@@ -3,7 +3,7 @@
 #include <string.h>
 
 /* ─────────────────────────────────────────────────────────────────────────── */
-/* Helpers for summarizing captured data: byte entropy, an encoding hint from
+/* These are helpers I use for summarizing captured data: byte entropy, an encoding hint from
    Te and baud, free-space path loss, and timing references for 23 protocols.
    Entropy is a measure of this sample's byte distribution, not a crypto test. */
 /* ─────────────────────────────────────────────────────────────────────────── */
@@ -46,7 +46,7 @@ const char* rf_analysis_entropy_label(RfEntropyClass cls) {
     }
 }
 
-/* Estimate symbols per bit as (baud * te) / 1,000,000, then map 1, 2, 3, or
+/* I estimate symbols per bit as (baud * te) / 1,000,000, then map 1, 2, 3, or
    4 symbols to NRZ, Manchester, 3-PWM, or 4-PWM. This is a timing-based hint. */
 
 RfEncoding rf_analysis_classify_encoding(uint32_t te_us, uint32_t baud) {
@@ -71,7 +71,7 @@ const char* rf_analysis_encoding_label(RfEncoding enc) {
     }
 }
 
-/* Estimate the baud rate from the shortest pulse in a RAW capture. */
+/* I estimate the baud rate from the shortest pulse in a RAW capture. */
 
 uint32_t rf_analysis_estimate_baud(int32_t min_pulse_us) {
     if(min_pulse_us <= 0) return 0;
@@ -91,13 +91,13 @@ float rf_analysis_wavelength_mm(float freq_mhz) {
     return 299792458000.0f / (freq_mhz * 1000000.0f);
 }
 
-/* Return one quarter of the wavelength in centimetres. */
+/* I return one quarter of the wavelength in centimetres. */
 float rf_analysis_quarter_wave_cm(float freq_mhz) {
     float wl_mm = rf_analysis_wavelength_mm(freq_mhz);
     return (wl_mm / 4.0f) / 10.0f;  /* mm → cm */
 }
 
-/* Estimate airtime and duty cycle from the supplied bit, baud, and repeat data. */
+/* I estimate airtime and duty cycle from the supplied bit, baud, and repeat data. */
 
 uint32_t rf_analysis_tx_time_us(uint32_t bits, uint32_t baud) {
     if(baud == 0) return 0;

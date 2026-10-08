@@ -49,8 +49,7 @@ bool flipper_keyvault_upsert(FlipperVaultKey* keys, const char* name, uint64_t k
     memcpy(nm, name, n);
     nm[n] = '\0';
 
-    /* Match the name across the whole table first. Taking the first hole
-       would insert a duplicate when a later slot already holds that name. */
+    /* I match the name across the whole table first. Taking the first hole would insert a duplicate when a later slot already holds that name. */
     FlipperVaultKey* match = NULL;
     FlipperVaultKey* free_slot = NULL;
     for(size_t i = 0; i < FLIPPER_KEYVAULT_MAX; i++) {
@@ -100,20 +99,20 @@ bool flipper_keyvault_from_text(const char* text, FlipperVaultKey* keys, int max
     if(max <= 0) return false;
     memset(keys, 0, sizeof(FlipperVaultKey) * (size_t)max);
 
-    /* Work on a copy so '#' comments can be removed without changing input. */
+    /* I work on a copy so '#' comments can be removed without changing input. */
     char work[2048];
     size_t slen = strlen(text);
     if(slen == 0 || slen >= sizeof(work)) return false;
     memcpy(work, text, slen + 1);
 
-    /* Split lines manually because strtok_r() is unavailable in the firmware. */
+    /* I split lines manually because strtok_r() is unavailable in the firmware. */
     char* p = work;
     while(*p) {
         char* line = p;
-        /* Locate the end of this line. */
+        /* I locate the end of this line. */
         while(*p && *p != '\n' && *p != '\r') p++;
         char* end = p;
-        /* Advance past CR/LF before processing the next line. */
+        /* I advance past CR/LF before processing the next line. */
         while(*p == '\n' || *p == '\r') p++;
         *end = '\0';
 
@@ -123,7 +122,7 @@ bool flipper_keyvault_from_text(const char* text, FlipperVaultKey* keys, int max
         while(*s == ' ' || *s == '\t') s++;
         if(*s == '\0') continue;                 /* blank or comment-only line */
 
-        /* Read the entry as NAME followed by a hexadecimal key. */
+        /* I read the entry as NAME followed by a hexadecimal key. */
         size_t nlen = 0;
         while(s[nlen] != '\0' && s[nlen] != ' ' && s[nlen] != '\t') nlen++;
         if(nlen > 31) nlen = 31;

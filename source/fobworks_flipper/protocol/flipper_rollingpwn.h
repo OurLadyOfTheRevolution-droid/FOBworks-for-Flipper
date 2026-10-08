@@ -25,7 +25,7 @@ typedef struct {
     char note[64];
 } RollingPwnPlan;
 
-/* Return true only if every frame, in capture order, has the same serial,
+/* I return true only if every frame, in capture order, has the same serial,
    command, and profile frequency, and each masked counter step is in
    [1, max_delta]. This identifies a candidate sequence, not a vulnerability
    or a successful resynchronization. */

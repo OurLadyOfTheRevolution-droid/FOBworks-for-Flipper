@@ -15,7 +15,7 @@ static void expect(int ok, const char* label) {
 }
 
 /* ── KeeLoq eavesdrop-only clone path ─────────────────────────────────────── */
-/* Prove that kl_derive_device_key + flipper_kl_clone_next recover the counter
+/* I prove that kl_derive_device_key + flipper_kl_clone_next recover the counter
    and synthesize a valid NEXT frame from only a capture and the manufacturer
    key — the two-message, no-physical-access clone. */
 static void test_keeloq_clone(void) {
@@ -23,7 +23,7 @@ static void test_keeloq_clone(void) {
     uint32_t sn = 0x0ABCDEF;
     uint8_t btn = 0x2;
 
-    /* Build the device key the way AN1064 secure-learning would, then encrypt
+    /* I build the device key the way AN1064 secure-learning would, then encrypt
        a known counter to form a captured frame. */
     uint64_t seed = (uint64_t)(sn) | ((uint64_t)(sn) << 28);
     uint64_t dev = kl_encrypt((uint32_t)(seed & 0xFFFFFFFFu), mfr) |

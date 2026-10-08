@@ -23,8 +23,8 @@
 
 #define OEM_MAX_BYTES 16                 /* 128-bit PSA frame is the largest     */
 
-/* Try the estimated chip period plus offsets of ±15%. The margin covers an
-   estimate that landed slightly off a merged pulse run. Return the count used. */
+/* I try the estimated chip period plus offsets of ±15%. The margin covers an
+   estimate that landed slightly off a merged pulse run. I return the count used. */
 static int oem_te_candidates(const FlipperPulseBuf* buf, uint32_t* out, int max) {
     int n = 0;
     uint32_t te = buf->te_us;
@@ -34,8 +34,8 @@ static int oem_te_candidates(const FlipperPulseBuf* buf, uint32_t* out, int max)
     return n;
 }
 
-/* Find the first data cell after a long HIGH (at least 8T) and short LOW.
-   Return 0 when that leader is absent and data starts at the first edge. */
+/* I find the first data cell after a long HIGH (at least 8T) and short LOW.
+   I return 0 when that leader is absent and data starts at the first edge. */
 static int oem_pwm_data_start(const FlipperPulseBuf* buf, uint32_t te) {
     for(int i = 0; i + 1 < buf->len; i++) {
         if(buf->durations[i] >= te * 8 && buf->durations[i + 1] <= te * 3)
@@ -44,7 +44,7 @@ static int oem_pwm_data_start(const FlipperPulseBuf* buf, uint32_t te) {
     return 0;
 }
 
-/* Decode nbits PWM cells at data_start into out, MSB first. Return true only
+/* I decode nbits PWM cells at data_start into out, MSB first. I return true only
    if each consumed HIGH/LOW pair fits the expected bit-cell timing. */
 static bool oem_pwm_extract(const FlipperPulseBuf* buf, uint32_t te, int data_start,
                             int nbits, uint8_t* out) {
@@ -63,8 +63,8 @@ static bool oem_pwm_extract(const FlipperPulseBuf* buf, uint32_t te, int data_st
     return true;
 }
 
-/* Expand each Manchester run into rounded half-bit levels, then decode pairs
-   starting at phase. Store the result MSB first and return the recovered count. */
+/* I expand each Manchester run into rounded half-bit levels, then decode pairs
+   starting at phase. I store the result MSB first and return the recovered count. */
 static int oem_manch_extract(const FlipperPulseBuf* buf, uint32_t te, int start_idx,
                              int phase, int max_bits, uint8_t* out) {
     if(te == 0) return 0;
@@ -133,7 +133,7 @@ bool flipper_decode_ford(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
     for(int t = 0; t < ntes; t++) {
         uint32_t te = tes[t];
         if(te < 100 || te > 1000) continue;
-        /* Try both Manchester phases for V0. V2's PWM path was removed because
+        /* I try both Manchester phases for V0. I removed V2's PWM path because
            its 8-bit additive checksum also matched unrelated automotive PWM. */
         for(int phase = 0; phase < 2; phase++) {
             if(oem_manch_extract(buf, te, 0, phase, 64, raw) >= 64) {
@@ -332,7 +332,7 @@ static bool hkr_pwm(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
 /* KIA V7 uses Manchester half-symbols near 250 µs. The on-air bits are the
    complement of a 64-bit logical key with a fixed 0x4C top byte. The first
    nibble (0x4) is carried by the preamble/data sync, not by a Manchester cell;
-   the payload therefore carries only the low 60 bits. Restore its complement,
+   the payload therefore carries only the low 60 bits. I restore its complement,
    0xB, before checking the key.
    Recovered bytes: [0]=0x4C header, [1..2]=counter,
    [3..6]=28-bit serial plus 4-bit button, [7]=CRC-8.
@@ -427,7 +427,7 @@ bool flipper_decode_kia(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
             if(!kia_v0_parse(raw, 64, &f)) continue;
             /* An all-zero frame passes this CRC because its checksum is zero.
                A zero serial also appeared in misaligned non-KIA PWM such as
-               VW Golf4, so reject that result as well. */
+               VW Golf4, so I reject that result as well. */
             if(f.serial == 0) continue;
             r->addr = f.serial;  r->cnt = f.counter;  r->hop = f.counter;
             r->btn = f.button;  r->rolling = true;  r->te_us = te;  r->bits = 64;
@@ -453,7 +453,7 @@ bool flipper_decode_kia(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
        preamble pairs, a long start bit, then a 60-bit word with a 0xF preamble
        and CRC-8 (polynomial 0x7F). That CRC alone is not selective enough with
        the wide ±40% TE search: Suzuki_v0_kd and other PWM noise still match.
-       Keep this path force-only until a tighter TE or multi-frame gate has
+       I keep this path force-only until a tighter TE or multi-frame gate has
        been calibrated. */
     if(!flipper_decode_forced()) return false;
     {
@@ -598,14 +598,14 @@ static int lr_sync(uint32_t d) {
     return x < LR_SYNC_DELTA;
 }
 
-/* Compute the 3-bit check from the 9-bit count using its linear parity taps. */
+/* I compute the 3-bit check from the 9-bit count using its linear parity taps. */
 static uint8_t lr_calc_check(uint32_t c) {
     uint8_t c0 = ((c >> 1) ^ (c >> 2) ^ (c >> 3) ^ (c >> 4) ^ (c >> 6)) & 1;
     uint8_t c1 = ((c >> 0) ^ (c >> 2) ^ (c >> 3) ^ (c >> 4) ^ (c >> 5) ^ (c >> 6) ^ 1) & 1;
     uint8_t c2 = ((c >> 1) ^ (c >> 3) ^ (c >> 4) ^ (c >> 5) ^ (c >> 6)) & 1;
     return (uint8_t)(c0 | (c1 << 1) | (c2 << 2));
 }
-/* Select the 16-bit tail from one parity bit of the count. */
+/* I select the 16-bit tail from one parity bit of the count. */
 static uint16_t lr_calc_tail(uint32_t c) {
     int msb = (((c >> 0) ^ (c >> 2) ^ (c >> 4) ^ (c >> 5)) & 1) != 0;
     return msb ? 0xFFFF : 0x7FFF;
@@ -633,7 +633,7 @@ static int lr_add_bit(LrState* s, int bit) {
     return 1;
 }
 
-/* Track differential-Manchester transitions using the state-machine rules. */
+/* I track differential-Manchester transitions using the state-machine rules. */
 static int lr_transition(LrState* s, int level, uint32_t d) {
     if(!s->boundary_pad_skipped) {
         if(level && lr_short(d)) {
@@ -813,7 +813,7 @@ bool flipper_decode_bmw(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
     uint8_t best_frame[32];
     memset(best_frame, 0, sizeof(best_frame));
 
-    /* Require two sync intervals of at least 10 ms before the 64-bit run.
+    /* I require two sync intervals of at least 10 ms before the 64-bit run.
        Without them, constant-mark PPM has falsely matched VW Polo and similar. */
     for(int si = 0; si + 4 < cnt; si++) {
         if(B[si] < 10000 || B[si + 1] < 10000) continue;
@@ -868,7 +868,7 @@ bool flipper_decode_psa(const FlipperPulseBuf* buf, FlipperDecodeResult* r) {
         for(int phase = 0; phase < 2; phase++) {
             if(oem_manch_extract(buf, te, 0, phase, 128, raw) < 128) continue;
             PsaFrame f;
-            /* Decode Mode 0x23 only: its XOR and checksum are fast enough for
+            /* I decode Mode 0x23 only: its XOR and checksum are fast enough for
                this path. Mode 0x36 requires a 2^24 TEA search, too expensive
                for a per-capture callback. */
             if(!psa_decrypt_mode23(raw, 16, &f)) continue;
