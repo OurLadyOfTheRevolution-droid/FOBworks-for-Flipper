@@ -23,7 +23,8 @@ OEM_DECODERS = ../protocol/flipper_oem_wire.c ../protocol/flipper_vehrke.c \
 		../protocol/flipper_suzuki.c ../protocol/flipper_subaru.c \
 		../protocol/flipper_kia.c ../protocol/flipper_gm.c \
 		../protocol/flipper_ford.c ../protocol/flipper_chrysler.c \
-		../protocol/flipper_scher_khan.c ../protocol/flipper_secplus.c
+		../protocol/flipper_scher_khan.c ../protocol/flipper_secplus.c \
+		../protocol/flipper_fixed_force.c
 
 test_vehicle_decoder: test_vehicle_decoder.c ../protocol/flipper_decoders.c \
 		../protocol/flipper_keeloq.c ../protocol/flipper_scratch.c \

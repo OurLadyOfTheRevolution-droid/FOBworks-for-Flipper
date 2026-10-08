@@ -8,7 +8,7 @@ App(
     stack_size=4 * 1024,
     fap_category="Sub-GHz",
     fap_version=(1, 4),
-    fap_description="v1.4 for official 1.4.3. Slim host FAP; catalog and force OEMs (Sec+, Scher-Khan, Hitag2, Mazda, Honda, Toyota, Nissan, PSA) live in embedded plugins.",
+    fap_description="v1.4 for official 1.4.3. Slim host FAP; catalog and force extras (Sec+, Scher-Khan, Hitag2, OEM force parsers, fixed-code force parsers) live in embedded plugins.",
     sources=[
         "flipper_fobscan_app.c",
         "link/flipper_link.c",
@@ -92,5 +92,6 @@ App(
         "protocol/flipper_toyota.c",
         "protocol/flipper_vehrke.c",
         "protocol/flipper_psa.c",
+        "protocol/flipper_fixed_force.c",
     ],
 )
