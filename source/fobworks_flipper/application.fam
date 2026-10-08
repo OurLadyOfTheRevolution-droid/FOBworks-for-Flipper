@@ -8,7 +8,7 @@ App(
     stack_size=4 * 1024,
     fap_category="Sub-GHz",
     fap_version=(1, 4),
-    fap_description="v1.4 for official 1.4.3. Slim host FAP; catalog, Sec+, Scher-Khan, Hitag2, Mazda, Honda, and Toyota live in embedded plugins.",
+    fap_description="v1.4 for official 1.4.3. Slim host FAP; catalog, Sec+, Scher-Khan, Hitag2, Mazda, Honda, Toyota, and Nissan live in embedded plugins.",
     sources=[
         "flipper_fobscan_app.c",
         "link/flipper_link.c",
@@ -40,7 +40,6 @@ App(
         "protocol/flipper_tx_session.c",
         "protocol/flipper_vag.c",
         "protocol/flipper_vehicles_host.c",
-        "protocol/flipper_vehrke.c",
         "scenes/flipper_scene_adv_settings.c",
         "scenes/flipper_scene_credits.c",
         "scenes/flipper_scene_fobback.c",
@@ -92,5 +91,6 @@ App(
         "protocol/flipper_mazda.c",
         "protocol/flipper_honda.c",
         "protocol/flipper_toyota.c",
+        "protocol/flipper_vehrke.c",
     ],
 )

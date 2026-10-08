@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/stat.h>
 
 #define SUB_GAP_US  16000  /* keep ~12 ms Santa Fe / VAG syncs inside a burst; true inter-press gaps are usually >> 16 ms */
