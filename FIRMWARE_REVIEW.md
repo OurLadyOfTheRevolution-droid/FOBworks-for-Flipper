@@ -29,8 +29,8 @@ The host FAP is slim EXTERNAL. Vehicle tables live in `fw_catalog.fal`.
 Sec+ 1.0/2.0, Scher-Khan, Hitag2, Mazda, Honda (incl. KR5), Toyota, and
 Nissan live in `fw_force.fal`. Both plugins are `fal_embedded` under
 `/assets/plugins/`, mapped on demand and unmapped on the main menu. I keep
-the live section sizes and budgets in SIZE_BASELINE.md (host `.text`
-61852 / 61864 before this Nissan peel) and stay inside those ceilings.
+the live section sizes and budgets in SIZE_BASELINE.md and stay inside
+those ceilings.
 
 Host tests live in `source/fobworks_flipper/tools`. `make test` is the check
 I run after these edits.
@@ -173,9 +173,9 @@ them for CORPUS_HONESTY.md.
   keeps Security+2.0 force-only).
 - Classify (`40 --check`): Security+1.0 and Security+2.0 forced 100%. Overall
   forced 100% on this seed. Scher-Khan force path is covered in `test_sim`.
-- `ufbt` APPCHK: Target 7, API 87.1. Recorded host budget is `.text`
-  61864 / `.rodata` 16621 / `.bss` 5924 (see SIZE_BASELINE.md). I refresh
-  those figures after every peel that changes the host image.
+- `ufbt` APPCHK: Target 7, API 87.1. After parking Nissan in `fw_force.fal`,
+  host `.text` is 61464 / 61864 (400 free); `.rodata` 15431 / 16621;
+  `.bss` 5200 / 5924. See SIZE_BASELINE.md.
 
 ## Remaining debt
 
