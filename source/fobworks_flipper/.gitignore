@@ -11,6 +11,7 @@
 /tools/test_hitag2
 /tools/test_link_auth
 /tools/test_new_modules
+/tools/test_fobscan_display
 /tools/sub_check
 /tools/test_bridge
 /tools/test_bridge_unconfigured
