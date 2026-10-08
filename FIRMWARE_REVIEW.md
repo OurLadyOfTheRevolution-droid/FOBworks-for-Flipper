@@ -27,10 +27,11 @@ FOBback, FOBpwn, FOBreport, FOBfreq, FOBtrack, FOBroll).
 
 The host FAP is slim EXTERNAL. Vehicle tables live in `fw_catalog.fal`.
 Sec+ 1.0/2.0, Scher-Khan, Hitag2, Mazda, Honda (incl. KR5), Toyota, Nissan,
-and PSA Mode 0x23 live in `fw_force.fal`. Both plugins are `fal_embedded`
-under `/assets/plugins/`, mapped on demand and unmapped on the main menu. I
-keep the live section sizes and budgets in SIZE_BASELINE.md and stay inside
-those ceilings.
+PSA Mode 0x23, and the force-only fixed-code family (CAME, Nice FLO, FAAC
+SLH, DoorHan, Ansonic, Linear-10, Holtek, PT2262, EV1527, TPMS) live in
+`fw_force.fal`. Both plugins are `fal_embedded` under `/assets/plugins/`,
+mapped on demand and unmapped on the main menu. I keep the live section
+sizes and budgets in SIZE_BASELINE.md and stay inside those ceilings.
 
 Host tests live in `source/fobworks_flipper/tools`. `make test` is the check
 I run after these edits.
@@ -148,10 +149,11 @@ on the listen scene now; Make maps the catalog first.
 ### 12. Force extras and link auth
 
 Security+ 1.0 / 2.0, Scher-Khan, Hitag2, Mazda, Honda (incl. KR5), Toyota,
-Nissan, and PSA Mode 0x23 parsers live in `fw_force.fal` (host stubs only).
-Auto stays clean for force-only families; Mazda and Honda KR5 remain
-Auto-safe via the stubs. PSA keeps its own Manchester helpers inside
-`flipper_psa.c` so `oem_wire` stays on the host without the Mode 0x23 path.
+Nissan, PSA Mode 0x23, and the force-only fixed-code parsers live in
+`fw_force.fal` (host stubs only). Auto stays clean for force-only families;
+Mazda and Honda KR5 remain Auto-safe via the stubs. PSA keeps its own
+Manchester helpers inside `flipper_psa.c`. Beninca stays on the host because
+it wraps KeeLoq recovery.
 Dashboard Link Auth installs a fresh random 6-digit code when turned On —
 never a guessable default. Commands honor `auth` / `code=` / `new_code=`.
 The WiFi bridge requires `AUTH:<BRIDGE_KEY>` before forwarding. External
