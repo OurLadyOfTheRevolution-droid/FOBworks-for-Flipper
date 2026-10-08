@@ -1,7 +1,7 @@
 # ARM stack-frame checks
 
 Compiler: the official 1.4.3 SDK compiler and production compile commands.
-FAP SHA-256: `039d75e9d37c83237d295b7503a9fe43e28b6448650196dd9be7e8803ae96ce5`
+FAP SHA-256: `6d207a0d4629f8859d653ea4d752a81075e5adb6c9bfcebd4682365333919a5b`
 
 | Function | Measured frame (bytes) | Frame budget (bytes) |
 | --- | ---: | ---: |
