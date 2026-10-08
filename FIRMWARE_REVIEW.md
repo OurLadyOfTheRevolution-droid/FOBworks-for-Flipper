@@ -183,9 +183,10 @@ them for CORPUS_HONESTY.md.
 ## Remaining debt
 
 **More OEM FALs.** Catalog and force extras are the first two plugins.
-Nissan and PSA Mode 0x23 now sit with the other force OEMs. Same ABI
-(`FOBWORKS_PLUGIN_APPID` / `FOBWORKS_PLUGIN_ABI`). I am not forking into
-firmware for size.
+Nissan, PSA Mode 0x23, and the force-only fixed-code family now sit in
+`fw_force.fal`. Host `.text` has about 3 KiB of loader headroom again.
+Same ABI (`FOBWORKS_PLUGIN_APPID` / `FOBWORKS_PLUGIN_ABI`). I am not
+forking into firmware for size.
 
 **Dashboard auth.** Gate is on. Enabling Link Auth mints a random 6-digit
 code (shown in Advanced Settings). The WiFi bridge also requires
